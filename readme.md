@@ -24,4 +24,4 @@ Instruction TCM RAM，紧耦合指令内存，通常放极高实时性的代码
 要添加机器人执行逻辑：在APP层调用所需的功能函数->debug任务书写功能逻辑、状态机->测试->新建个任务文件把内容装里面
 <img width="850" height="857" alt="6324839ae149e8f52d0411ab866e990b" src="https://github.com/user-attachments/assets/525838a6-2a47-48ca-a4d0-c90de74be154" />
 
-conflict test
+conflict test xxxxxx
