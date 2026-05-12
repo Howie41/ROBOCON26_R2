@@ -35,6 +35,10 @@ class CanBus;
  */
 class CanDevice {
 public:
+  /**
+   * @brief CAN设备构造函数
+   * 
+   */
   CanDevice(CanBus *manager, uint32_t id = 0, bool is_extid = false,
             uint32_t tx_id = 0, bool tx_is_extid = false)
       : is_extid_(is_extid), id_(id), tx_id_(tx_id), tx_is_extid_(tx_is_extid),

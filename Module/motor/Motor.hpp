@@ -35,6 +35,10 @@ public:
   MotorBase() = default;
 
   // 对外接口
+  /**
+   * @brief 设置电机输出命令，并按最大允许值自动限幅。
+   * @param cmd 目标命令值。
+   */
   void setMotorCmd(float cmd) {
     if (cmd > max_cmd_)
       cmd = max_cmd_;
@@ -43,18 +47,70 @@ public:
     cmd_ = cmd;
   }
 
+  /**
+   * @brief 设置电机减速比。
+   * @param config 减速比配置值。
+   */
   void setMotorReduction(const float config) { reduction_ratio_ = config; }
+
+  /**
+   * @brief 设置命令值的绝对值上限。
+   * @param config 最大命令值。
+   */
   void setMaxCmd(const float config) { max_cmd_ = config; }
 
+  /**
+   * @brief 获取当前输出端单圈位置。
+   * @return 单圈位置。
+   */
   float getCurrentSinglePos(void) const { return single_pos_; }
+
+  /**
+   * @brief 获取当前输出端累计位置。
+   * @return 累计位置。
+   */
   float getCurrentSumPos(void) const { return sum_pos_; }
+
+  /**
+   * @brief 获取当前输出端速度。
+   * @return 速度值。
+   */
   float getCurrentSpeed(void) const { return speed_; }
+
+  /**
+   * @brief 获取当前输出端力矩。
+   * @return 力矩值。
+   */
   float getCurrentTorque(void) const { return torque_; }
+
+  /**
+   * @brief 获取当前电机温度。
+   * @return 温度值，单位摄氏度。
+   */
   float getCurrentTemperature(void) const { return temperature_; }
 
+  /**
+   * @brief 获取转子侧单圈位置原始值。
+   * @return 原始单圈位置。
+   */
   float getRawCurrentSinglePos(void) const { return raw_single_pos_; }
+
+  /**
+   * @brief 获取转子侧累计位置原始值。
+   * @return 原始累计位置。
+   */
   float getRawCurrentSumPos(void) const { return raw_sum_pos_; }
+
+  /**
+   * @brief 获取转子侧速度原始值。
+   * @return 原始速度。
+   */
   float getRawCurrentSpeed(void) const { return raw_speed_; }
+
+  /**
+   * @brief 获取转子侧力矩原始值。
+   * @return 原始力矩。
+   */
   float getRawCurrentTorque(void) const { return raw_torque_; }
 
   // 电机最原始output指令(速度/位置/电流)
@@ -86,21 +142,48 @@ enum DJIMotorCanGroup {
 // 打包大疆电机can帧 - 聚合 4 个电机的命令到单个 8 字节帧
 // tx_id=0x200 对应 0x201-0x204; tx_id=0x1FF 对应 0x205-0x208
 // 调用方负责提取电机ID和命令值，函数只负责数据聚合
+/**
+ * @brief 将大疆电机命令聚合到单个 CAN 帧数据中。
+ * @param tx_id 目标发送 ID，决定当前帧对应的 4 路槽位。
+ * @param motor_ids 电机 ID 列表。
+ * @param commands 与 motor_ids 对应的命令值。
+ * @param motor_count 电机数量。
+ * @param data 输出数据区，长度至少 8 字节。
+ * @param len 输出帧长度，固定为 8。
+ */
 void packDJIMotorCanMsg(uint32_t tx_id, const uint32_t motor_ids[],
                         const int16_t commands[], uint8_t motor_count,
                         uint8_t data[8], uint8_t &len);
 
 class C610Motor : public CanDevice, public MotorBase {
 public:
+  /**
+   * @brief 构造一个 C610 电机对象。
+   * @param manager CAN 总线管理器。
+   * @param id 设备接收 ID。
+   * @param is_extid 接收 ID 是否为扩展帧。
+   * @param tx_id 设备发送 ID。
+   * @param tx_is_extid 发送 ID 是否为扩展帧。
+   */
   C610Motor(CanBus *manager, uint32_t id, bool is_extid, uint32_t tx_id,
             bool tx_is_extid)
       : CanDevice(manager, id, is_extid, tx_id, tx_is_extid) {}
 
+  /**
+   * @brief 初始化减速比和命令上限。
+   * @param reduction_ratio 输出端减速比。
+   * @param max_cmd 允许的最大命令值。
+   */
   void init(float reduction_ratio = 36, float max_cmd = 10000.f) {
     setMotorReduction(reduction_ratio);
     setMaxCmd(max_cmd);
   }
 
+  /**
+   * @brief 解析 C610 电机上报的反馈数据。
+   * @param data 原始 8 字节 CAN 数据。
+   * @param len 数据长度。
+   */
   void onRx(const uint8_t data[8], uint8_t len) override {
     if (len < 8)
       return;
@@ -151,12 +234,22 @@ public:
   // buildTx 返回自己的 int16 命令，不发送整个帧
   // 聚合由应用层的 packDJIMotorCanMsg() 负责
 
+  /**
+   * @brief C610 不单独组帧，交由上层聚合发送。
+   * @param data 发送缓冲区。
+   * @param len 输出长度。
+   * @return 始终返回 false，表示不生成独立帧。
+   */
   bool buildTx(uint8_t data[8], uint8_t &len) override {
     // C610 不单独发帧，返回 false
     len = 0;
     return false;
   }
 
+  /**
+   * @brief 将内部命令换算为驱动器使用的原始指令值。
+   * @return 原始命令值。
+   */
   float cmdTrans() { return cmd_ * (10000.f / 10000.0f); }
 
 private:
@@ -174,15 +267,33 @@ private:
 
 class C620Motor : public CanDevice, public MotorBase {
 public:
+  /**
+   * @brief 构造一个 C620 电机对象。
+   * @param manager CAN 总线管理器。
+   * @param id 设备接收 ID。
+   * @param is_extid 接收 ID 是否为扩展帧。
+   * @param tx_id 设备发送 ID。
+   * @param tx_is_extid 发送 ID 是否为扩展帧。
+   */
   C620Motor(CanBus *manager, uint32_t id, bool is_extid, uint32_t tx_id,
             bool tx_is_extid)
       : CanDevice(manager, id, is_extid, tx_id, tx_is_extid) {}
 
+  /**
+   * @brief 初始化减速比和命令上限。
+   * @param reduction_ratio 输出端减速比。
+   * @param max_cmd 允许的最大命令值。
+   */
   void init(float reduction_ratio = 19, float max_cmd = 20000.0f) {
     setMotorReduction(reduction_ratio);
     setMaxCmd(max_cmd);
   }
 
+  /**
+   * @brief 解析 C620 电机上报的反馈数据。
+   * @param data 原始 8 字节 CAN 数据。
+   * @param len 数据长度。
+   */
   void onRx(const uint8_t data[8], uint8_t len) override {
     if (len < 8)
       return;
@@ -230,8 +341,18 @@ public:
     temperature_ = static_cast<float>(data[6]);
   }
 
+  /**
+   * @brief 将内部命令换算为驱动器使用的原始指令值。
+   * @return 原始命令值。
+   */
   float cmdTrans() { return cmd_ * 16384.f / 20000.0f; }
 
+  /**
+   * @brief C620 不单独组帧，交由上层聚合发送。
+   * @param data 发送缓冲区。
+   * @param len 输出长度。
+   * @return 始终返回 false，表示不生成独立帧。
+   */
   bool buildTx(uint8_t data[8], uint8_t &len) override {
     // C610 不单独发帧，返回 false
     len = 0;
@@ -253,6 +374,14 @@ private:
 
 class GM6020Motor : public CanDevice, public MotorBase {
 public:
+  /**
+   * @brief 构造一个 GM6020 电机对象。
+   * @param manager CAN 总线管理器。
+   * @param id 设备接收 ID。
+   * @param is_extid 接收 ID 是否为扩展帧。
+   * @param tx_id 设备发送 ID。
+   * @param tx_is_extid 发送 ID 是否为扩展帧。
+   */
   GM6020Motor(CanBus *manager, uint32_t id, bool is_extid, uint32_t tx_id,
               bool tx_is_extid)
       : CanDevice(manager, id, is_extid, tx_id, tx_is_extid) {}
@@ -262,6 +391,9 @@ private:
 
 class DM4310Motor : public CanDevice, public MotorBase {
 public:
+  /**
+   * @brief DM4310 支持的控制模式。
+   */
   enum ControlMode : uint8_t {
     Mit = 0x01,
     PosWithSpeed = 0x02,
@@ -269,6 +401,9 @@ public:
     Psi = 0x04,
   };
 
+  /**
+   * @brief DM4310 支持的模式控制命令。
+   */
   enum MotorModeCmd : uint8_t {
     ModeNone = 0x00,
     Enable = 0x01,
@@ -287,6 +422,15 @@ public:
     ChangeOkStep = 5,
   };
 
+  /**
+   * @brief 构造一个 DM4310 电机对象。
+   * @param manager CAN 总线管理器。
+   * @param id 设备接收 ID。
+   * @param is_extid 接收 ID 是否为扩展帧。
+   * @param tx_id 设备发送 ID。
+   * @param tx_is_extid 发送 ID 是否为扩展帧。
+   * @param mode 初始控制模式。
+   */
   DM4310Motor(CanBus *manager, uint32_t id, bool is_extid, uint32_t tx_id,
               bool tx_is_extid, ControlMode mode = PosWithSpeed)
       : CanDevice(manager, id, is_extid, tx_id, tx_is_extid) {
@@ -304,6 +448,11 @@ public:
     dmMotorEnable();
   }
 
+  /**
+   * @brief 位置-速度复合控制。
+   * @param pos 目标位置。
+   * @param speed 目标速度。
+   */
   void posWithSpeedControl(float pos, float speed) {
     const bool cs_changed = (target_pos_ != pos) || (target_speed_ != speed);
     target_pos_ = pos;
@@ -328,6 +477,10 @@ public:
     (void)manager_->addCanMsg(pack);
   }
 
+  /**
+   * @brief 速度控制。
+   * @param speed 目标速度。
+   */
   void speedControl(float speed) {
     const bool cs_changed = (target_speed_ != speed);
     target_speed_ = speed;
@@ -351,6 +504,14 @@ public:
     (void)manager_->addCanMsg(pack);
   }
 
+  /**
+   * @brief MIT 模式控制。
+   * @param speed 目标速度。
+   * @param pos 目标位置。
+   * @param torque 目标力矩。
+   * @param Kp 位置环比例系数。
+   * @param Kd 速度环比例系数。
+   */
   void mitControl(float speed, float pos, float torque, float Kp, float Kd) {
     const bool cs_changed = (target_speed_ != speed) || (target_pos_ != pos) || (target_kp_ != Kp) || (target_kd_ != Kd);
     target_speed_ = speed;
@@ -378,6 +539,12 @@ public:
     (void)manager_->addCanMsg(pack);
   }
 
+  /**
+   * @brief PSI 模式控制。
+   * @param pos 目标位置。
+   * @param speed 目标速度。
+   * @param current 目标电流。
+   */
   void psiControl(float pos, float speed, float current) {
     const bool cs_changed = (target_pos_ != pos) || (target_speed_ != speed) || (target_current_ != current);
     target_pos_ = pos;
@@ -403,6 +570,9 @@ public:
     (void)manager_->addCanMsg(pack);
   }
 
+  /**
+   * @brief 发送电机使能命令。
+   */
   void dmMotorEnable(void) {
     motor_mode_cmd_ = Enable;
 
@@ -421,6 +591,9 @@ public:
     (void)manager_->addCanMsg(pack);
   }
 
+  /**
+   * @brief 发送电机失能命令。
+   */
   void dmMotorDisable(void) {
      motor_mode_cmd_ = Disable; 
     if (manager_ == nullptr) {
@@ -436,8 +609,11 @@ public:
     pack.id = tx_id_;
     pack.type = CanBus::Type::STANDARD;
     (void)manager_->addCanMsg(pack);
-    }
+  }
 
+  /**
+   * @brief 发送电机模式切换命令。
+   */
   void dmMotorChangeMode(void){
     motor_mode_cmd_ = ChangeMode;
     if (manager_ == nullptr) {
@@ -455,6 +631,9 @@ public:
     (void)manager_->addCanMsg(pack);
   }
 
+  /**
+   * @brief 发送电机配置保存命令。
+   */
   void dmMotorSave(void){
     motor_mode_cmd_ = SaveConfig;
     if (manager_ == nullptr) {
@@ -472,10 +651,22 @@ public:
     (void)manager_->addCanMsg(pack);
   }
 
+  /**
+   * @brief 发送电机回零位命令。
+   */
   void dmMotorZeroPosition(void) { motor_mode_cmd_ = ZeroPosition; }
 
+  /**
+   * @brief 发送清除错误命令。
+   */
   void dmMotorClearError(void) { motor_mode_cmd_ = ClearError; }
 
+  /**
+   * @brief 按状态机推进 DM4310 的模式切换流程。
+   * @param mode 目标控制模式。
+   * @param status 当前切换状态。
+   * @return 1 表示切换完成或无需切换，0 表示还需继续推进。
+   */
   uint8_t modeChange(ControlMode mode, ModeChangeStatus status) {
     if (status == DisableStep && ctrl_mode_ != mode) {
       target_mode_ = mode;
@@ -516,6 +707,11 @@ public:
     return 0;
   }
 
+  /**
+   * @brief 解析 DM4310 反馈帧。
+   * @param data 原始 8 字节 CAN 数据。
+   * @param len 数据长度。
+   */
   void onRx(const uint8_t data[8], uint8_t len) override {
     if (len < 6)
       return;
@@ -537,6 +733,12 @@ public:
     temperature_ = 0.0f;
   }
 
+  /**
+   * @brief 根据当前模式打包 DM4310 发送帧。
+   * @param data 发送缓冲区。
+   * @param len 输出长度。
+   * @return 是否成功生成发送帧。
+   */
   bool buildTx(uint8_t data[8], uint8_t &len) override {
     for (uint8_t i = 0; i < 8; ++i) {
       data[i] = 0;
@@ -676,6 +878,11 @@ private:
   static constexpr float PSI_I_MIN = 0.0f;
   static constexpr float PSI_I_MAX = 18.0f;
 
+  /**
+   * @brief 获取指定控制模式对应的发送 ID 偏移。
+   * @param mode 控制模式。
+   * @return 相对基址的 ID 偏移。
+   */
   static uint16_t modeOffsetFromCtrlMode(ControlMode mode) {
     if (mode == Mit) {
       return 0x000;
@@ -689,6 +896,13 @@ private:
     return 0x300;
   }
 
+  /**
+   * @brief 将输入值限制在给定范围内。
+   * @param v 待限制的值。
+   * @param lo 下限。
+   * @param hi 上限。
+   * @return 限幅后的值。
+   */
   static float constrain(float v, float lo, float hi) {
     if (v < lo)
       return lo;
@@ -697,6 +911,14 @@ private:
     return v;
   }
 
+  /**
+   * @brief 将浮点数映射为定点整数。
+   * @param x1 输入值。
+   * @param x1_min 输入下限。
+   * @param x1_max 输入上限。
+   * @param bits 输出位宽。
+   * @return 映射后的整数值。
+   */
   static int float_to_uint(float x1, float x1_min, float x1_max, int bits) {
     const float span = x1_max - x1_min;
     const float offset = x1_min;
@@ -704,6 +926,14 @@ private:
                             ((static_cast<float>((1 << bits) - 1)) / span));
   }
 
+  /**
+   * @brief 将定点整数映射回浮点数。
+   * @param x1_int 输入整数。
+   * @param x1_min 输出下限。
+   * @param x1_max 输出上限。
+   * @param bits 输入位宽。
+   * @return 映射后的浮点值。
+   */
   static float uint_to_float(int x1_int, float x1_min, float x1_max, int bits) {
     const float span = x1_max - x1_min;
     const float offset = x1_min;
