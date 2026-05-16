@@ -33,14 +33,14 @@
 
 osThreadId_t Debug_TaskHandle;
 
-extern DM4310Motor arm4310_motor; 
+extern DM43xxMotor arm4310_motor; 
 float target_position = 0.0f;
 float target_speed = 5 * 360.0f;
 float target_torque = 1.0f;
 
 
 static inline void debugInit(void) {
-  arm4310_motor.init(10.0f, 18.0f, DM4310Motor::PosWithSpeed);
+  arm4310_motor.init(10.0f, 18.0f, DM43xxMotor::PosWithSpeed);
   // 明确推进模式切换序列，避免状态机停滞导致不发帧
   arm4310_motor.dmMotorDisable();
   osDelay(50);

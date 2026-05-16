@@ -389,7 +389,7 @@ public:
 private:
 };
 
-class DM4310Motor : public CanDevice, public MotorBase {
+class DM43xxMotor : public CanDevice, public MotorBase {
 public:
     /**
      * @brief DM4310 支持的控制模式。
@@ -423,7 +423,7 @@ public:
      * @param tx_is_extid 发送 ID 是否为扩展帧。
      * @param mode 初始控制模式。
      */
-    DM4310Motor(CanBus *manager, uint32_t id, bool is_extid, uint32_t tx_id,
+    DM43xxMotor(CanBus *manager, uint32_t id, bool is_extid, uint32_t tx_id,
                             bool tx_is_extid, ControlMode mode = PosWithSpeed)
             : CanDevice(manager, id, is_extid, tx_id, tx_is_extid) {
         tx_base_id_ = tx_id;
