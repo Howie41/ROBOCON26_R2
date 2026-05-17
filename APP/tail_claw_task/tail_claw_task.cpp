@@ -83,8 +83,8 @@ float set_move_pos(float pos,PID_t *pos_pid,PID_t *speed_pid)
 
 float set_roll_pos(float pos,PID_t *pos_pid,PID_t *speed_pid)
 {
-    float speed_cmd=PID_Calculate(pos_pid,pos,tail_claw_move_motor.getCurrentSinglePos());
-    return PID_Calculate(speed_pid,speed_cmd,tail_claw_move_motor.getCurrentSpeed());
+    float speed_cmd=PID_Calculate(pos_pid,tail_claw_roll_motor.getCurrentSinglePos(),pos);
+    return PID_Calculate(speed_pid,speed_cmd,tail_claw_roll_motor.getCurrentSpeed());
 }
 
 //由于没有上位机，此处先以xbox来代替 
@@ -148,7 +148,7 @@ void tail_claw_move_close()
     {
         tail_claw_roll_target_pos -= move_step;
     }else if(weapon_match_state_&motor_roll_up) {
-        tail_claw_move_target_pos += move_step;
+        tail_claw_roll_target_pos += move_step;
     }
 
     float move_cmd = set_move_pos(tail_claw_move_target_pos,
@@ -164,14 +164,13 @@ void tail_claw_move_close()
 }  
 void tail_claw_task(void *argument) {
     TickType_t currentTime = xTaskGetTickCount();
-
+    tail_claw_init();
     for(;;)
     {
         get_weapon_match_state();
         tail_claw_move_close();
         
-        
-        (&currentTime, 1);
+        vTaskDelayUntil(&currentTime, 1);
     }
 }
 

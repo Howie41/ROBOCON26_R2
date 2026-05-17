@@ -63,8 +63,8 @@ DM4310Motor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,
                          DM4310Motor::PosWithSpeed);
 
 //尾部的电机
-C610Motor tail_claw_move_motor(&fdcan3_bus, 0x207, 0, 0x1FF, 0);
-C620Motor tail_claw_roll_motor(&fdcan3_bus, 0x208, 0, 0x1FF, 0);
+C610Motor tail_claw_move_motor(&fdcan2_bus, 0x207, 0, 0x1FF, 0);
+C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x208, 0, 0x1FF, 0);
 
 
 // 串口外设（回调+信号量唤醒处理线程进行解包）
@@ -206,7 +206,7 @@ void can2SendTask(void *argument) {
     commands[2] = static_cast<int16_t>(tail_claw_move_motor.cmdTrans()); // 0x207
     commands[3] = static_cast<int16_t>(tail_claw_roll_motor.cmdTrans()); // 0x208
     packDJIMotorCanMsg(pack.id, arm_motor_ids, commands, 4, pack.data, len);
-    // fdcan2_bus.addCanMsg(pack);
+     fdcan2_bus.addCanMsg(pack);
 
     vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
   }
