@@ -53,14 +53,10 @@ class InfraredModule {
          * @param len 数据长度
          */
         void UartPortRxCbHandler(const uint8_t *data, size_t len) {
-            if (data == nullptr || len == 0) {
-                return;
-            }
+            if (data == nullptr || len == 0) return;
 
             if (current_state_.load() == state::READY_TO_RECEIVE_DATA) {
-                if (len < 3) {
-                    return;
-                }
+                if (len < 3) return;
 
                 // 红外模块正常帧：地址1 + 地址2 + data
                 infrared_msg_.address1 = data[0];
@@ -71,8 +67,7 @@ class InfraredModule {
             }
 
             if (current_state_.load() == state::AWAITING_FOR_ACK) {
-                (void)len;
-                // ACK 帧只关心首字节
+                // ACK只有一个字节
                 if (data[0] == ACK_CODE) {
                     changeStateTo(state::ACK_SUCCESS);
                 } else {
