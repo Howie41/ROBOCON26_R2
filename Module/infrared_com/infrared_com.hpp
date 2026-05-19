@@ -11,9 +11,13 @@
 #pragma once
 #include "cmsis_os2.h"
 #include "main.h"
+#include "UartPort.hpp"
+#include "stm32h7xx_hal_uart.h"
 #include "topic_pool.h"
 #include "topics.hpp"
+#include "usart.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <atomic>
 
@@ -31,7 +35,7 @@ class InfraredModule {
             ACK_ERROR               // 收到模块应答，但应答错误
         };
 
-        InfraredModule(UART_HandleTypeDef &huart, DMA_HandleTypeDef &hdma) : hal_huart_(huart), hal_hdma_(hdma) {}
+        explicit InfraredModule(UartPort &uart_port) : uart_port_(uart_port) {}
         ~InfraredModule() = default;
 
         /**
@@ -44,26 +48,35 @@ class InfraredModule {
         }
 
         /**
-         * @brief HAL_UARTEx_RxEventCallback 回调处理函数
-         * @param event_huart 事件发生的串口句柄
-         * @param event_size 事件的数据长度
+         * @brief 由 UartPort 的接收回调转发进来
+         * @param data 新收到的数据片段
+         * @param len 数据长度
          */
-        void rxEventCallbackHandler(UART_HandleTypeDef *event_huart, uint16_t event_size) {
-            if (event_huart->Instance == hal_huart_.Instance) {
-                if (current_state_.load() == state::READY_TO_RECEIVE_DATA) {
-                    // 把接收到的数据发送出去
-                    infrared_msg_.address1 = rx_buffer_[0];
-                    infrared_msg_.address2 = rx_buffer_[1];
-                    infrared_msg_.data = rx_buffer_[2];
-                    infrared_pub_.Publish(infrared_msg_);
+        void UartPortRxCbHandler(const uint8_t *data, size_t len) {
+            if (data == nullptr || len == 0) {
+                return;
+            }
 
-                } else if (current_state_.load() == state::AWAITING_FOR_ACK) {
-                    // 处理接收到的ACK数据
-                    if (rx_buffer_[0] == ACK_CODE) {
-                        changeStateTo(state::ACK_SUCCESS);
-                    } else {
-                        changeStateTo(state::ACK_ERROR);
-                    }
+            if (current_state_.load() == state::READY_TO_RECEIVE_DATA) {
+                if (len < 3) {
+                    return;
+                }
+
+                // 红外模块正常帧：地址1 + 地址2 + data
+                infrared_msg_.address1 = data[0];
+                infrared_msg_.address2 = data[1];
+                infrared_msg_.data = data[2];
+                infrared_pub_.Publish(infrared_msg_);
+                return;
+            }
+
+            if (current_state_.load() == state::AWAITING_FOR_ACK) {
+                (void)len;
+                // ACK 帧只关心首字节
+                if (data[0] == ACK_CODE) {
+                    changeStateTo(state::ACK_SUCCESS);
+                } else {
+                    changeStateTo(state::ACK_ERROR);
                 }
             }
         }
@@ -88,14 +101,14 @@ class InfraredModule {
             buffer[3] = address2;
             buffer[4] = data;
 
-            status = HAL_UART_Transmit(&hal_huart_, buffer, sizeof(buffer), timeout);
+            status = uart_port_.write(buffer, sizeof(buffer), timeout);
             if (status != HAL_OK) return status;
 
             // 等待遥控模块应答
             changeStateTo(state::AWAITING_FOR_ACK);
 
             while (osKernelGetTickCount() - start_time < timeout) {
-                // 此时状态是 AWAITING_FOR_ACK，此时状态由 rxEventCallbackHandler 接管
+                // 此时状态是 AWAITING_FOR_ACK，此时状态由 UartPortRxCbHandler 接管
 
                 if (current_state_.load() == state::ACK_SUCCESS) {
                     changeStateTo(state::READY_TO_RECEIVE_DATA);
@@ -114,64 +127,18 @@ class InfraredModule {
     private:
         static constexpr uint8_t ACK_CODE = 0xF1;
 
-        UART_HandleTypeDef &hal_huart_;
-        DMA_HandleTypeDef &hal_hdma_;
+        UartPort &uart_port_;
 
         std::atomic<state> current_state_{state::NOT_INITIALIZED};
-
-        uint8_t rx_buffer_[BUFFER_SIZE] = {0};
 
         TypedTopicPublisher<pub_infrared_msg> infrared_pub_{INFRARED_MSG_TOPIC};
         pub_infrared_msg infrared_msg_{};
 
-        HAL_StatusTypeDef beginDMAReceive(uint16_t size) {
-            // 清空接收缓冲区
-            for (uint8_t i = 0; i < BUFFER_SIZE; ++i) {
-                rx_buffer_[i] = 0;
-            }
-            HAL_StatusTypeDef status = HAL_UARTEx_ReceiveToIdle_DMA(&hal_huart_, rx_buffer_, size);
-            __HAL_DMA_DISABLE_IT(&hal_hdma_, DMA_IT_HT); // 关闭DMA传输过半中断
-            return status;
-        }
-
-        HAL_StatusTypeDef stopDMAReceive() {
-            return HAL_UART_DMAStop(&hal_huart_);
-        }
-
         void changeStateTo(state new_state) {
-            HAL_StatusTypeDef status;
-            switch (new_state) {
-                case state::NOT_INITIALIZED:
-
-                    status = stopDMAReceive();
-                    if (status != HAL_OK) return;
-
-                    break;
-
-                case state::READY_TO_RECEIVE_DATA:
-                    
-                    status = stopDMAReceive();
-                    if (status != HAL_OK) return;
-
-                    status = beginDMAReceive(BUFFER_SIZE);
-                    if (status != HAL_OK) return;
-
-                    break;
-
-                case state::AWAITING_FOR_ACK:
-
-                    status = stopDMAReceive();
-                    if (status != HAL_OK) return;
-
-                    status = beginDMAReceive(1);
-                    if (status != HAL_OK) return;
-
-                    break;
-
-                default:
-                    break;
-
+            if (new_state == state::NOT_INITIALIZED) {
+                return;
             }
+
             current_state_.store(new_state);
         }
 

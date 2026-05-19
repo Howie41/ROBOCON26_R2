@@ -14,6 +14,7 @@
 
 #include "UartPort.hpp"
 #include "com_config.h"
+#include "stm32h7xx_hal_def.h"
 
 #include <cstring>
 
@@ -49,7 +50,9 @@ HAL_StatusTypeDef UartPort::startRxDmaIdle() {
     return HAL_ERROR;
   }
   last_rx_pos_ = 0;
-  return HAL_UARTEx_ReceiveToIdle_DMA(huart_, rx_dma_buf_, rx_dma_buf_size_);
+  HAL_StatusTypeDef status = HAL_UARTEx_ReceiveToIdle_DMA(huart_, rx_dma_buf_, rx_dma_buf_size_);
+  
+  return status;
 }
 
 HAL_StatusTypeDef UartPort::write(const uint8_t *data, size_t len,
@@ -232,14 +235,6 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart,
   if (port != nullptr) {
     port->onRxEvent();
   }
-
-  /**
-   * @author Howie41
-   * 写红外模块的时候直接用了HAL库的函数
-   * 不得不改动这里的文件
-   * 如果后续有更好的解决方法，我再来适配UartPort的接口
-   */
-  infrared_module.rxEventCallbackHandler(huart, Size);
 }
 
 extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
