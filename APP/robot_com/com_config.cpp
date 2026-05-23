@@ -30,6 +30,7 @@
 #include "UsbPort.hpp"
 #include "XboxRemote.hpp"
 #include "NavProtocol.hpp"
+#include "logger.hpp"
 #include "topics.hpp"
 #include "topic_pool.h"
 #include "usart.h"
@@ -97,6 +98,12 @@ DMA_BUFFER_ATTR static uint8_t uart6_tx_dma[64] = {0};
 UartPort uart6_port(&huart6, uart6_rx_dma, sizeof(uart6_rx_dma),
                             uart6_tx_dma, sizeof(uart6_tx_dma), onUart6RxCb, nullptr);
 
+// USART10 日志
+DMA_BUFFER_ATTR static uint8_t uart10_rx_dma[64] = {0};
+DMA_BUFFER_ATTR static uint8_t uart10_tx_dma[Logger::BUFFER_LENGTH] = {0};
+UartPort uart10_port(&huart10, uart10_rx_dma, sizeof(uart10_rx_dma),
+                             uart10_tx_dma, sizeof(uart10_tx_dma), nullptr, nullptr);
+
 // Xbox控制器（基于uart3）
 XboxRemote xbox_remote(uart3_port);
 TypedTopicPublisher<pub_Xbox_Data> xbox_data_pub("xbox");
@@ -113,6 +120,8 @@ Hwt101Parser hwt101_parser;
 NavProtocol nav_protocol;
 // 红外通信
 InfraredModule infrared_module(uart6_port);
+// 日志
+Logger logger(uart10_port);
 
 // usb
 osSemaphoreId_t usbcdc_rx_semphore = NULL;
