@@ -19,6 +19,7 @@
 #include "topics.hpp"
 #include "FreeRTOS.h"
 #include "task.h"
+#include <vector>
 
 
 osThreadId_t Motor_TaskHandle;
@@ -42,3 +43,20 @@ void motorTask(void *argument) {
 
   }
 }
+
+
+
+// static PID_t arm3508_pos_pid{
+//     .Kp = 45.0f,
+//     .Ki = 0.0f,
+//     .Kd = 2.5f,
+//     .MaxOut = 60.0f,
+//     .DeadBand = 0.1f
+// };
+// static PID_t arm3508_speed_pid{
+//     .Kp = 2000.0f,
+//     .Ki = 0.06f,
+//     .Kd = 1.8f,
+//     .MaxOut = 12000.0f,
+//     .DeadBand = 0.5f
+// };

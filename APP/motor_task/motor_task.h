@@ -16,8 +16,5 @@
 #include "stm32h7xx_hal.h"
 #include <cstdint>
 
-
-void motorInit();
-
 void motorTask(void *argument);
 
