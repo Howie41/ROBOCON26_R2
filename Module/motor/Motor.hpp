@@ -114,10 +114,23 @@ public:
     float getRawCurrentTorque(void) const { return raw_torque_; }
 
     
-    void posWithSpeedControl(float pos, float speed) {
+    void posWithSpeedControl(float pos, float speed, float accel) {
         tar_sum_pos_ = pos;
         max_speed_ = speed;
+        accel_ = accel;
+        pos_process_ = 0.0f;
+        ini_sum_pos_ = getCurrentSumPos();
+        kxv_ = accel_ * (tar_sum_pos_ - ini_sum_pos_);
     };
+
+    float updatePosProcess() {
+        pos_process_ = (getCurrentSumPos() - ini_sum_pos_) / (tar_sum_pos_ - ini_sum_pos_);
+        return fmaxf(fminf(max_speed_, fabs(kxv_ * 0.5) - fabsf(kxv_ * (pos_process_ - 0.5f))), 0.75f);
+    }
+
+    bool getIsFinished(float threshold = 0.95f) {
+        return pos_process_ >= threshold;
+    }
 
     // 电机最原始output指令(速度/位置/电流)
     float cmd_;
@@ -140,7 +153,11 @@ public:
     float temperature_{0}; // 温度
 
     float tar_sum_pos_{0};
+    float ini_sum_pos_{0};
     float max_speed_{0};
+    float accel_{0};
+    float pos_process_{0.0f};
+    float kxv_{0.0f};
 };
 
 enum DJIMotorCanGroup {
