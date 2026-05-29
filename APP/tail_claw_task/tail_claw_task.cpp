@@ -5,6 +5,15 @@
 
 #include "control_task.h"
 #include"topic_pool.h"
+
+constexpr float roll_reduction_ratio = 2.0f;                // 翻转的减速比
+constexpr float move_max_distance = 5.0f;                  // 尾部移动的最大距离,单位厘米
+constexpr float move_degree_per_cm = 360.0f/(3*3.1415926f);                   //尾部的齿轮每度转动对应的线性移动距离，单位厘米
+
+//左右和滚的每次值率
+const float move_step = 0.05f;                   //每次移动的距离，单位厘米        
+const float roll_step = 2.0f;                 //每次翻转的角度，单位度
+
 osThreadId_t tail_claw_TaskHandle;;
 
 extern C610Motor tail_claw_move_motor;
@@ -19,41 +28,39 @@ float tail_claw_move_target_pos= 0.0f;
 float tail_claw_roll_target_pos= 0.0f;
 
 PID_t tail_claw_move_pos_pid={
-    .Kp = 0.16f,
-    .Ki = 0.0008f,
-    .Kd = 0.001f,
-    .MaxOut = 1.5f,
+    .Kp = 75.0f,
+    .Ki = 10.0f,
+    .Kd = 0.03f,
+    .MaxOut = 5.0f,
     .IntegralLimit = 0.35f,
     .DeadBand = 0.3f,
     .Improve = NONE,
 };
 
 PID_t tail_claw_move_speed_pid={
-    .Kp = 0.16f,
-    .Ki = 0.0008f,
-    .Kd = 0.001f,
-    .MaxOut = 1.5f,
+    .Kp = 75.0f,
+    .Ki = 10.0f,
+    .Kd = 0.03f,
+    .MaxOut = 10000.0f,
     .IntegralLimit = 0.35f,
     .DeadBand = 0.3f,
     .Improve = NONE,
 };
 
 PID_t tail_claw_roll_pos_pid={
-    .Kp = 0.16f,
-    .Ki = 0.0008f,
-    .Kd = 0.001f,
-    .MaxOut = 1.5f,
-    .IntegralLimit = 0.35f,
+    .Kp = 30.0f,
+    .Ki = 0.0f,
+    .Kd = 3.0f,
+    .MaxOut = 100.0f,
     .DeadBand = 0.3f,
     .Improve = NONE,
 };
 
 PID_t tail_claw_roll_speed_pid={
-    .Kp = 0.16f,
-    .Ki = 0.0008f,
-    .Kd = 0.001f,
-    .MaxOut = 1.5f,
-    .IntegralLimit = 0.35f,
+    .Kp = 2000.0f,
+    .Ki = 0.0f,
+    .Kd = 1.4f,
+    .MaxOut = 10000.0f,
     .DeadBand = 0.3f,
     .Improve = NONE,
 };
@@ -75,16 +82,24 @@ void KFS_open(bool open){
     else KFS_claw_open=false;
 }
 
+//pos为目标位置，单位为厘米，函数会返回对应的电机速度命令
 float set_move_pos(float pos,PID_t *pos_pid,PID_t *speed_pid)
 {
-    float speed_cmd=PID_Calculate(pos_pid,pos,tail_claw_move_motor.getCurrentSinglePos());
-    return PID_Calculate(speed_pid,speed_cmd,tail_claw_move_motor.getCurrentSpeed());
+    if(pos > move_max_distance) pos = move_max_distance;
+    if(pos < 0) pos = 0;
+    float dagree = pos*move_degree_per_cm;
+    pos_pid->MaxOut = 5.0f;
+    float speed_cmd=PID_Calculate(pos_pid,tail_claw_move_motor.getCurrentSumPos(),dagree);
+    return PID_Calculate(speed_pid,tail_claw_move_motor. getCurrentSpeed(),speed_cmd);
 }
 
+//pos为目标位置，单位为度，函数会返回对应的电机速度命令
 float set_roll_pos(float pos,PID_t *pos_pid,PID_t *speed_pid)
 {
-    float speed_cmd=PID_Calculate(pos_pid,tail_claw_roll_motor.getCurrentSinglePos(),pos);
-    return PID_Calculate(speed_pid,speed_cmd,tail_claw_roll_motor.getCurrentSpeed());
+    float roll_pos = pos / roll_reduction_ratio;          // 根据减速比计算电机轴上的目标位置
+    pos_pid->MaxOut = 5.0f;
+    float speed_cmd=PID_Calculate(pos_pid,tail_claw_roll_motor.getCurrentSumPos(),roll_pos);
+    return PID_Calculate(speed_pid,tail_claw_roll_motor. getCurrentSpeed(),speed_cmd);
 }
 
 //由于没有上位机，此处先以xbox来代替 
@@ -96,14 +111,13 @@ void get_weapon_match_state()
     {
         weapon_match_state_ = (weapon_match_state_ & ~motor_move_right) | motor_move_left;
     }
-    else if(control_xbox_cmd.btnDirDown)
+    else if(control_xbox_cmd.btnDirRight)
     {
         weapon_match_state_ = (weapon_match_state_ & ~motor_move_left) | motor_move_right;
     }else
     {
         weapon_match_state_ = weapon_match_state_ & ~(motor_move_left | motor_move_right);
     }
-
     //上下翻滚
     if(control_xbox_cmd.btnDirUp)
     {
@@ -116,25 +130,10 @@ void get_weapon_match_state()
     {
         weapon_match_state_ = weapon_match_state_ & ~(motor_roll_down | motor_roll_up);
     }
-
-    //底盘顺逆时针转动
-     if(control_xbox_cmd.btnLB)
-    {
-        weapon_match_state_ = (weapon_match_state_ & ~chassis_contrarotate) | chassis_clockwise_rotation;
-    }
-    else if(control_xbox_cmd.btnRB)
-    {
-        weapon_match_state_ = (weapon_match_state_ & ~chassis_clockwise_rotation) | chassis_contrarotate;
-    }else
-    {
-        weapon_match_state_ = weapon_match_state_ & ~(chassis_clockwise_rotation |chassis_contrarotate);
-    }
 }
 
 void tail_claw_move_close()
 { 
-    const float move_step = 0.2f;
-    const float roll_step = 0.2f;
 
     if(weapon_match_state_&motor_move_left)
     {
@@ -159,8 +158,16 @@ void tail_claw_move_close()
                                 &tail_claw_roll_pos_pid,
                                 &tail_claw_roll_speed_pid);
     
-    tail_claw_move_motor.setMotorCmd(move_cmd);
-    tail_claw_roll_motor.setMotorCmd(roll_cmd);
+        /*if (fabsf( tail_claw_move_target_pos - tail_claw_move_motor.getCurrentSinglePos()) < 1.0f &&
+             fabsf(tail_claw_move_motor.getCurrentSpeed()) < 0.5f) {
+             tail_claw_move_motor.setMotorCmd(0.0f);
+                PID_Reset(&tail_claw_move_pos_pid);
+                PID_Reset(&tail_claw_move_speed_pid);
+        }else{ 
+            tail_claw_move_motor.setMotorCmd(move_cmd);
+        }*/
+        tail_claw_move_motor.setMotorCmd(move_cmd);
+         tail_claw_roll_motor.setMotorCmd(roll_cmd);
 }  
 void tail_claw_task(void *argument) {
     TickType_t currentTime = xTaskGetTickCount();
@@ -169,8 +176,7 @@ void tail_claw_task(void *argument) {
     {
         get_weapon_match_state();
         tail_claw_move_close();
-        
-        vTaskDelayUntil(&currentTime, 1);
+        vTaskDelayUntil(&currentTime, 2);
     }
 }
 
