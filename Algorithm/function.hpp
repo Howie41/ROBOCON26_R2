@@ -9,13 +9,16 @@
 #include <type_traits>
 #include <utility>
 
+//所有东西都在gdut命名空间下，避免和其他库冲突
 namespace gdut {
 
 template <std::size_t Value> struct is_power_of_two {
-  static constexpr bool value = Value && (Value & (Value - 1)) == 0;
+  static constexpr bool value = Value && (Value & (Value - 1)) == 0;//看看是不是2的幂次方，
+                          // 2的幂次方在二进制表示中只有一个1，所以Value & (Value - 1)应该为0
+                          //为了内存对齐
 };
 
-template <std::size_t Value>
+template <std::size_t Value>       //编译时常量，判断是否是2的幂次方
 inline constexpr bool is_power_of_two_v = is_power_of_two<Value>::value;
 
 template <typename> struct always_false : std::false_type {};
@@ -23,12 +26,14 @@ template <typename> struct always_false : std::false_type {};
 template <typename T>
 inline constexpr bool always_false_v = always_false<T>::value;
 
+//主模板函数对象类，不能直接实例化，必须通过特化来使用
 template <typename T, std::size_t StorageSize, std::size_t Alignment>
 class basic_function {
   static_assert(always_false_v<T>, "basic_function is a base class template "
                                    "and cannot be instantiated directly.");
 };
 
+//R对应的是返回值，Args对应的是参数列表，StorageSize是存储空间大小，Alignment是对齐要求
 template <typename R, typename... Args, std::size_t StorageSize,
           std::size_t Alignment>
 class basic_function<R(Args...), StorageSize, Alignment> {

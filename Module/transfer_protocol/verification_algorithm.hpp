@@ -1,18 +1,23 @@
 #ifndef COMPONENTS_VERIFICATION_ALGORITHM_HPP
 #define COMPONENTS_VERIFICATION_ALGORITHM_HPP
 
+//这个文件是提供一些常用的校验算法的实现，用户可以根据需要选择使用或者自定义其他算法
 #include <array>
 #include <cstdint>
 
 namespace gdut {
 
+  //编译期静态多态
 template <typename Derived> class verify_algorithm {
 public:
   verify_algorithm() = default;
   ~verify_algorithm() = default;
 
   template <typename ConstIt, typename It>
+  //begin和end是数据的范围，code_loc是校验码在数据中的位置，
+  // calculate函数会根据数据计算出校验码并写入code_loc指向的位置
   void calculate(ConstIt begin, ConstIt end, It code_loc) noexcept {
+    //限制迭代器必须指向单字节数据，因为校验算法通常是基于字节进行计算的
     static_assert(sizeof(*begin) == 1,
                   "The data size of the iterator must be 1");
     static_assert(sizeof(*code_loc) == 1,
@@ -27,15 +32,21 @@ public:
   }
 };
 
+//16 位 checksum 算法，
+// 类似 IP checksum 的思路：把数据按两个字节组成一个 16 位数累加，最后把进位折回低 16 位，再取反。
 class checksum_algorithm : public verify_algorithm<checksum_algorithm> {
 protected:
   friend verify_algorithm<checksum_algorithm>;
 
   template <typename ConstIt, typename It>
   void calculate_code_impl(ConstIt begin, ConstIt end, It code_loc) noexcept {
+    //用32位，防止累加过程中溢出
     uint32_t sum = 0;
     ConstIt body_iter = begin;
+    //遍历数据，按两个字节组成一个16位数累加到sum中，
+    // 如果数据长度是奇数，最后一个字节单独处理
     while (body_iter != end) {
+      //当前迭代器指向的位置是code_loc时，说明这个位置是校验码所在的位置，需要跳过它，不参与计算
       if (body_iter == code_loc) {
         if (body_iter + 1 == end) {
           break;
@@ -43,15 +54,19 @@ protected:
         body_iter += sizeof(uint16_t);
         continue;
       }
+      //把当前字节左移8位，和下一个字节组合成一个16位数累加到sum中，
       sum += (static_cast<unsigned char>(*body_iter++) << 8);
+      //把当前字节放在低八位
       if (body_iter != end)
         sum += static_cast<unsigned char>(*body_iter++);
     }
 
+    //处理进位，把高16位的进位加到低16位上，直到没有进位为止
     while (sum >> 16) {
       sum = (sum >> 16) + (sum & 0xFFFF);
     }
     uint16_t res = static_cast<uint16_t>(~sum);
+    //把计算出的校验码写入code_loc指向的位置
     if (code_loc != end) {
       *code_loc = res >> 8;
     }
@@ -60,11 +75,14 @@ protected:
     }
   }
 
+  //验证函数
   template <typename It>
   bool verify_code_impl(It begin, It end, It code_loc) noexcept {
     (void)code_loc;
     uint32_t sum = 0;
     It body_iter = begin;
+// 这里它不跳过校验码，而是把整包数据，包括校验码，一起重新加一遍。
+// 对于反码和校验来说，如果数据正确，整包累加后取反应该等于 0
     while (body_iter != end) {
       sum += (static_cast<unsigned char>(*body_iter++) << 8);
       if (body_iter != end)
@@ -74,25 +92,32 @@ protected:
     while (sum >> 16) {
       sum = (sum >> 16) + (sum & 0xFFFF);
     }
+    //这里它不跳过校验码，而是把整包数据，包括校验码，一起重新加一遍。
+    // 对于反码和校验来说，如果数据正确，整包累加后取反应该等于 0：
     return static_cast<uint16_t>(~sum) == 0;
   }
 };
 
+//这是 CRC8 算法，使用的多项式是 0x07
 class crc8_algorithm : public verify_algorithm<crc8_algorithm> {
 protected:
   friend verify_algorithm<crc8_algorithm>;
 
   template <typename ConstIt, typename It>
   void calculate_code_impl(ConstIt begin, ConstIt end, It code_loc) noexcept {
+    //它直接把 code_loc 指向的位置当 CRC 存储位置，并先清零
     It crc = code_loc; // CRC located in last byte of message
     uint8_t currentByte;
     *crc = 0;
+
+    //遍历数据，计算 CRC 值，跳过 code_loc 指向的位置，因为这是 CRC 存储位置，不参与计算
     for (auto i = begin; i != end; i++) { // Execute for all bytes of a message
       if (i == crc) {
         continue;
       }
       currentByte = *i; // Retrieve a byte to be sent from Array
       for (int j = 0; j < 8; j++) {
+        //它取当前 CRC 的最高位，和当前数据字节的最低位异或。如果结果为 1，就左移后再异或多项式 0x07：
         if ((*crc >> 7) ^
             (currentByte & 0x01)) // update CRC based result of XOR operation
         {
@@ -104,7 +129,8 @@ protected:
       } // for CRC bit
     } // for message byte
   }
-
+//验证函数也是类似的逻辑，重新计算 CRC 值，并和 code_loc 指向的位置的值进行比较，
+// 如果相等则验证通过
   template <typename It>
   bool verify_code_impl(It begin, It end, It code_loc) noexcept {
     uint8_t crc_val = 0;
@@ -131,11 +157,14 @@ protected:
   }
 };
 
+//这是 CRC16 算法，使用的多项式是 0x8005，初始值是 0xFFFF
 class crc16_algorithm : public verify_algorithm<crc16_algorithm> {
 protected:
   friend verify_algorithm<crc16_algorithm>;
 
   template <typename ConstIt, typename It>
+  //它把 code_loc 指向的位置当 CRC 存储位置，并先清零，然后开始计算 CRC 值，
+  // 跳过 code_loc 指向的位置，因为这是 CRC 存储位置，不参与计算
   void calculate_code_impl(ConstIt begin, ConstIt end, It code_loc) noexcept {
     uint16_t crc = 0xFFFF;
     crc = calculate_code_impl_(begin, code_loc, crc);
@@ -149,6 +178,8 @@ protected:
   }
 
   template <typename It>
+  //验证函数也是类似的逻辑，重新计算 CRC 值，并和 code_loc 指向的位置的值进行比较，
+  // 如果相等则验证通过
   bool verify_code_impl(It begin, It end, It code_loc) noexcept {
     uint16_t crc = 0xFFFF;
     crc = calculate_code_impl_(begin, code_loc, crc);

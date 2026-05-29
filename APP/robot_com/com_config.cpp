@@ -45,6 +45,7 @@ osThreadId_t CAN3_Send_TaskHandle;
 osThreadId_t uart2ProcessTaskHandle;
 osThreadId_t uart3ProcessTaskHandle;
 osThreadId_t usbcdcProcessTaskHandle;
+osThreadId_t PcComTaskHandle;
 
 extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
@@ -127,6 +128,8 @@ Logger logger(uart10_port);
 osSemaphoreId_t usbcdc_rx_semphore = NULL;
 ROSProtocol ros_protocol(nullptr, &UsbPort::Instance());
 
+//上下位机通信
+PcCom pc_com(UsbPort::Instance());
 uint8_t comServiceInit() {
   // can外设初始化
   canFilterInit(&hfdcan1, FDCAN_STANDARD_ID, FDCAN_FILTER_TO_RXFIFO0, 0, 0);
@@ -359,6 +362,23 @@ void usbCdcProcessTask(void *argument) {
     }
 }
 
+
+// 下面是协议解析和校验算法的实现，基于之前的设计
+void PcComTask(void *argument)
+{
+  (void)argument;
+   pc_com.init();
+  TickType_t currentTime = xTaskGetTickCount();
+   
+  for (;;) {
+    osSemaphoreAcquire(usbcdc_rx_semphore, 1);
+
+    pc_com.ProcessRx();
+    pc_com.ProcessTx();
+
+    vTaskDelayUntil(&currentTime, 5);
+  }
+}
 /*
 // ============ 原来的ROSProtocol方式（保留备用） ============
 void usbCdcProcessTask_Origin(void *argument) {

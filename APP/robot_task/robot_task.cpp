@@ -38,7 +38,7 @@ extern osThreadId_t Debug_TaskHandle;
 extern osThreadId_t ChassisTaskHandle;
 extern osThreadId_t ControlTaskHandle;
 extern osThreadId_t usbcdcProcessTaskHandle;
-
+extern osThreadId_t PcComTaskHandle;
 
 
 void osTaskInit(void) {
@@ -120,4 +120,13 @@ void osTaskInit(void) {
   };
   NavControlTaskHandle =
       osThreadNew(NavControlTask, NULL, &NavControlTaskHandle_attributes);
+
+//用于上位机和下位机通讯的协议解析和封装
+  const osThreadAttr_t PcComTaskHandle_attributes = {
+      .name = "PcCom_TaskHandle",
+      .stack_size = 128 * 4,
+      .priority = (osPriority_t)osPriorityNormal,
+  };
+  PcComTaskHandle =
+      osThreadNew(PcComTask, NULL, &PcComTaskHandle_attributes);
 }
