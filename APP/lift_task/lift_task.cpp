@@ -14,6 +14,7 @@
 #include "lift_task.h"
 
 #include "Motor.hpp"
+#include "NavProtocol.hpp"
 #include "com_config.h"
 #include "pid_controller.h"
 #include "topic_pool.h"
@@ -28,6 +29,11 @@ osThreadId_t LiftTaskHandle;
 
 static TypedTopicSubscriber<pub_lift_cmd> lift_cmd_sub("lift_cmd", 8);
 static pub_lift_cmd lift_cmd{};
+
+static TypedTopicSubscriber<pub_high_nav_cmd> high_nav_sub("high_nav_cmd", 4);
+static pub_high_nav_cmd high_nav_cmd{};
+
+extern volatile float g_chassis_yaw_deg;
 
 float lift_2006_speed = 0.0f;
 float lift_3508_target_pos = 0.0f;
@@ -73,7 +79,7 @@ enum class Lift3508Mode {
  MANUAL,
  TARGETING,
 };
-Lift3508Mode lift_3508_mode = Lift3508Mode::MANUAL;
+static Lift3508Mode lift_3508_mode = Lift3508Mode::MANUAL;
 PID_t lift_2006_motor1_pid = {
     .Kp = 100.0f, .Ki = 10.0f, .Kd = 0.0f, .MaxOut = 20000, .DeadBand = 0.3f, .Improve = NONE};
 PID_t lift_2006_motor2_pid = {
@@ -87,6 +93,21 @@ PID_t lift_3508_pos_pid = {
     .Kp = 9.0f, .Ki = 0.1f, .Kd = 0.0f, .MaxOut = MAX_LIFT_3508_SPEED, .DeadBand = 0.1f, .Improve = NONE};
 PID_t lift_3508_sync_pid = {
     .Kp = 0.28f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = MAX_LIFT_3508_SYNC_COMP, .DeadBand = 0.1f, .Improve = NONE};
+
+// Phase 2: 高位模式手动yaw锁角PID
+PID_t high_yaw_lock_pid = {
+    .Kp = 15.0f, .Ki = 0.02f, .Kd = 0.0f, .MaxOut = 300.0f,
+    .IntegralLimit = 150.0f, .DeadBand = 0.5f, .Improve = Integral_Limit,
+};
+static float high_yaw_lock_ref = 0.0f;
+static bool high_was_active = false;
+
+static inline float normalizeDeg(float angle_deg) {
+  while (angle_deg > 180.0f) angle_deg -= 360.0f;
+  while (angle_deg < -180.0f) angle_deg += 360.0f;
+  return angle_deg;
+}
+
 static inline void liftInit(void) {
   PID_Init(&lift_2006_motor1_pid);
   PID_Init(&lift_2006_motor2_pid);
@@ -94,6 +115,7 @@ static inline void liftInit(void) {
   PID_Init(&lift_3508_motor2_pid);
   PID_Init(&lift_3508_pos_pid);
   PID_Init(&lift_3508_sync_pid);
+  PID_Init(&high_yaw_lock_pid);
 
   lift_3508_motor1_pos = lift_3508_motor1.getCurrentSumPos();
   lift_3508_motor2_pos = lift_3508_motor2.getCurrentSumPos();
@@ -209,18 +231,56 @@ void liftTask(void *argument) {
 
   for (;;) {
     if (lift_cmd_sub.TryGet(&lift_cmd)) {
-      
+    }
+    if (high_nav_sub.TryGet(&high_nav_cmd)) {
     }
     Lift_Data_Process();
+
+    // ===== Phase 2: 2006 速度控制 — 手动/自动 共用yaw锁角 =====
+    float high_forward = 0.0f;
+    float high_omega = 0.0f;
+
+    if (high_nav_cmd.active && nav_control::auto_enabled) {
+      // 自动导航：上位机坐标→NavControlTask计算 speed/omega
+      high_forward = high_nav_cmd.forward_speed;
+      high_omega = high_nav_cmd.omega;
+    } else if (nav_control::high_mode_active) {
+      // 手动高位：Xbox右摇杆前进 + yaw锁角
+      high_forward = lift_cmd.lift_2006_input * 500.0f;
+      const float yaw_error =
+          normalizeDeg(high_yaw_lock_ref - g_chassis_yaw_deg);
+      high_omega = PID_Calculate(&high_yaw_lock_pid, 0.0f, yaw_error);
+    }
+    // 低位模式: high_forward=0, high_omega=0 → 2006不转
+
+    const float motor1_ref = (high_forward + high_omega) * LIFT_2006_MOTOR1_DIR;
+    const float motor2_ref = (high_forward - high_omega) * LIFT_2006_MOTOR2_DIR;
 
     lift_2006_motor1_pid_out =
         PID_Calculate(&lift_2006_motor1_pid,
                       lift_2006_motor1.getRawCurrentSpeed(),
-                      lift_2006_speed * LIFT_2006_MOTOR1_DIR);
+                      motor1_ref);
     lift_2006_motor2_pid_out =
         PID_Calculate(&lift_2006_motor2_pid,
                       lift_2006_motor2.getRawCurrentSpeed(),
-                      lift_2006_speed * LIFT_2006_MOTOR2_DIR);
+                      motor2_ref);
+
+    // ===== high_mode_active 自动管理 =====
+    const bool is_high = liftIsHigh();
+    if (is_high && !high_was_active) {
+      nav_control::high_mode_active = true;
+      high_yaw_lock_ref = g_chassis_yaw_deg;
+      PID_Init(&high_yaw_lock_pid);
+    } else if (!is_high && high_was_active) {
+      nav_control::high_mode_active = false;
+    }
+    high_was_active = is_high;
+
+    // ===== 响应自动导航到达后降位请求 =====
+    if (high_nav_cmd.request_lower && is_high) {
+      high_nav_cmd.request_lower = false;  // 单次消费
+      liftRequestLow();
+    }
 
         lift_3508_motor1_pid_out =
         PID_Calculate(&lift_3508_motor1_pid,
@@ -263,4 +323,8 @@ float liftCurrentPos() {
 
 bool liftIsHigh() {
   return (fabsf(lift_3508_avg_pos - LIFT_HIGH_POS) <= LIFT_POS_TOLERANCE);
+}
+
+bool highModeActive() {
+  return nav_control::high_mode_active;
 }
