@@ -68,12 +68,6 @@ C610Motor arm2006_motor(&fdcan2_bus, 0x205, 0, 0x1FF, 0);
 C620Motor arm3508_motor(&fdcan2_bus, 0x206, 0, 0x1FF, 0);
 //DM43xxMotor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,DM43xxMotor::PosWithSpeed);
 
-//抬升电机
-C610Motor lift_2006_motor1(&fdcan1_bus, 0x201, 0, 0x200, 0);
-C610Motor lift_2006_motor2(&fdcan1_bus, 0x202, 0, 0x200, 0);
-C620Motor lift_3508_motor1(&fdcan1_bus, 0x203, 0, 0x200, 0);
-C620Motor lift_3508_motor2(&fdcan1_bus, 0x204, 0, 0x200, 0);
-
 //尾部的电机
 C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
 C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);

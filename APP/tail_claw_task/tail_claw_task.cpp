@@ -140,12 +140,12 @@ void get_weapon_match_state(tail_claw_msg* msg)
 
     if(control_xbox_cmd.btnShare&& !last_weapon_claw_open)
     {
-        weapon_claw_open = ~weapon_claw_open;
+        weapon_claw_open = !weapon_claw_open;
     }
     
     if(control_xbox_cmd.btnMenu&& !last_air_pump)
     {
-        air_pump = ~air_pump;
+        air_pump = !air_pump;
     }
 
     last_weapon_claw_open = weapon_claw_open;
