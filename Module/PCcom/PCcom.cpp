@@ -1,5 +1,6 @@
 #include "PCcom.hpp"
 #include "topic_pool.h"
+#include "topics.hpp"
 #include <codecvt>
 #include <cstddef>
 #include <cstdint>
@@ -57,12 +58,25 @@ void PcCom::OnPacket(Packet packet) {
       break;
   }
 }
-
-
+/*
 void PcCom::ProcessTx()
 {
+  static TypedTopicSubscriber<tail_claw_msg> tail_claw_subscriber(
+      "pc_tail_claw_pub", 8);
+
   tail_claw_msg msg{};
-  if(pc_tail_claw_sub_.TryGet(&msg)){
+  if (tail_claw_subscriber.TryGet(&msg)) {
+    send(static_cast<uint16_t>(PcCmd::tail_claw_msg), msg);
+  }
+}
+*/
+void PcCom::ProcessTx()
+{
+  //要发送什么就订阅什么，这里以tail_claw_msg为例，大家可以参考这个写其他的
+  //要发送调用send就好了
+  static TypedTopicSubscriber<tail_claw_msg> tail_claw_subscriber("pc_tail_claw_sub",8);
+   tail_claw_msg msg{};
+  if(tail_claw_subscriber.TryGet(&msg)){
     send(static_cast<uint16_t>(PcCmd::tail_claw_msg),msg);
   }
 }

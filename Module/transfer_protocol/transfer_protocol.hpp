@@ -299,7 +299,7 @@ public:
   }
 
   //接收数据流
-  template <std::input_iterator It> void receive(It begin, It end) {
+  template <std::input_iterator It> void   receive(It begin, It end) {
     //把新的数据添加到接收缓冲区中
     //m_receive_buffer.append_range(receive_range<It>{begin, end});
     m_receive_buffer.insert(m_receive_buffer.end(), begin, end);

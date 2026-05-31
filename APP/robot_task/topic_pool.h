@@ -65,6 +65,13 @@ typedef struct {
   bool nav_mode_;
 } pub_chassis_cmd;
 
+
+typedef struct{
+ bool lift_up;
+ bool lift_down;
+ float lift_2006_input;
+} pub_lift_cmd;
+
 typedef struct {
   uint8_t address1;
   uint8_t address2;
@@ -72,6 +79,8 @@ typedef struct {
 } pub_infrared_msg;
 
 struct tail_claw_msg {
-  uint16_t distance;
+   int16_t distance;
 };
+
+
 #pragma pack()

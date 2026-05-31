@@ -11,6 +11,10 @@
 //消息类型
 enum class PcCmd : uint16_t {
  tail_claw_msg=0x0001,
+ tail_claw_msg_flase=0x0002,
+ tail_claw_msg_success=0x0003,
+
+   
 };
 class PcCom {
 public:
