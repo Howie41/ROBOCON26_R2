@@ -68,16 +68,16 @@ C610Motor arm2006_motor(&fdcan2_bus, 0x205, 0, 0x1FF, 0);
 C620Motor arm3508_motor(&fdcan2_bus, 0x206, 0, 0x1FF, 0);
 //DM43xxMotor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,DM43xxMotor::PosWithSpeed);
 
+//尾部的电机
+C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
+C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
+
+
 //抬升电机
 C610Motor lift_2006_motor1(&fdcan1_bus, 0x201, 0, 0x200, 0);
 C610Motor lift_2006_motor2(&fdcan1_bus, 0x202, 0, 0x200, 0);
 C620Motor lift_3508_motor1(&fdcan1_bus, 0x203, 0, 0x200, 0);
 C620Motor lift_3508_motor2(&fdcan1_bus, 0x204, 0, 0x200, 0);
-
-//尾部的电机
-C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
-C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
-
 
 // 串口外设（回调+信号量唤醒处理线程进行解包）
 void onUart3RxCb(const uint8_t *data, size_t len, void *user);
@@ -164,11 +164,11 @@ uint8_t comServiceInit() {
 
   arm2006_motor.init();
   arm3508_motor.init();
-  //arm4310_motor.init();
+
 //尾部电机的初始化
   tail_claw_move_motor.init();
   tail_claw_roll_motor.init();
-
+  
   lift_2006_motor1.init();
   lift_2006_motor2.init();
   lift_3508_motor1.init();
@@ -186,6 +186,12 @@ uint8_t comServiceInit() {
   //注册尾部电机
   fdcan2_bus.registerDevice(&tail_claw_move_motor);
   fdcan2_bus.registerDevice(&tail_claw_roll_motor);
+
+  fdcan1_bus.registerDevice(&lift_2006_motor1);
+  fdcan1_bus.registerDevice(&lift_2006_motor2);
+  fdcan1_bus.registerDevice(&lift_3508_motor1);
+  fdcan1_bus.registerDevice(&lift_3508_motor2);
+  
 
   fdcan1_bus.registerDevice(&lift_2006_motor1);
   fdcan1_bus.registerDevice(&lift_2006_motor2);
@@ -315,20 +321,9 @@ void can3SendTask(void *argument) {
 
 //接收并处理任务
 void uart2RxProcessTask(void *argument){
-  (void)argument;
-  //测试与小电脑的通信，大家可以参考怎么订阅
-  /*TickType_t currentTime = xTaskGetTickCount();
-  for (;;) {
+(void)argument;
 
-  static TypedTopicSubscriber<tail_claw_msg> tail_claw_subscriber("pc_tail_claw_pub",8);
-   tail_claw_msg msg;
-  if(tail_claw_subscriber.TryGet(&msg))
-  {
-    char buf[32];
-    int len = snprintf(buf, sizeof(buf), "distance=%u\r\n", msg.distance);
-    uart2_port.write(reinterpret_cast<const uint8_t *>(buf), len, 100);
-  }
-  vTaskDelayUntil(&currentTime, 2);*/
+for (;;) {
   (void)osSemaphoreAcquire(uart2_rx_semphore, osWaitForever);
 
    UartPort::Packet packet{};
@@ -343,7 +338,7 @@ void uart2RxProcessTask(void *argument){
       }
     }
 }
-
+}
 
 void uart3RxProcessTask(void *argument) {
   (void)argument;

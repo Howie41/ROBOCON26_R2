@@ -141,6 +141,19 @@ void get_weapon_match_state(tail_claw_msg* msg)
     {
         weapon_match_state_ = weapon_match_state_ & ~(motor_roll_down | motor_roll_up);
     }
+
+    if(control_xbox_cmd.btnShare&& !last_weapon_claw_open)
+    {
+        weapon_claw_open = !weapon_claw_open;
+    }
+    
+    if(control_xbox_cmd.btnMenu&& !last_air_pump)
+    {
+        air_pump = !air_pump;
+    }
+
+    last_weapon_claw_open = weapon_claw_open;
+    last_air_pump = air_pump;
 }
 
 void tail_claw_move_close()
