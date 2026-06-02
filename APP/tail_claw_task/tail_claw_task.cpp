@@ -1,17 +1,32 @@
 #include "tail_claw_task.hpp"
 #include "Motor.hpp"
 #include "pid_controller.h"
+#include <cmath>
 #include <cstdint>
 
 #include "control_task.h"
+#include "portmacro.h"
 #include "stm32h723xx.h"
 #include "stm32h7xx_hal_gpio.h"
 #include"topic_pool.h"
 
-constexpr float roll_reduction_ratio = 2.0f;     // 翻转的减速比
+constexpr float roll_reduction_ratio = 19.0f;     // 翻转的减速比
 constexpr float move_max_distance = 6.0f;        // 尾部移动的最大距离,单位厘米
 constexpr float move_degree_per_cm = 360.0f/(3*3.1415926f); // 齿条齿轮: 1cm平移对应电机转角
 
+constexpr float roll_low_pos=0.0f;              //低位翻转角度
+constexpr float roll_high_pos=90.0f;            //高位翻转角度
+constexpr float roll_pos_tolerance = 2.0f;      //翻转位置容差
+constexpr TickType_t kRollTapTimeout = pdMS_TO_TICKS(300);  // 300ms以内算"点按"
+enum class TailRollMode{
+    manual,                           //完全手动模式，Xbox按键控制翻转，D-pad控制移动
+    trargeting,                       //自动模式，自动控制翻转和移动                    
+};
+static TailRollMode tail_roll_mode = TailRollMode::manual;
+static bool roll_up_last = false;
+static bool roll_down_last = false;                    
+static TickType_t roll_up_press_tick = 0;         //上升的按下时刻
+static TickType_t roll_down_press_tick = 0;        //下降的按下时刻
 // 左右和滚的每次增量
 const float move_step = 0.01f;                   // 每次移动的距离，单位厘米
 const float roll_step = 0.3f;                    // 每次翻转的角度，单位度
@@ -102,7 +117,7 @@ float set_move_pos(float pos,PID_t *pos_pid,PID_t *speed_pid)
 //pos为目标位置，单位为度，函数会返回对应的电机速度命令
 float set_roll_pos(float pos,PID_t *pos_pid,PID_t *speed_pid)
 {
-    float roll_pos = pos / roll_reduction_ratio;          // 根据减速比计算电机轴上的目标位置
+    float roll_pos = pos *roll_reduction_ratio;          // 根据减速比计算电机轴上的目标位置
     float speed_cmd=PID_Calculate(pos_pid,tail_claw_roll_motor.getCurrentSumPos(),roll_pos);
     return PID_Calculate(speed_pid,tail_claw_roll_motor. getCurrentSpeed(),speed_cmd);
 }
@@ -151,6 +166,65 @@ void get_weapon_match_state(tail_claw_msg* msg)
     }
 
     // ---- Xbox D-pad 上下: 3508翻转 ----
+    if(control_xbox_cmd.btnDirUp&&!roll_up_last)
+    {
+        roll_up_press_tick=xTaskGetTickCount();
+    }
+    
+    if(!control_xbox_cmd.btnDirUp&&roll_up_last)
+    {
+        if((xTaskGetTickCount() - roll_up_press_tick) <kRollTapTimeout ) // 300ms秒后触发
+        {
+            tail_claw_roll_target_pos = roll_high_pos;
+            tail_roll_mode = TailRollMode::trargeting;
+        }
+    }
+    roll_up_last = control_xbox_cmd.btnDirUp;
+
+    if(control_xbox_cmd.btnDirDown&&!roll_down_last)
+    {
+        roll_down_press_tick=xTaskGetTickCount();
+    }
+
+    if(!control_xbox_cmd.btnDirDown&&roll_down_last)
+    {
+        if((xTaskGetTickCount() - roll_down_press_tick) <kRollTapTimeout ) // 300ms秒后触发
+        {
+            tail_claw_roll_target_pos = roll_low_pos;
+            tail_roll_mode = TailRollMode::trargeting;
+        }
+    }
+
+    roll_down_last = control_xbox_cmd.btnDirDown;
+
+    const TickType_t now = xTaskGetTickCount();
+
+    const bool roll_up_long =
+        control_xbox_cmd.btnDirUp &&
+        ((now - roll_up_press_tick) >= kRollTapTimeout);
+
+    const bool roll_down_long =
+        control_xbox_cmd.btnDirDown &&
+        ((now - roll_down_press_tick) >= kRollTapTimeout);
+
+    if (roll_up_long && !roll_down_long)
+    {
+        tail_roll_mode = TailRollMode::manual;
+        weapon_match_state_ =
+            (weapon_match_state_ & ~motor_roll_down) | motor_roll_up;
+    }
+    else if (roll_down_long && !roll_up_long)
+    {
+        tail_roll_mode = TailRollMode::manual;
+        weapon_match_state_ =
+            (weapon_match_state_ & ~motor_roll_up) | motor_roll_down;
+    }
+    else
+    {
+        weapon_match_state_ =
+            weapon_match_state_ & ~(motor_roll_down | motor_roll_up);
+    }
+    /*
     if(control_xbox_cmd.btnDirUp)
     {
         weapon_match_state_ = (weapon_match_state_ & ~motor_roll_down) | motor_roll_up;
@@ -163,7 +237,7 @@ void get_weapon_match_state(tail_claw_msg* msg)
     {
         weapon_match_state_ = weapon_match_state_ & ~(motor_roll_down | motor_roll_up);
     }
-
+    */
     // ---- Share: 爪子开/合 (上升沿触发) ----
     {
         static bool last_share_btn = false;
@@ -207,12 +281,26 @@ void tail_claw_move_close()
     }
 
     
-    if(weapon_match_state_&motor_roll_down)
+    const bool roll_manual_active =
+    (weapon_match_state_ & motor_roll_up) ||
+    (weapon_match_state_ & motor_roll_down);
+    
+    if(tail_roll_mode ==TailRollMode::trargeting)
     {
+        if(fabs(tail_claw_roll_target_pos*roll_reduction_ratio - 
+            tail_claw_roll_motor.getCurrentSumPos()) < roll_pos_tolerance)
+        {
+            tail_roll_mode = TailRollMode::manual;
+        }
+    }else if(roll_manual_active)
+    {
+        if (weapon_match_state_ & motor_roll_down) {
         tail_claw_roll_target_pos -= roll_step;
-    }else if(weapon_match_state_&motor_roll_up) {
+        } else if (weapon_match_state_ & motor_roll_up) {
         tail_claw_roll_target_pos += roll_step;
+        }
     }
+
 
     if(air_pump)
     {

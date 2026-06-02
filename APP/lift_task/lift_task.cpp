@@ -136,7 +136,7 @@ static inline void liftInit(void) {
 }
 
 static inline void Lift_Data_Process(void) {
-if (lift_cmd.request_high) {
+ if (lift_cmd.request_high) {
     lift_3508_target_pos = LIFT_HIGH_POS;
     lift_3508_mode = Lift3508Mode::TARGETING;
     lift_3508_hold_enable = false;
