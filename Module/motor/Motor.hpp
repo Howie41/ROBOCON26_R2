@@ -499,10 +499,11 @@ public:
      * @param mode 初始控制模式。
      */
     DM43xxMotor(CanBus *manager, uint32_t id, bool is_extid, uint32_t tx_id,
-                            bool tx_is_extid, ControlMode mode = PosWithSpeed)
+                            bool tx_is_extid, ControlMode mode = PosWithSpeed, bool is_4340 = false)
             : CanDevice(manager, id, is_extid, tx_id, tx_is_extid) {
         tx_base_id_ = tx_id;
         ctrl_mode_ = mode;
+        is_4340_ = is_4340;
     }
 
     void init(float reduction_ratio = 10.0f, float max_cmd = 18.0f,
@@ -529,7 +530,7 @@ public:
             return;
         }
 
-        pack.id = tx_id_;
+        pack.id = tx_id_ | 0x100;
         pack.type = CanBus::Type::STANDARD;
         (void)manager_->addCanMsg(pack);
     }
@@ -851,7 +852,10 @@ private:
      * @param mode 控制模式。
      * @return 相对基址的 ID 偏移。
      */
-    static uint16_t modeOffsetFromCtrlMode(ControlMode mode) {
+    uint16_t modeOffsetFromCtrlMode(ControlMode mode) {
+        if (is_4340_) {
+            return 0x000;
+        }
         if (mode == Mit) {
             return 0x000;
         }
@@ -924,4 +928,6 @@ private:
     ControlMode ctrl_mode_{PosWithSpeed};
     MotorModeCmd motor_mode_cmd_{ModeNone};
     uint32_t tx_base_id_{0};
+    bool is_4340_{false};
 };
+

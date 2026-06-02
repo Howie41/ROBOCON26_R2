@@ -65,12 +65,12 @@ C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
 
 // 取矿电机
-C610Motor arm2006_motor(&fdcan2_bus, 0x205, 0, 0x1FF, 0);
-C620Motor arm3508_motor(&fdcan2_bus, 0x206, 0, 0x1FF, 0);
-DM43xxMotor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,
-                         DM43xxMotor::PosWithSpeed);
-DM43xxMotor arm4340_motor(&fdcan2_bus, 0x302, 0, 0x02, 0,
-                         DM43xxMotor::PosWithSpeed);
+C610Motor arm2006_motor(&fdcan2_bus, 0x203, 0, 0x200, 0);  // 伸缩
+C620Motor arm3508_motor(&fdcan2_bus, 0x204, 0, 0x200, 0);  // 旋转
+DM43xxMotor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,  // 翻转
+                         DM43xxMotor::PosWithSpeed, false);
+DM43xxMotor arm4340_motor(&fdcan2_bus, 0x302, 0, 0x02, 0, // 抬升
+                         DM43xxMotor::PosWithSpeed, true);
 
 //尾部的电机
 C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
@@ -331,7 +331,7 @@ void can3SendTask(void *argument) {
     commands[3] = static_cast<int16_t>(chassis_motor4.cmdTrans()); // 0x204
     packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
     // arm3508_motor.manager_->addCanMsg(pack);
-    fdcan3_bus.addCanMsg(pack);
+    // fdcan3_bus.addCanMsg(pack);
     vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
   }
 }
