@@ -112,4 +112,9 @@ typedef struct {
   uint16_t event_code;  // 事件码，对应 PcCmd 中的 nav_* 枚举值
 } pc_nav_event_t;
 
+// 二维码扫描结果
+typedef struct {
+  uint8_t data;
+} pub_qr_code_parsed; // topic = "qr_code_parsed"
+
 #pragma pack()

@@ -26,6 +26,9 @@ enum class PcCmd : uint16_t {
   nav_high_exit     = 0x0203,  // 退出高位模式 (2006 离地)
   nav_climb_up_ok   = 0x0204,  // 上台阶完成 (Phase 4 待实现)
   nav_climb_down_ok = 0x0205,  // 下台阶完成 (Phase 4 待实现)
+
+  // 二维码
+  qr_code_parsed    = 0xAA00, // 上位机解析到二维码指令
 };
 class PcCom {
 public:
@@ -58,4 +61,7 @@ private:
     // 导航事件订阅: lift_task / NavProtocol 发布事件 → ProcessTx 发送到上位机
     // 队列深度 4，足够缓冲连续事件
     TypedTopicSubscriber<pc_nav_event_t> pc_nav_event_sub_{"pc_nav_event_pub", 4};
+
+    // 二维码解析
+    TypedTopicPublisher<pub_qr_code_parsed> pc_qr_code_pub_{"qr_code_parsed"};
 };

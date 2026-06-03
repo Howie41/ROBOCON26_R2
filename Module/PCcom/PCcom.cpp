@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <sys/types.h>
 
 void PcCom::init()
 {
@@ -91,6 +92,17 @@ void PcCom::OnPacket(Packet packet) {
     case static_cast<uint16_t>(PcCmd::nav_climb_up):
     case static_cast<uint16_t>(PcCmd::nav_climb_down):
       break;
+
+    // ---- 二维码解析结果 ----
+    case static_cast<uint16_t>(PcCmd::qr_code_parsed): {
+      if (packet.body_size() != sizeof(pub_qr_code_parsed)) {
+        return;
+      }
+      pub_qr_code_parsed qr_code_msg{};
+      std::memcpy(&qr_code_msg, packet.body_data(), sizeof(qr_code_msg));
+      pc_qr_code_pub_.Publish(qr_code_msg);
+      break;
+    }
 
     default:
       break;
