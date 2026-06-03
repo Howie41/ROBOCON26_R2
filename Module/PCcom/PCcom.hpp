@@ -17,18 +17,22 @@ enum class PcCmd : uint16_t {
   // ---- 上位机→下位机: 导航指令 (0x01xx) ----
   nav_position   = 0x0101,  // 上位机上报当前位置 (替代旧协议 P 命令)
   nav_target     = 0x0102,  // 上位机下发目标点   (替代旧协议 T 命令)
-  nav_climb_up   = 0x0103,  // 上台阶指令 (Phase 4 待实现)
-  nav_climb_down = 0x0104,  // 下台阶指令 (Phase 4 待实现)
+  nav_climb_up        = 0x0103,  // 上台阶指令
+  nav_climb_down      = 0x0104,  // 下台阶指令
+  nav_execute_waypoint = 0x010A, // 去航点 (body: uint8_t 索引)
 
-  // ---- 下位机→上位机: 导航事件 (0x02xx) ----
-  nav_arrived       = 0x0201,  // 到达目标点
-  nav_high_enter    = 0x0202,  // 进入高位模式 (2006 着地)
-  nav_high_exit     = 0x0203,  // 退出高位模式 (2006 离地)
-  nav_climb_up_ok   = 0x0204,  // 上台阶完成 (Phase 4 待实现)
-  nav_climb_down_ok = 0x0205,  // 下台阶完成 (Phase 4 待实现)
 
   // 二维码
   qr_code_parsed    = 0xAA00, // 上位机解析到二维码指令
+  nav_arrived        = 0x0201,  // 到达目标点
+  nav_high_enter     = 0x0202,  // 进入高位模式 (2006 着地)
+  nav_high_exit      = 0x0203,  // 退出高位模式 (2006 离地)
+  nav_climb_up_ok   = 0x0204,  // 上台阶完成 (Phase 4 待实现)
+  nav_climb_down_ok = 0x0205,  // 下台阶完成 (Phase 4 待实现)
+  nav_stair_hd_start = 0x0207,  // 2006 高位驱动开始
+  nav_stair_hd_done  = 0x0208,  // 2006 高位驱动到达
+  nav_stair_cd_start = 0x0209,  // 去中心驱动开始
+  nav_stair_cd_done  = 0x020A,  // 去中心驱动到达
 };
 class PcCom {
 public:

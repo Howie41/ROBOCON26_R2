@@ -1,4 +1,5 @@
 #include "NavProtocol.hpp"
+#include "waypoint_navigator.hpp"
 
 #include "UsbPort.hpp"
 #include "pid_controller.h"
@@ -13,8 +14,8 @@
 extern volatile float g_chassis_yaw_deg;
 
 PID_t pid_x = {
-    .Kp = 1.8f,
-    .Ki = 0.13f,
+    .Kp = 2.0f,
+    .Ki = 0.15f,
     .Kd = 0.05f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
@@ -23,8 +24,8 @@ PID_t pid_x = {
 };
 
 PID_t pid_y = {
-    .Kp = 1.8f,
-    .Ki = 0.13f,
+    .Kp = 2.0f,
+    .Ki = 0.15f,
     .Kd = 0.05f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
@@ -264,6 +265,12 @@ void NavControlTask(void *argument) {
     const TickType_t now = xTaskGetTickCount();
 
     nav_control::current_yaw = static_cast<int16_t>(g_chassis_yaw_deg);
+
+    // ---- 楼梯状态机: 接管导航 ----
+    if (runStairSM()) {
+      vTaskDelayUntil(&lastWakeTime, 10);
+      continue;
+    }
 
     if (nav_control::auto_enabled) {
       if (!isPositionFresh(now)) {
