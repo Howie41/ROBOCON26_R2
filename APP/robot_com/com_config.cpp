@@ -331,7 +331,7 @@ void can3SendTask(void *argument) {
     commands[3] = static_cast<int16_t>(chassis_motor4.cmdTrans()); // 0x204
     packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
     // arm3508_motor.manager_->addCanMsg(pack);
-    // fdcan3_bus.addCanMsg(pack);
+     fdcan3_bus.addCanMsg(pack);
     vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
   }
 }
