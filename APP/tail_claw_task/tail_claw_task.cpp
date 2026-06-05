@@ -10,12 +10,12 @@
 #include "stm32h7xx_hal_gpio.h"
 #include"topic_pool.h"
 
-constexpr float roll_reduction_ratio = 19.0f;     // 翻转的减速比
-constexpr float move_max_distance = 6.0f;        // 尾部移动的最大距离,单位厘米
+constexpr float roll_reduction_ratio = 2.5f;     // 翻转的减速比
+constexpr float move_max_distance = 31.0f;        // 尾部移动的最大距离,单位厘米
 constexpr float move_degree_per_cm = 360.0f/(3*3.1415926f); // 齿条齿轮: 1cm平移对应电机转角
 
-constexpr float roll_low_pos=0.0f;              //低位翻转角度
-constexpr float roll_high_pos=90.0f;            //高位翻转角度
+constexpr float roll_low_pos=20.0f;              //低位翻转角度
+constexpr float roll_high_pos=230.0f;            //高位翻转角度
 constexpr float roll_pos_tolerance = 2.0f;      //翻转位置容差
 constexpr TickType_t kRollTapTimeout = pdMS_TO_TICKS(300);  // 300ms以内算"点按"
 enum class TailRollMode{
@@ -68,7 +68,7 @@ PID_t tail_claw_move_speed_pid={
 };
 
 PID_t tail_claw_roll_pos_pid={
-    .Kp = 30.0f,
+    .Kp = 20.0f,
     .Ki = 0.0f,
     .Kd = 1.0f,
     .MaxOut = 100.0f,
@@ -77,7 +77,7 @@ PID_t tail_claw_roll_pos_pid={
 };
 
 PID_t tail_claw_roll_speed_pid={
-    .Kp = 120.0f,
+    .Kp = 80.0f,
     .Ki = 10.0f,
     .Kd = 1.4f,
     .MaxOut = 2000.0f,
@@ -153,11 +153,11 @@ void get_weapon_match_state(tail_claw_msg* msg)
     }
 
     // ---- Xbox D-pad 左右: 2006水平平移 ----
-    if(control_xbox_cmd.btnDirLeft)
+    if(control_xbox_cmd.btnDirRight)
     {
         weapon_match_state_ = (weapon_match_state_ & ~motor_move_right) | motor_move_left;
     }
-    else if(control_xbox_cmd.btnDirRight)
+    else if(control_xbox_cmd.btnDirLeft)
     {
         weapon_match_state_ = (weapon_match_state_ & ~motor_move_left) | motor_move_right;
     }else
@@ -238,6 +238,7 @@ void get_weapon_match_state(tail_claw_msg* msg)
         weapon_match_state_ = weapon_match_state_ & ~(motor_roll_down | motor_roll_up);
     }
     */
+    /*
     // ---- Share: 爪子开/合 (上升沿触发) ----
     {
         static bool last_share_btn = false;
@@ -256,7 +257,7 @@ void get_weapon_match_state(tail_claw_msg* msg)
             air_pump = !air_pump;
         }
         last_menu_btn = control_xbox_cmd.btnMenu;
-    }
+    }*/
 }
 
 void tail_claw_move_close()
