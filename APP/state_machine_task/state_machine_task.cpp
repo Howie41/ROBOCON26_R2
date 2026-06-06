@@ -143,12 +143,40 @@ void stateMachineTask(void *argument) {
                             change_state_to(RobotState::go_to_SHR);
                             return true;
                         case 0x1B: // 进入梅林
-                            change_state_to(RobotState::go_to_MF);
+                            change_state_to(RobotState::go_to_MF_entrance);
                             return true;
                         default:
                             return false;
                     }
                 });
+                break;
+            }
+
+            case RobotState::go_to_MF_entrance: {
+                break;
+            }
+
+            case RobotState::request_for_path_step: {
+                break;
+            }
+
+            case RobotState::execute_chassis_action: {
+                break;
+            }
+
+            case RobotState::execute_arm_action: {
+                break;
+            }
+
+            case RobotState::go_to_MF_exit: {
+                break;
+            }
+
+            case RobotState::go_to_R2_EXIT: {
+                break;
+            }
+
+            case RobotState::stop: {
                 break;
             }
 
