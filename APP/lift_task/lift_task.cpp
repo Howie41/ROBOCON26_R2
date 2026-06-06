@@ -70,7 +70,7 @@ constexpr float LIFT_RISE_SPEED    = 200.0f;   // 自动上升速度 (3508 RPM)
 constexpr float LIFT_FALL_SPEED    = 200.0f;   // 自动下降速度 (可以和上升不同)
 constexpr float LIFT_POS_TOLERANCE =  2.0f;   // 位置到达判定容差 (度)
 
-constexpr float LIFT_LOW_POS = -100.0f;
+constexpr float LIFT_LOW_POS = -110.0f;
 constexpr float LIFT_HIGH_POS = 520.0f;
 
 constexpr float LIFT_2006_MOTOR1_DIR = 1.0f;

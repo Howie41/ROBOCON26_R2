@@ -14,10 +14,18 @@ constexpr float STAIR_CENTER_OFFSET = 200.0f;
 struct Wp {
   int16_t x, y, yaw;
 };
+enum WpID : uint8_t {
+  WP_NONE = 0,
+  WP_SHR1 =1,
+  WP_SHR2 =2,
+  WP_SHR3 =3,
+  WP_MF_Entrance = 4,
+};
 
 constexpr Wp LIST[128] = {
-    {0, 0, 0},  // [0] 保留
-    // 用户自行填充 [1] ~ [127]
+    {0, 0, 0},  
+    
 };
 
 }  // namespace field
+ 

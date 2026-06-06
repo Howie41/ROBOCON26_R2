@@ -437,7 +437,7 @@ void PcComTask(void *argument) {
   for (;;) {
     osSemaphoreAcquire(usbcdc_rx_semphore, 1);
     pc_com.ProcessRx();
-    
+
     pc_com.ProcessTx();
     vTaskDelayUntil(&currentTime, 1);
   }
