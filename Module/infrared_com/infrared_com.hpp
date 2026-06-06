@@ -108,4 +108,6 @@ class InfraredModuleGroup {
             max_uid_received_ = temp_max_uid;
             return valid_latest_msg;
         }
+
+        uint16_t getMaxUidReceived() const { return max_uid_received_; }
 };
