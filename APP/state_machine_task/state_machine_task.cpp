@@ -111,12 +111,16 @@ uint8_t get_cmd_from_r1() {
     return cmd;
 }
 
+bool state_paused = true; // DEBUG
+
 void stateMachineTask(void *argument) {
     for (;;) {
         switch (current_state.load()) {
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case RobotState::begin: {
+                chassis_rotate_to(90);
+                wait_until([&]() -> bool { return !state_paused; });
                 break;
             }
 
