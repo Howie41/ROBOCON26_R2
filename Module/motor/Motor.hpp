@@ -163,10 +163,10 @@ public:
     float updateSpeedProcess() {
         is_finished_ = getIsFinished();
         pos_process_ = (getCurrentSumPos() - ini_sum_pos_) / (tar_sum_pos_ - ini_sum_pos_);
-        if (pos_process_ < ini_buffer_rate_) {  // 加速阶段：速度从ini_speed_平滑过渡到max_speed_
-            v_ = ini_speed_ + (max_speed_ - ini_speed_) * f_vx_buffer(pos_process_ / ini_buffer_rate_);
-        } else if (pos_process_ > 1.0f - end_buffer_rate_) {  // 减速阶段：速度从max_speed_平滑过渡到end_speed_
+        if (pos_process_ > 1.0f - end_buffer_rate_) {  // 减速阶段：速度从max_speed_平滑过渡到end_speed_
             v_ = end_speed_ + (max_speed_ - end_speed_) * f_vx_buffer((1.0f - pos_process_) / end_buffer_rate_);
+        } else if (pos_process_ < ini_buffer_rate_) {  // 加速阶段：速度从ini_speed_平滑过渡到max_speed_
+            v_ = ini_speed_ + (max_speed_ - ini_speed_) * f_vx_buffer(pos_process_ / ini_buffer_rate_);
         } else {  // 匀速阶段：保持在max_speed_
             v_ = max_speed_;
         }

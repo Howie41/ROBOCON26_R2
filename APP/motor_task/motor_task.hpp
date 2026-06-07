@@ -45,11 +45,11 @@ public:
                 .Ki = 0.0f,
                 .Kd = 2.5f,
                 .MaxOut = 60.0f,
-                .DeadBand = 0.05f
+                .DeadBand = 0.01f
             },
             .speed_pid = {
                 .Kp = 2200.0f,
-                .Ki = 0.3f,
+                .Ki = 600.0f,
                 .Kd = 1.8f,
                 .MaxOut = 12000.0f,
                 .DeadBand = 0.1f
