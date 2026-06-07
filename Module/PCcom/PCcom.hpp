@@ -8,6 +8,8 @@
 #include "verification_algorithm.hpp"
 
 #include <cstdint>
+#include "state_machine_task.h"
+
 //消息类型
 enum class PcCmd : uint16_t {
   tail_claw_msg = 0x0001,
@@ -70,4 +72,8 @@ private:
   
     // 二维码解析
   TypedTopicPublisher<pub_qr_code_parsed> pc_qr_code_pub_{"qr_code_parsed"};
+
+    // 请求路径规划动作
+    TypedTopicSubscriber<bool> pc_path_cmd_request_sub_{"pc_path_cmd_request", 1};
+    TypedTopicPublisher<PathCmd> pc_path_cmd_pub_{"pc_path_cmd"};
 };

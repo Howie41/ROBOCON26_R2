@@ -20,8 +20,12 @@
 osThreadId_t StateMachineTaskHandle;
 
 static std::atomic<RobotState> current_state{RobotState::begin};
+static std::atomic<PathCmd> current_path_cmd{PathCmd::unknown}; // 初始值对下位机来说没有意义
 
 TypedTopicSubscriber<pub_qr_code_parsed> qr_code_sub("qr_code_parsed", 1);
+
+TypedTopicSubscriber<PathCmd> path_cmd_sub("pc_path_cmd", 1); // 接收路径规划cmd
+TypedTopicPublisher<bool> path_cmd_request_pub("pc_path_cmd_request"); // 请求路径规划cmd
 
 /**
  * @brief 等待直到条件满足
@@ -160,8 +164,36 @@ void stateMachineTask(void *argument) {
                 break;
             }
 
-            case RobotState::request_for_path_step: {
-                break;
+            case RobotState::request_for_path_cmd: {
+                path_cmd_request_pub.Publish(true); // 发一次 PathCmd::request
+
+                PathCmd cmd;
+                wait_until([&]() -> bool {
+                    return path_cmd_sub.TryGet(&cmd);
+                });
+
+                current_path_cmd.store(cmd); // 给其他后续状态读取
+                switch (cmd) {
+                    case PathCmd::move_forward:
+                    case PathCmd::move_backward:
+                    case PathCmd::turn_left_90:
+                    case PathCmd::turn_right_90:
+                    case PathCmd::move_left:
+                    case PathCmd::move_right:
+                        change_state_to(RobotState::execute_chassis_action);
+                        break;
+                    case PathCmd::grab_low_r2kfs:
+                    case PathCmd::grab_mid_r2kfs:
+                    case PathCmd::grab_high_r2kfs:
+                    case PathCmd::drop_and_grab_new_kfs:
+                        change_state_to(RobotState::execute_arm_action);
+                        break;
+                    case PathCmd::no_more_commands:
+                        change_state_to(RobotState::go_to_MF_exit);
+                        break;
+                    default:
+                        break;
+                }
             }
 
             case RobotState::execute_chassis_action: {
@@ -173,10 +205,6 @@ void stateMachineTask(void *argument) {
             }
 
             case RobotState::go_to_MF_exit: {
-                break;
-            }
-
-            case RobotState::go_to_R2_EXIT: {
                 break;
             }
 
