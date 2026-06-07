@@ -23,8 +23,6 @@
 
 osThreadId_t Arm_TaskHandle;
 
-extern Logger logger;
-
 static TypedTopicSubscriber<pub_arm_cmd> arm_cmd_sub("arm_cmd", 8);
 static pub_arm_cmd arm_cmd{};
 
@@ -33,45 +31,31 @@ extern Arm arm;
 
 uint8_t flag = 1;
 
-float tar_pos_3508 = 0.0f;
-float tar_pos_2006 = 0.0f;
-float tar_pos_4340 = 0.0f;
-float tar_pos_4310 = 0.0f;
-uint8_t fetch_flag = 0;
+
+void fetch_step(uint8_t step) {
+    switch (step) {
+        case 1:
+            arm.fetch(1, flag);
+            break;
+    }
+}
+
 
 void armTask(void *argument) {
     
+    arm.reset();
+
   for (;;) {
 
     if (arm_cmd_sub.TryGet(&arm_cmd)) {
         if (arm_cmd.update) {
-            arm.step_fetch(1, flag);
+            arm.fetch(-1, flag);
             flag++;
-            if (flag == 7) flag = 1;
+        }
+        if (arm_cmd.fetch) {
+            flag = 1;
         }
     }
-    // if (arm_cmd_sub.TryGet(&arm_cmd)) {
-    //     if (arm_cmd.update) {
-    //         flag = 1;
-    //     }
-    //     if (arm_cmd.fetch) {
-    //         if (fetch_flag) {
-    //             fetch_flag = 0;
-    //             arm.release();
-    //         } else {
-    //             fetch_flag = 1;
-    //             arm.fetch();
-    //         }
-    //     }
-    // }
-
-    // if (flag) {
-    //     flag = 0;
-    //     arm.arm_lift_.posWithSpeedControl(tar_pos_4340, 1000.0f);
-    //     arm.arm_rotate_.posWithSpeedControl(tar_pos_3508, 2.8f, 10.0f, 30.0f, 0.0f, 0.0f);
-    //     arm.arm_expand_.posWithSpeedControl(tar_pos_2006, 12.0f, 180.0f, 360.0f, 0.0f, 0.0f);
-    //     arm.arm_flip_.posWithSpeedControl(tar_pos_4310, 120.0f);
-    // }
 
     osDelay(1);
   }
