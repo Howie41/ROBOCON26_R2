@@ -19,6 +19,7 @@
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "logger.hpp"
+#include "bsp_dwt.h"
 
 
 osThreadId_t Arm_TaskHandle;
@@ -29,19 +30,44 @@ static pub_arm_cmd arm_cmd{};
 
 extern Arm arm;
 
-uint8_t flag = 1;
+static uint8_t index = 1;
+static float time_rec = 0.0f;
 
 
-void fetch_step(uint8_t step) {
+void fetch_step(int8_t step) {
     if (arm.kfs_num_ == 3) return;
+    index = 1;
     switch (step) {
         case 1:
-        
+            arm.is_fecthing_step_M_ = true;
+            break;
+        case 2:
+            arm.is_fecthing_step_H_ = true;
+            break;
+        case -1:
+            arm.is_fecthing_step_L_ = true;
             break;
     }
 }
 
 
+// void armTask(void *argument) {
+
+//     time_rec = DWT_GetTimeline_s();
+    
+//     for (;;) {
+//         if (arm.is_fecthing_step_H_) {
+
+//         } else if (arm.is_fecthing_step_M_) {
+
+//         } else if (arm.is_fecthing_step_L_) {
+
+//         }
+//         osDelay(1);
+//     }
+// }
+
+uint8_t flag = 1;
 void armTask(void *argument) {
     
     arm.reset();
@@ -50,7 +76,7 @@ void armTask(void *argument) {
 
     if (arm_cmd_sub.TryGet(&arm_cmd)) {
         if (arm_cmd.update) {
-            arm.fetch_proceed(-1, flag);
+            arm.fetch_proceed(1, flag);
             flag++;
         }
         if (arm_cmd.fetch) {
@@ -61,3 +87,4 @@ void armTask(void *argument) {
     osDelay(1);
   }
 }
+
