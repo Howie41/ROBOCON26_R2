@@ -33,9 +33,10 @@ uint8_t flag = 1;
 
 
 void fetch_step(uint8_t step) {
+    if (arm.kfs_num_ == 3) return;
     switch (step) {
         case 1:
-            arm.fetch(1, flag);
+        
             break;
     }
 }
@@ -49,7 +50,7 @@ void armTask(void *argument) {
 
     if (arm_cmd_sub.TryGet(&arm_cmd)) {
         if (arm_cmd.update) {
-            arm.fetch(-1, flag);
+            arm.fetch_proceed(-1, flag);
             flag++;
         }
         if (arm_cmd.fetch) {

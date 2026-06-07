@@ -20,10 +20,6 @@
 #include <stdio.h>
 
 
-typedef enum {
-    
-} ArmPose;
-
 class Arm {
 
 public:
@@ -63,6 +59,11 @@ public:
         return arm_expand_.getIsFinished() && arm_rotate_.getIsFinished();
     }
     
+    Arm& addKFS() {
+        arm.kfs_num_++;
+        return *this;
+    }
+
     Arm& reset() {
         arm_lift_.posWithSpeedControl(570.0f, 1000.0f);
         arm_flip_.posWithSpeedControl(0.0f, 120.0f);
@@ -70,7 +71,7 @@ public:
         arm_expand_.posWithSpeedControl(0.0f, 18.0f, 120.0f, 240.0f, 0.0f, 0.0f);
         return *this;
     }
-    bool fetch(int8_t step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
+    bool fetch_proceed(int8_t step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
         if (step == 1 || step == 2) {
             if (kfs_num_ == 0 || kfs_num_ == 1) {
                 switch (index) {
@@ -294,15 +295,27 @@ public:
         }
         return false;
     }
-    bool place(uint8 index) {
+    bool place_proceed(uint8_t index) {
         if (kfs_num_ == 1) {
             switch (index) {
+                case 1:
+                    break;
+                default:
+                    return true;
             }
         } else if (kfs_num_ == 2) {
             switch (index) {
+                case 1:
+                    break;
+                default:
+                    return true;
             }
         } else if (kfs_num_ == 3) {
             switch (index) {
+                case 1:
+                    break;
+                default:
+                    return true;
             }
         }
         return false;
@@ -313,7 +326,12 @@ public:
     MotorBase &arm_expand_;
     DM43xxMotor &arm_flip_;
 
-    uint8_t kfs_num_{2};
+    uint8_t kfs_num_{0};
+
+    bool is_fecthing_step_L_{false};
+    bool is_fecthing_step_M_{false};
+    bool is_fecthing_step_H_{false};
+
 };
 
 void armTask(void *argument);
