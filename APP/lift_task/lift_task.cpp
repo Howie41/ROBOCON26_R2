@@ -66,8 +66,8 @@ constexpr float MAX_LIFT_2006_SPEED = 600.0f;
 constexpr float MAX_LIFT_3508_SPEED = 300.0f;
 constexpr float MAX_LIFT_3508_SYNC_COMP = 30.0f;
 
-constexpr float LIFT_RISE_SPEED    = 200.0f;   // 自动上升速度 (3508 RPM)
-constexpr float LIFT_FALL_SPEED    = 200.0f;   // 自动下降速度 (可以和上升不同)
+constexpr float LIFT_RISE_SPEED    = 125.0f;   // 自动上升速度 (3508 RPM)
+constexpr float LIFT_FALL_SPEED    = 100.0f;   // 自动下降速度 (可以和上升不同)
 constexpr float LIFT_POS_TOLERANCE =  2.0f;   // 位置到达判定容差 (度)
 
 constexpr float LIFT_LOW_POS = -110.0f;
@@ -75,7 +75,7 @@ constexpr float LIFT_HIGH_POS = 520.0f;
 
 constexpr float LIFT_2006_MOTOR1_DIR = 1.0f;
 constexpr float LIFT_2006_MOTOR2_DIR = -1.0f;
-constexpr float LIFT_3508_MOTOR1_DIR = 1.0f;
+constexpr float LIFT_3508_MOTOR1_DIR = -1.0f;
 constexpr float LIFT_3508_MOTOR2_DIR = -1.0f;
 
 enum class Lift3508Mode {
@@ -122,7 +122,7 @@ static inline void liftInit(void) {
   PID_Init(&lift_3508_sync_pid);
   PID_Init(&high_yaw_lock_pid);
 
-  lift_3508_motor1_pos = lift_3508_motor1.getCurrentSumPos();
+  lift_3508_motor1_pos = -lift_3508_motor1.getCurrentSumPos();
   lift_3508_motor2_pos = -lift_3508_motor2.getCurrentSumPos();
   lift_3508_avg_pos = (lift_3508_motor1_pos + lift_3508_motor2_pos) / 2.0f;
   lift_3508_diff_pos = lift_3508_motor1_pos - lift_3508_motor2_pos;
@@ -151,7 +151,7 @@ if (lift_cmd.request_high) {
   }
   lift_2006_speed = lift_cmd.lift_2006_input * MAX_LIFT_2006_SPEED;
 
-  lift_3508_motor1_pos = lift_3508_motor1.getCurrentSumPos();
+  lift_3508_motor1_pos = -lift_3508_motor1.getCurrentSumPos();
   lift_3508_motor2_pos = -lift_3508_motor2.getCurrentSumPos();
   lift_3508_motor1_speed = lift_3508_motor1.getRawCurrentSpeed();
   lift_3508_motor2_speed = lift_3508_motor2.getRawCurrentSpeed();
@@ -247,7 +247,7 @@ void liftTask(void *argument) {
 
     if (high_nav_cmd.active && nav_control::auto_enabled) {
       // 自动导航：上位机坐标→NavControlTask计算 speed/omega
-      high_forward = high_nav_cmd.forward_speed;
+      high_forward = -high_nav_cmd.forward_speed;
       high_omega = high_nav_cmd.omega;
     } else if (nav_control::high_mode_active) {
       // 手动高位：Xbox右摇杆前进 + yaw锁角
@@ -258,7 +258,7 @@ void liftTask(void *argument) {
     }
     // 低位模式: high_forward=0, high_omega=0 → 2006不转
 
-    const float motor1_ref = high_forward * LIFT_2006_MOTOR1_DIR + high_omega;
+    const float motor1_ref = high_forward * LIFT_2006_MOTOR1_DIR - high_omega;
     const float motor2_ref = high_forward * LIFT_2006_MOTOR2_DIR - high_omega;
 
     lift_2006_motor1_pid_out =
@@ -312,6 +312,7 @@ void liftTask(void *argument) {
     vTaskDelayUntil(&currentTime, 1);
   }
 }
+
 void liftRequestHigh() {
   lift_3508_target_pos = LIFT_HIGH_POS;
   lift_3508_mode = Lift3508Mode::TARGETING;

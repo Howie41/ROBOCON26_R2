@@ -79,9 +79,8 @@ bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0) {
     return wait_until_timeout_or([&]() { return nav_control::arrived; }, timeout_ms);
 }
 
-  inline void move_to_wp(uint8_t id, uint32_t timeout_ms = 0) {
-      auto &w = field::LIST[id];
-      move_to_pos(w.x, w.y, w.yaw, timeout_ms);
+  inline void move_to_wp(const field::Wp &wp, uint32_t timeout_ms = 0) {
+    move_to_pos(wp.x, wp.y, wp.yaw, timeout_ms);
   }
 
 /**

@@ -15,7 +15,7 @@ extern volatile float g_chassis_yaw_deg;
 
 PID_t pid_x = {
     .Kp = 2.0f,
-    .Ki = 0.15f,
+    .Ki = 0.16f,
     .Kd = 0.05f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
@@ -25,7 +25,7 @@ PID_t pid_x = {
 
 PID_t pid_y = {
     .Kp = 2.0f,
-    .Ki = 0.15f,
+    .Ki = 0.16f,
     .Kd = 0.05f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
@@ -37,18 +37,18 @@ PID_t pid_yaw = {
     .Kp = 0.1f,
     .Ki = 0.001f,
     .Kd = 0.005f,
-    .MaxOut = 3.0f,
+    .MaxOut = 2.0f,
     .IntegralLimit = 0.5f,
-    .DeadBand = 3.0f,
+    .DeadBand = 1.0f,
     .Improve = Integral_Limit,
 };
 
 // Phase 2: 高位2006导航 — 距离→速度PID
 PID_t pid_high_distance = {
-    .Kp = 8.0f,
+    .Kp = 0.8f,
     .Ki = 0.05f,
     .Kd = 0.0f,
-    .MaxOut = 500.0f,
+    .MaxOut = 400.0f,
     .IntegralLimit = 200.0f,
     .DeadBand = 5.0f,
     .Improve = Integral_Limit,
@@ -56,7 +56,7 @@ PID_t pid_high_distance = {
 
 // Phase 2: 高位2006导航 — yaw锁角PID (输出2006 RPM)
 PID_t pid_high_yaw = {
-    .Kp = 15.0f,
+    .Kp = 1.0f,
     .Ki = 0.02f,
     .Kd = 0.0f,
     .MaxOut = 300.0f,
@@ -299,16 +299,8 @@ void NavControlTask(void *argument) {
         pub_high_nav_cmd high_cmd{};
         high_cmd.active = true;
 
-        if (fabsf(heading_error) > 1.0f) {
-          // ROTATE: 原地旋转对准目标方向
-          high_cmd.forward_speed = 0.0f;
-          high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
-        } else {
-          // DRIVE: 直走 + yaw锁角
-          high_cmd.forward_speed =
-              PID_Calculate(&pid_high_distance, 0.0f, dist_error);
-          high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
-        }
+        high_cmd.forward_speed = 300.0f;
+        high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
 
         // 限幅
         if (high_cmd.forward_speed > 500.0f) high_cmd.forward_speed = 500.0f;
@@ -316,7 +308,7 @@ void NavControlTask(void *argument) {
         if (high_cmd.omega > 500.0f) high_cmd.omega = 500.0f;
         if (high_cmd.omega < -500.0f) high_cmd.omega = -500.0f;
 
-        const bool reached = (dist_error < 10.0f);
+        const bool reached = (fabsf(error_x_body) < 10.0f);
         nav_control::arrived = reached;
         if (reached) {
           reportArrivalOnce();
