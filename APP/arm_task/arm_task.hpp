@@ -82,6 +82,16 @@ public:
         return *this;
     }
 
+    Arm& place_release_start() {
+        release();
+        destroy_vaccum_start();
+        return *this;
+    }
+    Arm& place_release_stop() {
+        destroy_vaccum_stop();
+        return *this;
+    }
+
     Arm& reset() {
         arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
         arm_flip_.posWithSpeedControl(0.0f, 120.0f);
@@ -325,6 +335,47 @@ public:
         if (kfs_num_ == 1) {
             switch (index) {
                 case 1:
+                    arm_lift_.posWithSpeedControl(B + 560.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-168.0f, 2.5f, 20.0f, 60.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 2:
+                    arm_lift_.posWithSpeedControl(B + 0.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-168.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    fetch();
+                    break;
+                case 3:
+                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-168.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 4:
+                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-80.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 5:
+                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-60.0f, 2.4f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 6:
+                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-48.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 7:
+                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(12.0f, 50.0f);
+                    arm_rotate_.posWithSpeedControl(-25.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                     break;
                 default:
                     return true;
@@ -332,6 +383,54 @@ public:
         } else if (kfs_num_ == 2) {
             switch (index) {
                 case 1:
+                    arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(0.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(880.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 2:
+                    arm_lift_.posWithSpeedControl(B + 560.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-90.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(840.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 3:
+                    arm_lift_.posWithSpeedControl(B + 560.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-169.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    fetch();
+                    break;
+                case 4:
+                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-165.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                // case 5: 未完待续，现在我要去玩MC了~  2026/6/8 21:02p.m.
+                case 5:
+                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-80.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 6:
+                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-60.0f, 2.4f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 7:
+                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-48.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 8:
+                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(12.0f, 50.0f);
+                    arm_rotate_.posWithSpeedControl(-25.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                     break;
                 default:
                     return true;
@@ -339,26 +438,55 @@ public:
         } else if (kfs_num_ == 3) {
             switch (index) {
                 case 1:
-                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
+                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
                     arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
                     arm_rotate_.posWithSpeedControl(-80.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
                     arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                     break;
                 case 2:
-                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
+                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
                     arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-24.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_rotate_.posWithSpeedControl(-60.0f, 2.4f, 20.0f, 30.0f, 0.0f, 0.0f);
                     arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                     break;
                 case 3:
-                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
+                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
+                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
+                    arm_rotate_.posWithSpeedControl(-48.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    break;
+                case 4:
+                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
                     arm_flip_.posWithSpeedControl(12.0f, 50.0f);
-                    arm_rotate_.posWithSpeedControl(-24.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
+                    arm_rotate_.posWithSpeedControl(-25.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
                     arm_expand_.posWithSpeedControl(660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                     break;
                 default:
                     return true;
             }
+        }
+        return false;
+    }
+
+    bool place_release_proceed(uint8_t index) {
+        switch (index) {
+            case 1:
+                place_release_start();
+                break;
+            case 2:
+                place_release_stop();
+                break;
+            case 3:
+                arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
+                arm_flip_.posWithSpeedControl(0.0f, 120.0f);
+                arm_rotate_.posWithSpeedControl(0.0f, 2.1f, 20.0f, 30.0f, 0.0f, 0.0f);
+                arm_expand_.posWithSpeedControl(900.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                break;
+            case 4:
+                reset();
+                break;
+            default:
+                return true;
         }
         return false;
     }
@@ -377,6 +505,8 @@ public:
     bool is_placing_kfs_L_{false};
     bool is_placing_kfs_M_{false};
     bool is_placing_kfs_H_{false};
+
+    bool is_place_releasing_{false};
 
 };
 
