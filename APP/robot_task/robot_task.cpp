@@ -148,6 +148,7 @@ void osTaskInit(void) {
   uart3ProcessTaskHandle =
       osThreadNew(uart3RxProcessTask, NULL, &Uart3ProcessTaskHandle_attributes);
 
+#if LASER_MEASURE_ENABLE
   const osThreadAttr_t LaserMeasureTaskHandle_attributes = {
       .name = "LaserMeasure_TaskHandle",
       .stack_size = 512 * 4,
@@ -155,6 +156,7 @@ void osTaskInit(void) {
   };
   laserMeasureTaskHandle =
       osThreadNew(laserMeasureTask, NULL, &LaserMeasureTaskHandle_attributes);
+#endif
 
  /* const osThreadAttr_t UsbcdcProcessTaskHandle_attributes = {
       .name = "UsbcdcProcess_TaskHandle",

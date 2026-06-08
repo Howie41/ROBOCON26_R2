@@ -1,20 +1,8 @@
-/**
- * @file com_config.h
- * @author Keten (2863861004@qq.com)
- * @brief 
- * @version 0.1
- * @date 2026-04-21
- *
- * @copyright Copyright (c) 2026
- *
- * @attention :
- * @note :
- * @versioninfo :
- */
 #pragma once
 
 #include "PCcom.hpp"
 #include "stm32h7xx_hal_pcd.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,11 +11,7 @@ extern "C" {
 #include "bsp_dwt.h"
 #include "cmsis_os.h"
 
-/*------------------------------------extern------------------------------------*/
-
-/*-----------------------------------macro------------------------------------*/
-
-/*----------------------------------function----------------------------------*/
+#define LASER_MEASURE_ENABLE 1
 
 uint8_t comServiceInit();
 
@@ -46,9 +30,11 @@ void PcComTask(void *argument);
 
 #ifdef __cplusplus
 
-#include "LaserMeasure.hpp"
+#include "LaserMeasure/LaserMeasure.hpp"
 #include "infrared_com.hpp"
+
 extern InfraredModule infrared_module;
 extern LaserMeasure laser1;
 extern LaserMeasure laser2;
+
 #endif

@@ -13,7 +13,7 @@ HAL_StatusTypeDef LaserMeasure::triggerSingleMeasure() {
   uint8_t cmd[4] = {address_, 0x06, 0x02, 0x00};
   cmd[3] = checksum(cmd, 3);
 
-  return uart_port_.write(cmd, sizeof(cmd), 10);
+  return uart_port_.writeDma(cmd, sizeof(cmd));
 }
 
 bool LaserMeasure::processFrame(const uint8_t *data, std::size_t len) {
