@@ -170,25 +170,24 @@ void armTask(void *argument) {
         } else if (arm.is_placing_kfs_L_) {
             now_t = DWT_GetTimeline_s() - time_rec;
             if (now_t >= 0.5f && last_t < 0.5f) { arm.place_proceed(1); }
-            if (now_t >= 1.5f && last_t < 1.5f) { arm.place_proceed(2); }
-            if (now_t >= 2.5f && last_t < 2.5f) { arm.place_proceed(3); }
-            if (now_t >= 3.5f && last_t < 3.5f) { arm.place_proceed(4); }
-            if (now_t >= 4.5f && last_t < 4.5f) { arm.place_proceed(5); }
-            if (now_t >= 5.5f && last_t < 5.5f) { arm.place_proceed(6); }
-            if (now_t >= 6.5f && last_t < 6.5f) { arm.place_proceed(7); }
-            else if (now_t >= 7.5f && last_t < 7.5f) { arm.is_placing_kfs_L_ = false; arm.rmvKFS(); }
+            if (now_t >= 2.0f && last_t < 2.0f) { arm.place_proceed(2); }
+            if (now_t >= 3.5f && last_t < 3.5f) { arm.place_proceed(3); }
+            if (now_t >= 6.5f && last_t < 6.5f) { arm.place_proceed(4); }
+            if (now_t >= 8.5f && last_t < 8.5f) { arm.place_proceed(5); }
+            if (now_t >= 10.5f && last_t < 10.5f) { arm.place_proceed(6); }
+            if (now_t >= 12.5f && last_t < 12.5f) { arm.place_proceed(7); }
+            else if (now_t >= 14.5f && last_t < 14.5f) { arm.is_placing_kfs_L_ = false; arm.rmvKFS(); }
             last_t = now_t;
         } else if (arm.is_placing_kfs_M_) {
             now_t = DWT_GetTimeline_s() - time_rec;
             if (now_t >= 0.5f && last_t < 0.5f) { arm.place_proceed(1); }
-            if (now_t >= 1.5f && last_t < 1.5f) { arm.place_proceed(2); }
-            if (now_t >= 2.5f && last_t < 2.5f) { arm.place_proceed(3); }
-            if (now_t >= 3.5f && last_t < 3.5f) { arm.place_proceed(4); }
-            if (now_t >= 4.5f && last_t < 4.5f) { arm.place_proceed(5); }
-            if (now_t >= 5.5f && last_t < 5.5f) { arm.place_proceed(6); }
-            if (now_t >= 6.5f && last_t < 6.5f) { arm.place_proceed(7); }
-            if (now_t >= 7.5f && last_t < 7.5f) { arm.place_proceed(8); }
-            else if (now_t >= 8.5f && last_t < 8.5f) { arm.is_placing_kfs_M_ = false; arm.rmvKFS(); }
+            if (now_t >= 2.5f && last_t < 2.5f) { arm.place_proceed(2); }
+            if (now_t >= 4.5f && last_t < 4.5f) { arm.place_proceed(3); }
+            if (now_t >= 6.5f && last_t < 6.5f) { arm.place_proceed(4); }
+            if (now_t >= 8.5f && last_t < 8.5f) { arm.place_proceed(5); }
+            if (now_t >= 10.5f && last_t < 10.5f) { arm.place_proceed(6); }
+            if (now_t >= 12.5f && last_t < 12.5f) { arm.place_proceed(7); }
+            else if (now_t >= 16.5f && last_t < 16.5f) { arm.is_placing_kfs_M_ = false; arm.rmvKFS(); }
             last_t = now_t;
         } else if (arm.is_placing_kfs_H_) {
             now_t = DWT_GetTimeline_s() - time_rec;
