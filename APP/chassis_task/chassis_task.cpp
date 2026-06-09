@@ -53,14 +53,14 @@ void refreshYawReference();
 namespace chassis_action {
 
 constexpr float kYawRotate90Deg = 90.0f;
-constexpr float kYawRotateToleranceDeg = 2.0f;
+constexpr float kYawRotateToleranceDeg = 1.0f;
 
 bool g_yaw_rotate_active = false;
 bool g_yaw_rotate_finished = false;
 float g_yaw_rotate_target_deg = 0.0f;
 PID_t g_yaw_rotate_pid = {
-    .Kp = 0.66f,
-    .Ki = 0.0008f,
+    .Kp = 0.13f,
+    .Ki = 0.001f,
     .Kd = 0.001f,
     .MaxOut = 4.5f,
     .IntegralLimit = 0.35f,
@@ -216,7 +216,14 @@ void chassisTask(void *argument) {
     
     // 只有在手动模式（nav_mode_=false）时才执行锁头逻辑
     // 自动导航模式下，由导航任务控制omega，不启用锁头
+    static bool nav_mode_was_auto = false;
     if (!chassis_cmd.nav_mode_) {
+      // 自动→手动切换时，刷新锁头角度为当前朝向，避免回转到旧角度
+      if (nav_mode_was_auto) {
+        g_chassis_yaw_lock_deg = g_chassis_yaw_deg;
+        g_chassis_yaw_hold_omega = 0.0f;
+        PID_Init(&yaw_hold_pid);
+      }
       const bool operator_rotating = std::fabs(chassis_cmd.omega_) > 0.05f;
       if (operator_rotating) {
         g_chassis_yaw_lock_deg = g_chassis_yaw_deg;
@@ -230,6 +237,7 @@ void chassisTask(void *argument) {
         final_cmd.omega_ = g_chassis_yaw_hold_omega;
       }
     }
+    nav_mode_was_auto = chassis_cmd.nav_mode_;
     // 自动模式：omega_ 保持 chassis_cmd.omega_（导航计算的）
 
     g_chassis_final_omega = final_cmd.omega_;

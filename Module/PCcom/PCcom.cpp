@@ -1,11 +1,41 @@
 #include "PCcom.hpp"
 #include "NavProtocol.hpp"
+#include "field_waypoints.hpp"
+#include "lift_task.h"
+#include "waypoint_navigator.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include <codecvt>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+
+namespace {
+
+TypedTopicPublisher<pub_chassis_cmd> chassis_cmd_pub("chassis_cmd");
+TypedTopicPublisher<pc_nav_event_t> pc_nav_event_pub("pc_nav_event_pub");
+
+void handleEmergencyStop() {
+  g_stair_ctx.active = false;
+  g_stair_ctx.phase = 0;
+
+  nav_control::auto_enabled = false;
+  nav_control::arrived = false;
+  nav_control::target_active = false;
+  nav_control::arrival_reported = false;
+  nav_control::target_x = nav_control::current_x;
+  nav_control::target_y = nav_control::current_y;
+  nav_control::target_yaw = nav_control::current_yaw;
+
+  pub_chassis_cmd stop_cmd{};
+  stop_cmd.nav_mode_ = true;
+  chassis_cmd_pub.Publish(stop_cmd);
+
+  pc_nav_event_t evt{static_cast<uint16_t>(PcCmd::nav_stop_ok)};
+  pc_nav_event_pub.Publish(evt);
+}
+
+}  // namespace
 
 void PcCom::init()
 {
@@ -91,6 +121,15 @@ void PcCom::OnPacket(Packet packet) {
     case static_cast<uint16_t>(PcCmd::nav_climb_up):
     case static_cast<uint16_t>(PcCmd::nav_climb_down):
       break;
+    case static_cast<uint16_t>(PcCmd::nav_enter_high):
+      liftRequestHigh();
+      break;
+    case static_cast<uint16_t>(PcCmd::nav_enter_low):
+      liftRequestLow();
+      break;
+    case static_cast<uint16_t>(PcCmd::nav_emergency_stop):
+      handleEmergencyStop();
+      break;
 
     default:
       break;
@@ -120,7 +159,7 @@ void PcCom::ProcessTx()
   // 事件码即消息码，直接作为 packet code 发送
   pc_nav_event_t nav_event{};
   if(pc_nav_event_sub_.TryGet(&nav_event)){
-    send(nav_event.event_code, nav_event);
+    send(nav_event.event_code);
   }
 }
 
@@ -133,6 +172,25 @@ bool PcCom::send(uint16_t code,const T &msg)
     code,
     begin,
     begin+sizeof(T),
+    gdut::build_packet
+  };
+
+  if(!packet)
+  {
+    return false;
+  }
+
+  manager_.send(packet);
+  return true;
+}
+
+bool PcCom::send(uint16_t code)
+{
+  const uint8_t *dummy = nullptr;
+  Packet packet{
+    code,
+    dummy,
+    dummy,
     gdut::build_packet
   };
 

@@ -67,7 +67,7 @@ void Xbox_Data_Process() {
 
   if (ABS(control_xbox_cmd.joyRHori - 32767) > 2000) {
     chassis_cmd.omega_ =
-        -(int)(control_xbox_cmd.joyRHori - 32767) / 32767.0f * MAX_VELOCITY;
+        -(int)(control_xbox_cmd.joyRHori - 32767) / 32767.0f * MAX_ROTATION_VELOCITY;
   } else {
     chassis_cmd.omega_ = 0.0f;
   }
