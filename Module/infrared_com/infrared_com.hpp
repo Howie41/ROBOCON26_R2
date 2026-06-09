@@ -48,6 +48,13 @@ class InfraredModule {
         }
 
         /**
+         * @brief 检查数据是否符合约定
+         */
+        bool isInfraredMsgValid(const pub_infrared_msg& msg) {
+            return (msg.address1 == 0xAA && msg.address2 == msg.data);
+        }
+
+        /**
          * @brief 由 UartPort 的接收回调转发进来
          * @param data 新收到的数据片段
          * @param len 数据长度
@@ -62,7 +69,11 @@ class InfraredModule {
                 infrared_msg_.address1 = data[0];
                 infrared_msg_.address2 = data[1];
                 infrared_msg_.data = data[2];
-                infrared_pub_.Publish(infrared_msg_);
+
+                if (isInfraredMsgValid(infrared_msg_)) {
+                    infrared_pub_.Publish(infrared_msg_);
+                }
+
                 return;
             }
 
