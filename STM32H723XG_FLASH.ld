@@ -248,6 +248,14 @@ SECTIONS
     . = ALIGN(32);
   } >RAM_D2
 
+  /* Task stacks and control blocks can be placed here when DMA access is not needed. */
+  .ram_d1 (NOLOAD) : ALIGN(8)
+  {
+    *(.ram_d1)
+    *(.ram_d1*)
+    . = ALIGN(8);
+  } >RAM_D1
+
   PROVIDE( __bss_start = __tbss_start );
   PROVIDE( __bss_size = __bss_end - __bss_start );
 
