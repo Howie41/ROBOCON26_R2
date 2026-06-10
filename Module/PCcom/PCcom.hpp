@@ -21,7 +21,6 @@ enum class PcCmd : uint16_t {
   nav_emergency_stop = 0x0105,// 紧急停止指令
   nav_enter_high = 0x0106,// 进入高位指令
   nav_enter_low = 0x0107,// 进入低位指令
-  nav_execute_waypoint = 0x010A,// 执行路径点指令
 //---- 下位机→上位机: 导航指令 (0x02xx)
   nav_arrived = 0x0201,// 到达目标点
   nav_high_enter = 0x0202,// 进入高位

@@ -14,7 +14,6 @@
 #include "infrared_com.hpp"
 #include "topic_pool.h"
 #include "topics.hpp" 
-#include "field_waypoints.hpp"
 #include "waypoint_navigator.hpp"
 #include "chassis_task.h"
 osThreadId_t StateMachineTaskHandle;
@@ -78,10 +77,6 @@ bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0) {
     }
     return wait_until_timeout_or([&]() { return nav_control::arrived; }, timeout_ms);
 }
-
-  inline void move_to_wp(const field::Wp &wp, uint32_t timeout_ms = 0) {
-    move_to_pos(wp.x, wp.y, wp.yaw, timeout_ms);
-  }
 
 /**
  * @brief 清空之前的命令，避免误触发
