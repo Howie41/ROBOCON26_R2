@@ -19,36 +19,24 @@
 #include "topics.hpp"
 #include "tracking.h"
 
-
-osThreadId_t ControlTaskHandle;
-
-
 extern PID_t pid_x;
 extern PID_t pid_y;
 extern PID_t pid_yaw;
+
+osThreadId_t ControlTaskHandle;
+
+TypedTopicPublisher<pub_chassis_cmd> chassis_data_pub("chassis_cmd");
+pub_chassis_cmd chassis_cmd{};
+
+TypedTopicPublisher<pub_lift_cmd> lift_data_pub("lift_cmd");
+pub_lift_cmd lift_cmd{};
+
+static TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
+pub_Xbox_Data control_xbox_cmd{};
+
 static bool xbox_mode_last = false;
 static bool xbox_lb_last = false;
 static bool xbox_rb_last = false;
-//处理升降控制输入并发布升降指令
-static bool xbox_x_last = false;
-static bool xbox_y_last = false;
-static bool xbox_a_last = false;
-static bool xbox_b_last = false;
-static TickType_t xbox_x_press_tick = 0;
-static TickType_t xbox_y_press_tick = 0;
-static TickType_t xbox_a_press_tick = 0;
-static TickType_t xbox_b_press_tick = 0;
-constexpr TickType_t kLiftTapTimeout = pdMS_TO_TICKS(300);  // 300ms以内算"点按"
-static TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
-pub_Xbox_Data control_xbox_cmd{};
-pub_lift_cmd lift_cmd{};
-pub_arm_cmd arm_cmd{};
-pub_chassis_cmd chassis_cmd{};
-TypedTopicPublisher<pub_chassis_cmd> chassis_data_pub("chassis_cmd");
-TypedTopicPublisher<pub_lift_cmd> lift_data_pub("lift_cmd");
-TypedTopicPublisher<pub_arm_cmd> arm_data_pub("arm_cmd");
-
-
 //处理底盘控制输入并发布底盘指令
 void Xbox_Data_Process() {
   if (ABS(control_xbox_cmd.joyLVert - 32767) > 2000) {
@@ -72,11 +60,13 @@ void Xbox_Data_Process() {
     chassis_cmd.omega_ = 0.0f;
   }
 }
-
-
+//处理升降控制输入并发布升降指令
+static bool xbox_y_last = false;
+static bool xbox_a_last = false;
+static TickType_t xbox_y_press_tick = 0;
+static TickType_t xbox_a_press_tick = 0;
+constexpr TickType_t kLiftTapTimeout = pdMS_TO_TICKS(300);  // 300ms以内算"点按"
 void Lift_Data_Process(){
-
-
   // === Y键：按下记录时刻，松开判断是否短按 ===
     if (control_xbox_cmd.btnY && !xbox_y_last) {
         // 上升沿：记录按下时刻
@@ -90,8 +80,6 @@ void Lift_Data_Process(){
         }
     }
     xbox_y_last = control_xbox_cmd.btnY;
-
-
     if (control_xbox_cmd.btnA && !xbox_a_last) {
         xbox_a_press_tick = xTaskGetTickCount();
     }
@@ -102,8 +90,6 @@ void Lift_Data_Process(){
         }
     }
     xbox_a_last = control_xbox_cmd.btnA;
-
-
     lift_cmd.lift_up = control_xbox_cmd.btnY;
     lift_cmd.lift_down = control_xbox_cmd.btnA;
 
@@ -113,37 +99,7 @@ void Lift_Data_Process(){
     lift_cmd.lift_2006_input = 0.0f;
   }
 }
-
-
-void Arm_Data_Process(){
-    if (control_xbox_cmd.btnX && !xbox_x_last) {
-        // 上升沿：记录按下时刻
-        xbox_x_press_tick = xTaskGetTickCount();
-    }
-    // 下降沿（松开）且持续时间 < 300ms → 短按，触发去高位
-    arm_cmd.update = false;
-    if (!control_xbox_cmd.btnX && xbox_x_last) {
-        if ((xTaskGetTickCount() - xbox_x_press_tick) < kLiftTapTimeout) {
-            arm_cmd.update = true;
-        }
-    }
-    xbox_x_last = control_xbox_cmd.btnX;
-
-    
-    if (control_xbox_cmd.btnB && !xbox_b_last) {
-        // 上升沿：记录按下时刻
-        xbox_b_press_tick = xTaskGetTickCount();
-    }
-    // 下降沿（松开）且持续时间 < 300ms → 短按，触发去高位
-    arm_cmd.fetch = false;
-    if (!control_xbox_cmd.btnB && xbox_b_last) {
-        if ((xTaskGetTickCount() - xbox_b_press_tick) < kLiftTapTimeout) {
-            arm_cmd.fetch = true;
-        }
-    }
-    xbox_b_last = control_xbox_cmd.btnB;
-}
-
+  
 
 
 static bool consumeModeSwitch(bool current_state) {
@@ -152,13 +108,11 @@ static bool consumeModeSwitch(bool current_state) {
   return rising_edge;
 }
 
-
 static bool consumeButtonRisingEdge(bool current_state, bool *last_state) {
   const bool rising_edge = current_state && !(*last_state);
   *last_state = current_state;
   return rising_edge;
 }
-
 
 void controlInit() {
   if (!chassis_data_pub.IsValid()) {
@@ -169,12 +123,8 @@ void controlInit() {
   }
   if (!lift_data_pub.IsValid()) {
   return;
-  }
-  if (!arm_data_pub.IsValid()) {
-  return;
-  }
 }
-
+}
 
 void controlTask(void *argument) {
   TickType_t currentTime = xTaskGetTickCount();
@@ -212,9 +162,7 @@ void controlTask(void *argument) {
           chassis_cmd.linear_y_ = 0.0f;
           chassis_cmd.omega_ = 0.0f;
         }
-        Arm_Data_Process();
         Lift_Data_Process();
-        arm_data_pub.Publish(arm_cmd);
         lift_data_pub.Publish(lift_cmd);
         chassis_cmd.nav_mode_ = false;
         chassis_data_pub.Publish(chassis_cmd);
@@ -224,4 +172,3 @@ void controlTask(void *argument) {
     vTaskDelayUntil(&currentTime, 5);
   }
 }
-

@@ -62,21 +62,21 @@ float lift_2006_motor2_pid_out = 0.0f;
 float lift_3508_motor1_pid_out = 0.0f;
 float lift_3508_motor2_pid_out = 0.0f;
 
-constexpr float MAX_LIFT_2006_SPEED = 600.0f;
+constexpr float MAX_LIFT_2006_SPEED = 400.0f;
 constexpr float MAX_LIFT_3508_SPEED = 120.0f;
 constexpr float MAX_LIFT_3508_SYNC_COMP = 30.0f;
 
-constexpr float LIFT_RISE_SPEED    = 120.0f;   // 自动上升速度 (3508 RPM)
-constexpr float LIFT_FALL_SPEED    = 120.0f;   // 自动下降速度 (可以和上升不同)
-constexpr float LIFT_POS_TOLERANCE =  5.0f;   // 位置到达判定容差 (度)
+constexpr float LIFT_RISE_SPEED    = 170.0f;   // 自动上升速度 (3508 RPM)
+constexpr float LIFT_FALL_SPEED    = 170.0f;   // 自动下降速度 (可以和上升不同)
+constexpr float LIFT_POS_TOLERANCE =  2.0f;   // 位置到达判定容差 (度)
 
-constexpr float LIFT_LOW_POS = 250.0f;
-constexpr float LIFT_HIGH_POS = -560.0f;
+constexpr float LIFT_LOW_POS = -40.0f;
+constexpr float LIFT_HIGH_POS = 525.0f;
 
 constexpr float LIFT_2006_MOTOR1_DIR = 1.0f;
 constexpr float LIFT_2006_MOTOR2_DIR = -1.0f;
 constexpr float LIFT_3508_MOTOR1_DIR = 1.0f;
-constexpr float LIFT_3508_MOTOR2_DIR = 1.0f;
+constexpr float LIFT_3508_MOTOR2_DIR = -1.0f;
 
 enum class Lift3508Mode {
  MANUAL,
@@ -84,16 +84,16 @@ enum class Lift3508Mode {
 };
 static Lift3508Mode lift_3508_mode = Lift3508Mode::MANUAL;
 PID_t lift_2006_motor1_pid = {
-    .Kp = 100.0f, .Ki = 10.0f, .Kd = 0.0f, .MaxOut = 20000, .DeadBand = 0.3f, .Improve = NONE};
+    .Kp = 100.0f, .Ki = 10.0f, .Kd = 0.0f, .MaxOut = 10000, .DeadBand = 0.3f, .Improve = NONE};
 PID_t lift_2006_motor2_pid = {
-    .Kp = 100.0f, .Ki = 10.0f, .Kd = 0.0f, .MaxOut = 20000, .DeadBand = 0.3f, .Improve = NONE};
+    .Kp = 100.0f, .Ki = 10.0f, .Kd = 0.0f, .MaxOut = 10000, .DeadBand = 0.3f, .Improve = NONE};
 
 PID_t lift_3508_motor1_pid = {
     .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.3f, .MaxOut = 16000, .DeadBand = 0.1f, .Improve = NONE};
 PID_t lift_3508_motor2_pid = {
     .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.3f, .MaxOut = 16000, .DeadBand = 0.1f, .Improve = NONE};
 PID_t lift_3508_pos_pid = {
-    .Kp = 9.0f, .Ki = 0.1f, .Kd = 0.0f, .MaxOut = MAX_LIFT_3508_SPEED, .DeadBand = 0.1f, .Improve = NONE};
+    .Kp = 9.0f, .Ki = 0.1f, .Kd = 0.0f, .MaxOut = MAX_LIFT_3508_SPEED, .DeadBand = 0.0f, .Improve = NONE};
 PID_t lift_3508_sync_pid = {
     .Kp = 0.28f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = MAX_LIFT_3508_SYNC_COMP, .DeadBand = 0.1f, .Improve = NONE};
 
@@ -121,7 +121,7 @@ static inline void liftInit(void) {
   PID_Init(&high_yaw_lock_pid);
 
   lift_3508_motor1_pos = lift_3508_motor1.getCurrentSumPos();
-  lift_3508_motor2_pos = lift_3508_motor2.getCurrentSumPos();
+  lift_3508_motor2_pos = -lift_3508_motor2.getCurrentSumPos();
   lift_3508_avg_pos = (lift_3508_motor1_pos + lift_3508_motor2_pos) / 2.0f;
   lift_3508_diff_pos = lift_3508_motor1_pos - lift_3508_motor2_pos;
 
@@ -150,7 +150,7 @@ if (lift_cmd.request_high) {
   lift_2006_speed = lift_cmd.lift_2006_input * MAX_LIFT_2006_SPEED;
 
   lift_3508_motor1_pos = lift_3508_motor1.getCurrentSumPos();
-  lift_3508_motor2_pos = lift_3508_motor2.getCurrentSumPos();
+  lift_3508_motor2_pos = -lift_3508_motor2.getCurrentSumPos();
   lift_3508_motor1_speed = lift_3508_motor1.getRawCurrentSpeed();
   lift_3508_motor2_speed = lift_3508_motor2.getRawCurrentSpeed();
 
@@ -256,8 +256,8 @@ void liftTask(void *argument) {
     }
     // 低位模式: high_forward=0, high_omega=0 → 2006不转
 
-    const float motor1_ref = (high_forward + high_omega) * LIFT_2006_MOTOR1_DIR;
-    const float motor2_ref = (high_forward - high_omega) * LIFT_2006_MOTOR2_DIR;
+    const float motor1_ref = high_forward * LIFT_2006_MOTOR1_DIR + high_omega;
+    const float motor2_ref = high_forward * LIFT_2006_MOTOR2_DIR - high_omega;
 
     lift_2006_motor1_pid_out =
         PID_Calculate(&lift_2006_motor1_pid,
@@ -331,7 +331,7 @@ float liftCurrentPos() {
 }
 
 bool liftIsHigh() {
-  return (fabsf(lift_3508_avg_pos - LIFT_HIGH_POS) <= LIFT_POS_TOLERANCE);
+  return (fabsf(lift_3508_avg_pos - LIFT_HIGH_POS) <= 40.0f);
 }
 
 bool highModeActive() {

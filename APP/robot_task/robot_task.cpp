@@ -24,12 +24,11 @@
 #include "com_config.h"
 #include "control_task.h"
 #include "debug_task.h"
+#include "state_machine_task.h"
 #include "NavProtocol.hpp"
 #include "lift_task.h"
 #include "tail_claw_task.hpp"
 #include "motor_task.hpp"
-#include "arm_task.hpp"
-#include "watchdog_task.h"
 
 /* module层接口头文件 */
 
@@ -41,7 +40,6 @@ extern osThreadId_t uart2ProcessTaskHandle;
 extern osThreadId_t uart3ProcessTaskHandle;
 extern osThreadId_t Debug_TaskHandle;
 extern osThreadId_t Motor_TaskHandle;
-extern osThreadId_t Arm_TaskHandle;
 extern osThreadId_t ChassisTaskHandle;
 extern osThreadId_t ControlTaskHandle;
 extern osThreadId_t usbcdcProcessTaskHandle;
@@ -49,7 +47,6 @@ extern osThreadId_t tail_claw_TaskHandle;
 extern osThreadId_t NavControlTaskHandle;
 extern osThreadId_t LiftTaskHandle;
 extern osThreadId_t PcComTaskHandle;
-extern osThreadId_t Watchdog_TaskHandle;
 
 
 void osTaskInit(void) {
@@ -109,17 +106,6 @@ void osTaskInit(void) {
 
 
 
-  const osThreadAttr_t ArmTaskHandle_attributes = {
-      .name = "Arm_TaskHandle",
-      .stack_size = 512 * 4,
-      .priority = (osPriority_t)osPriorityNormal,
-  };
-  Arm_TaskHandle = 
-      osThreadNew(armTask, NULL, &ArmTaskHandle_attributes);
-
-
-
-
   const osThreadAttr_t ChassisTaskHandle_attributes = {
       .name = "Chassis_TaskHandle",
       .stack_size = 512 * 4,
@@ -161,18 +147,6 @@ void osTaskInit(void) {
   uart3ProcessTaskHandle =
       osThreadNew(uart3RxProcessTask, NULL, &Uart3ProcessTaskHandle_attributes);
 
-
-
-
-  const osThreadAttr_t WatchdogTaskHandle_attributes = {
-      .name = "Watchdog_TaskHandle",
-      .stack_size = 128 * 4,
-      .priority = (osPriority_t)osPriorityNormal,
-  };
-  Watchdog_TaskHandle =
-      osThreadNew(watchdogTask, NULL, &WatchdogTaskHandle_attributes);
-
-
  /* const osThreadAttr_t UsbcdcProcessTaskHandle_attributes = {
       .name = "UsbcdcProcess_TaskHandle",
       .stack_size = 512 * 4,
@@ -181,8 +155,6 @@ void osTaskInit(void) {
   usbcdcProcessTaskHandle =
       osThreadNew(usbCdcProcessTask, NULL, &UsbcdcProcessTaskHandle_attributes);
 */
-
-
   const osThreadAttr_t tail_claw_TaskHandle_attributes = {
       .name = "tail_claw_TaskHandle",
       .stack_size = 128 * 4,
@@ -217,4 +189,12 @@ void osTaskInit(void) {
   };
   PcComTaskHandle =
       osThreadNew(PcComTask, NULL, &PcComTaskHandle_attributes);
+  // 自动状态机
+  const osThreadAttr_t StateMachineTaskHandle_attributes = {
+      .name = "StateMachine_TaskHandle",
+      .stack_size = 512 * 4,
+      .priority = (osPriority_t)osPriorityNormal,
+  };
+  StateMachineTaskHandle =
+      osThreadNew(stateMachineTask, NULL, &StateMachineTaskHandle_attributes);
 }
