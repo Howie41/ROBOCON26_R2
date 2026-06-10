@@ -6,6 +6,7 @@
  * @date 2026-05-24 修订版
  */
 #include "topics.hpp"
+#include "memory_map.h"
 
 #include <atomic>
 #include <cstdint>
@@ -126,8 +127,8 @@ struct internal_topic {
   bool in_use;
 };
 
-static internal_topic g_topic_pool[TOPICS_MAX_TOPICS]{};
-static subscriber_state
+RAM_D1_ATTR static internal_topic g_topic_pool[TOPICS_MAX_TOPICS]{};
+RAM_D1_ATTR static subscriber_state
     g_sub_pool[TOPICS_MAX_TOPICS * TOPICS_MAX_SUBS_PER_TOPIC]{};
 
 static void queue_init(topic_queue_t *queue, uint32_t capacity);
