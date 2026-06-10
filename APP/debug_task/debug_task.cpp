@@ -32,6 +32,9 @@
 
 
 osThreadId_t Debug_TaskHandle;
+static inline void debugInit(void) {
+
+}
 
 extern Logger logger;
 
@@ -39,14 +42,8 @@ extern Logger logger;
  * @note 该函数用于测试电机控制和PID调节功能，周期性地更新电机命令以验证系统响应。实际使用中可以根据需要修改测试内容或删除该任务。
  *  @param argument 任务参数
  */
-
 void debugTask(void *argument) {
-//   osThreadExit();
-
-    // arm3508_motor.posWithSpeedControl(-60.0f, 3.0f, 10.0f, 50.0f, 0.0f, 0.0f);
-
-    // arm.setHeight(0.5f).fetch();
-  
+  osThreadExit();
   for (;;) {
     osDelay(1);
   }
