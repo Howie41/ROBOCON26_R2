@@ -226,14 +226,14 @@ public:
                     case 2:
                         arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
                         arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(24.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
+                        arm_rotate_.posWithSpeedControl(10.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
                         arm_expand_.posWithSpeedControl(1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                         fetch();
                         break;
                     case 3:
                         arm_lift_.posWithSpeedControl(B + 900.0f, 1000.0f);
                         arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-9.0f, 2.2f, 15.0f, 10.0f, 0.0f, 0.0f);
+                        arm_rotate_.posWithSpeedControl(-12.0f, 2.2f, 15.0f, 10.0f, 0.0f, 0.0f);
                         arm_expand_.posWithSpeedControl(480.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                         break;
                     case 4:
@@ -296,14 +296,14 @@ public:
                     case 2:
                         arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
                         arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(24.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
+                        arm_rotate_.posWithSpeedControl(10.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
                         arm_expand_.posWithSpeedControl(1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                         fetch();
                         break;
                     case 3:
                         arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
                         arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-9.0f, 2.7f, 15.0f, 10.0f, 0.0f, 0.0f);
+                        arm_rotate_.posWithSpeedControl(-12.0f, 2.7f, 15.0f, 10.0f, 0.0f, 0.0f);
                         arm_expand_.posWithSpeedControl(840.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
                         break;
                     case 4:
