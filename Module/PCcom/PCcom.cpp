@@ -1,11 +1,14 @@
 #include "PCcom.hpp"
 #include "NavProtocol.hpp"
+#include "field_waypoints.hpp"
+#include "waypoint_navigator.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include <codecvt>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <sys/types.h>
 
 void PcCom::init()
 {
@@ -87,10 +90,41 @@ void PcCom::OnPacket(Packet packet) {
       break;
     }
 
-    // ---- 上/下台阶指令 (Phase 4 TODO) ----
+    // ---- 上/下台阶指令 ----
     case static_cast<uint16_t>(PcCmd::nav_climb_up):
-    case static_cast<uint16_t>(PcCmd::nav_climb_down):
+      stairSMStart(true);
       break;
+    case static_cast<uint16_t>(PcCmd::nav_climb_down):
+      stairSMStart(false);
+      break;
+
+    // ---- 执行航点: PC 下发索引 (0x010A), body 1 字节 ----
+    case static_cast<uint16_t>(PcCmd::nav_execute_waypoint): {
+      if (packet.body_size() != 1) return;
+      uint8_t idx = *packet.body_data();
+      if (idx >= 128) return;
+      const auto &wp = field::LIST[idx];
+      nav_control::target_x = wp.x;
+      nav_control::target_y = wp.y;
+      nav_control::target_yaw = wp.yaw;
+      nav_control::auto_enabled = true;
+      nav_control::arrived = false;
+      nav_control::target_active = true;
+      nav_control::arrival_reported = false;
+      nav_control::resetAllPIDs();
+      break;
+    }
+
+    // ---- 二维码解析结果 ----
+    case static_cast<uint16_t>(PcCmd::qr_code_parsed): {
+      if (packet.body_size() != sizeof(pub_qr_code_parsed)) {
+        return;
+      }
+      pub_qr_code_parsed qr_code_msg{};
+      std::memcpy(&qr_code_msg, packet.body_data(), sizeof(qr_code_msg));
+      pc_qr_code_pub_.Publish(qr_code_msg);
+      break;
+    }
 
     default:
       break;
