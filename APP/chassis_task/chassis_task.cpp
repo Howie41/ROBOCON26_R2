@@ -1,9 +1,9 @@
 /**
  * @file chassis_task.cpp
  * @author YE
- * @brief 全向轮底盘任务实现
- * @version 0.2
- * @date 2026-05-11
+ * @brief 全向轮底盘任务实现 (含位置环锁底盘)
+ * @version 0.3
+ * @date 2026-06-11
  *
  * @copyright Copyright (c) 2026
  *
@@ -42,11 +42,13 @@ volatile float g_chassis_target_rpm_fl = 0.0f;
 volatile float g_chassis_target_rpm_fr = 0.0f;
 volatile float g_chassis_target_rpm_rl = 0.0f;
 volatile float g_chassis_target_rpm_rr = 0.0f;
+volatile bool g_chassis_hold_active = false;
 
 namespace {
 
 float normalizeDeg(float angle_deg);
 void refreshYawReference();
+bool hasMotionCommand(const pub_chassis_cmd &cmd);
 
 }  // namespace
 
@@ -121,12 +123,25 @@ PID_t yaw_hold_pid = {
     .Kd = 0.001f,
     .MaxOut = 1.5f,
     .IntegralLimit = 0.35f,
-    .DeadBand = 0.3f,
+    .DeadBand = 0.1f,
+    .Improve = Integral_Limit,
+};
+
+PID_t hold_yaw_pos_pid = {
+    .Kp = 0.16f,
+    .Ki = 0.008f,
+    .Kd = 0.001f,
+    .MaxOut = 3.0f,
+    .IntegralLimit = 0.36f,
+    .DeadBand = 0.1f,
     .Improve = Integral_Limit,
 };
 
 bool yaw_zero_initialized = false;
 float yaw_zero_raw_deg = 0.0f;
+constexpr float kHoldCmdDeadbandXY = 0.05f;
+constexpr float kHoldCmdDeadbandOmega = 0.1f;
+constexpr uint8_t kHoldIdleCycles = 3U;
 
 float normalizeDeg(float angle_deg) {
   while (angle_deg > 180.0f) {
@@ -155,6 +170,12 @@ void refreshYawReference() {
   g_chassis_yaw_deg = currentRelativeYawDeg();
 }
 
+bool hasMotionCommand(const pub_chassis_cmd &cmd) {
+  return std::fabs(cmd.linear_x_) > kHoldCmdDeadbandXY ||
+         std::fabs(cmd.linear_y_) > kHoldCmdDeadbandXY ||
+         std::fabs(cmd.omega_) > kHoldCmdDeadbandOmega;
+}
+
 bool updateYawRotateControl(pub_chassis_cmd &final_cmd) {
   if (!chassis_action::yawRotateActive()) {
     return false;
@@ -181,11 +202,15 @@ static inline void chassisInit() {
   chassis_solver.configureSpeedPid(kWheelPidParams);
   PID_Init(&yaw_hold_pid);
   PID_Init(&chassis_action::g_yaw_rotate_pid);
+  PID_Init(&hold_yaw_pos_pid);
 }
 
 void chassisTask(void *argument) {
   (void)argument;
   TickType_t currentTime = xTaskGetTickCount();
+  static bool chassis_hold_active = false;
+  static uint8_t chassis_hold_idle_count = 0U;
+  static std::array<float, Omni45Chassis::kWheelCount> chassis_hold_target_pos{};
 
   chassisInit();
 
@@ -210,10 +235,18 @@ void chassisTask(void *argument) {
       g_chassis_target_rpm_rl = target_rpm[2];
       g_chassis_target_rpm_rr = target_rpm[3];
 
+      chassis_hold_active = false;
+      chassis_hold_idle_count = 0U;
+
       vTaskDelayUntil(&currentTime, 5);
       continue;
     }
-    
+
+    if (chassis_action::takeYawRotateFinished()) {
+      chassis_hold_active = false;
+      chassis_hold_idle_count = 0U;
+    }
+
     // 只有在手动模式（nav_mode_=false）时才执行锁头逻辑
     // 自动导航模式下，由导航任务控制omega，不启用锁头
     static bool nav_mode_was_auto = false;
@@ -238,11 +271,44 @@ void chassisTask(void *argument) {
       }
     }
     nav_mode_was_auto = chassis_cmd.nav_mode_;
-    // 自动模式：omega_ 保持 chassis_cmd.omega_（导航计算的）
+  
 
     g_chassis_final_omega = final_cmd.omega_;
-    chassis_solver.run(final_cmd);
 
+    const bool motion_requested = hasMotionCommand(chassis_cmd);
+    if (!motion_requested) {
+      if (chassis_hold_idle_count < kHoldIdleCycles)
+        ++chassis_hold_idle_count;
+    } else {
+      chassis_hold_idle_count = 0U;
+      chassis_hold_active = false;
+    }
+
+    static std::array<float, Omni45Chassis::kWheelCount> hold_base_pos{};
+
+    if (!chassis_hold_active && chassis_hold_idle_count >= kHoldIdleCycles) {
+      hold_base_pos = {
+          chassis_motor1.getCurrentSumPos(),
+          chassis_motor2.getCurrentSumPos(),
+          chassis_motor3.getCurrentSumPos(),
+          chassis_motor4.getCurrentSumPos(),
+      };
+      chassis_hold_target_pos = hold_base_pos;
+      chassis_hold_active = true;
+    }
+
+    g_chassis_hold_active = chassis_hold_active;
+    if (chassis_hold_active) {
+      if (!chassis_cmd.nav_mode_) {
+        float yaw_error = normalizeDeg(g_chassis_yaw_lock_deg - g_chassis_yaw_deg);
+        float wheel_offset = PID_Calculate(&hold_yaw_pos_pid, 0.0f, yaw_error);
+        for (size_t i = 0; i < 4; i++)
+          chassis_hold_target_pos[i] = hold_base_pos[i] - wheel_offset;
+      }
+      chassis_solver.runHold(chassis_hold_target_pos);
+    } else {
+      chassis_solver.run(final_cmd);
+    }
     const auto &target_rpm = chassis_solver.targetRpm();
     g_chassis_target_rpm_fl = target_rpm[0];
     g_chassis_target_rpm_fr = target_rpm[1];
@@ -252,83 +318,3 @@ void chassisTask(void *argument) {
     vTaskDelayUntil(&currentTime, 5);
   }
 }
-
-/**
- * @file chassis_task.cpp
- * @author 大帅将军
- * @brief 底盘任务实现
- * @version 0.1
- * @date 2026-04-21
- *
- * @copyright Copyright (c) 2026
- *
- * @attention :
- * @note :
- * @versioninfo :
- 
-
-#include "chassis_task.h"
-#include "Motor.hpp"
-#include "chassis_solution.hpp"
-#include "com_config.h"
-#include "topic_pool.h"
-#include "topics.hpp"
-
-#include <array>
-
-//任务句柄
-osThreadId_t ChassisTaskHandle;
-
-//底盘电机实例声明
-extern C620Motor chassis_motor1, chassis_motor2, chassis_motor3, chassis_motor4;
-
-//底盘控制命令订阅
-static TypedTopicSubscriber<pub_chassis_cmd> chassis_cmd_sub("chassis_cmd", 8);
-pub_chassis_cmd chassis_chassis_cmd{};
-
-//底盘解算器实例声明
-namespace {
-MecanumChassis chassis_solver(chassis_motor1, chassis_motor2, chassis_motor3,
-                chassis_motor4);
-
-// 每个轮子的PID参数配置
-const std::array<MecanumChassis::SpeedPidParam, MecanumChassis::kWheelCount>
-  kWheelPidParams = {
-    MecanumChassis::SpeedPidParam(105.0f, 75.0f, 0.20f, 20000.0f, 0.3f,
-                    NONE), // 左上
-    MecanumChassis::SpeedPidParam(100.0f, 72.0f, 0.15f, 20000.0f, 0.3f,
-                    NONE), // 右上
-    MecanumChassis::SpeedPidParam(108.0f, 78.0f, 0.22f, 20000.0f, 0.3f,
-                    NONE), // 左下
-    MecanumChassis::SpeedPidParam(102.0f, 74.0f, 0.18f, 20000.0f, 0.3f,
-                    NONE), // 右下
-  };
-} // namespace
-
-// 用到的初始化
-static inline void chassisInit() {
-  // 每个电机使用独立 PID 参数
-  chassis_solver.configureSpeedPid(kWheelPidParams);
-
-  // 底盘控制命令订阅初始化
-  if (!chassis_cmd_sub.IsValid()) {
-    // 订阅失败
-    return;
-  }
-}
-
-void chassisTask(void *argument) {
-  TickType_t currentTime = xTaskGetTickCount();
-
-  chassisInit();
-
-  for (;;) {
-    // 尝试获取最新的底盘控制命令，如果有新命令则进行处理
-    if (chassis_cmd_sub.TryGet(&chassis_chassis_cmd)) {
-      // Process the received chassis command
-    }
-    // 进行解算并控制电机
-    chassis_solver.run(chassis_chassis_cmd);
-    vTaskDelayUntil(&currentTime, 5); // 每1ms执行一次发送任务
-  }
-}*/
