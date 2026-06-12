@@ -1,9 +1,9 @@
 /**
  * @file debug_task.h
  * @author 大帅将军
- * @brief 
- * @version 0.1
- * @date 2026-04-21
+ * @brief 调试任务 — VOFA+ Firewater 底盘电机监视
+ * @version 0.2
+ * @date 2026-06-11
  *
  * @copyright Copyright (c) 2026
  *

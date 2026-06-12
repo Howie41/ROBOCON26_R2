@@ -15,7 +15,7 @@ extern volatile float g_chassis_yaw_deg;
 
 PID_t pid_x = {
     .Kp = 2.0f,
-    .Ki = 0.15f,
+    .Ki = 0.16f,
     .Kd = 0.05f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
@@ -25,7 +25,7 @@ PID_t pid_x = {
 
 PID_t pid_y = {
     .Kp = 2.0f,
-    .Ki = 0.15f,
+    .Ki = 0.16f,
     .Kd = 0.05f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
@@ -37,18 +37,18 @@ PID_t pid_yaw = {
     .Kp = 0.1f,
     .Ki = 0.001f,
     .Kd = 0.005f,
-    .MaxOut = 3.0f,
+    .MaxOut = 2.0f,
     .IntegralLimit = 0.5f,
-    .DeadBand = 3.0f,
+    .DeadBand = 1.0f,
     .Improve = Integral_Limit,
 };
 
 // Phase 2: 高位2006导航 — 距离→速度PID
 PID_t pid_high_distance = {
-    .Kp = 8.0f,
+    .Kp = 0.1f,
     .Ki = 0.05f,
     .Kd = 0.0f,
-    .MaxOut = 500.0f,
+    .MaxOut = 400.0f,
     .IntegralLimit = 200.0f,
     .DeadBand = 5.0f,
     .Improve = Integral_Limit,
@@ -56,7 +56,7 @@ PID_t pid_high_distance = {
 
 // Phase 2: 高位2006导航 — yaw锁角PID (输出2006 RPM)
 PID_t pid_high_yaw = {
-    .Kp = 15.0f,
+    .Kp = 1.0f,
     .Ki = 0.02f,
     .Kd = 0.0f,
     .MaxOut = 300.0f,
@@ -292,23 +292,18 @@ void NavControlTask(void *argument) {
         const float error_x_body =  error_x * cosf(yaw_rad) + error_y * sinf(yaw_rad);
         const float error_y_body = error_x * sinf(yaw_rad) - error_y * cosf(yaw_rad);
 
-        // 车体坐标系中，atan2(error_y_body, error_x_body) = 需要转多少角度才能对准目标
-        const float heading_error =
+        // 车体坐标系：前进时锁前向，后退时反转180°锁后向
+        const float raw_heading =
             atan2f(error_y_body, error_x_body) * 180.0f / 3.14159f;
+        const float heading_error =
+            (error_x_body >= 0) ? raw_heading : normalizeDeg(raw_heading - 180.0f);
 
         pub_high_nav_cmd high_cmd{};
         high_cmd.active = true;
 
-        if (fabsf(heading_error) > 1.0f) {
-          // ROTATE: 原地旋转对准目标方向
-          high_cmd.forward_speed = 0.0f;
-          high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
-        } else {
-          // DRIVE: 直走 + yaw锁角
-          high_cmd.forward_speed =
-              PID_Calculate(&pid_high_distance, 0.0f, dist_error);
-          high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
-        }
+        // 目标在车体前方→前进300RPM, 后方→后退400RPM
+        high_cmd.forward_speed = (error_x_body >= 0) ? 300.0f : -300.0f;
+        high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
 
         // 限幅
         if (high_cmd.forward_speed > 500.0f) high_cmd.forward_speed = 500.0f;
@@ -316,10 +311,9 @@ void NavControlTask(void *argument) {
         if (high_cmd.omega > 500.0f) high_cmd.omega = 500.0f;
         if (high_cmd.omega < -500.0f) high_cmd.omega = -500.0f;
 
-        const bool reached = (dist_error < 10.0f);
+        const bool reached = (fabsf(error_x_body) < 13.0f);
         nav_control::arrived = reached;
         if (reached) {
-          high_cmd.request_lower = true;
           reportArrivalOnce();
         } else {
           nav_control::arrival_reported = false;
