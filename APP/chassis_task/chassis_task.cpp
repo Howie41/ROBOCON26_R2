@@ -14,6 +14,7 @@
 
 #include "chassis_task.h"
 #include "Motor.hpp"
+#include "NavProtocol.hpp"
 #include "chassis_solution.hpp"
 #include "pid_controller.h"
 #include "topic_pool.h"
@@ -60,6 +61,7 @@ constexpr float kYawRotateToleranceDeg = 1.0f;
 bool g_yaw_rotate_active = false;
 bool g_yaw_rotate_finished = false;
 float g_yaw_rotate_target_deg = 0.0f;
+bool g_yaw_rotate_was_auto = false;
 PID_t g_yaw_rotate_pid = {
     .Kp = 0.13f,
     .Ki = 0.001f,
@@ -77,6 +79,12 @@ void requestYawRotateDeg(float delta_deg) {
   g_yaw_rotate_finished = false;
   g_chassis_yaw_lock_deg = g_yaw_rotate_target_deg;
   g_chassis_yaw_hold_omega = 0.0f;
+
+  g_yaw_rotate_was_auto = nav_control::auto_enabled;
+  if (g_yaw_rotate_was_auto) {
+    nav_control::auto_enabled = false;
+  }
+
   PID_Init(&g_yaw_rotate_pid);
 }
 
@@ -245,6 +253,11 @@ void chassisTask(void *argument) {
     if (chassis_action::takeYawRotateFinished()) {
       chassis_hold_active = false;
       chassis_hold_idle_count = 0U;
+      if (chassis_action::g_yaw_rotate_was_auto) {
+        nav_control::target_yaw = static_cast<int16_t>(g_chassis_yaw_deg);
+        nav_control::auto_enabled = true;
+        nav_control::resetAllPIDs();
+      }
     }
 
     // 只有在手动模式（nav_mode_=false）时才执行锁头逻辑
@@ -299,12 +312,13 @@ void chassisTask(void *argument) {
 
     g_chassis_hold_active = chassis_hold_active;
     if (chassis_hold_active) {
-      if (!chassis_cmd.nav_mode_) {
-        float yaw_error = normalizeDeg(g_chassis_yaw_lock_deg - g_chassis_yaw_deg);
-        float wheel_offset = PID_Calculate(&hold_yaw_pos_pid, 0.0f, yaw_error);
-        for (size_t i = 0; i < 4; i++)
-          chassis_hold_target_pos[i] = hold_base_pos[i] - wheel_offset;
-      }
+      const float yaw_target = chassis_cmd.nav_mode_
+          ? static_cast<float>(nav_control::target_yaw)
+          : g_chassis_yaw_lock_deg;
+      float yaw_error = normalizeDeg(yaw_target - g_chassis_yaw_deg);
+      float wheel_offset = PID_Calculate(&hold_yaw_pos_pid, 0.0f, yaw_error);
+      for (size_t i = 0; i < 4; i++)
+        chassis_hold_target_pos[i] = hold_base_pos[i] - wheel_offset;
       chassis_solver.runHold(chassis_hold_target_pos);
     } else {
       chassis_solver.run(final_cmd);
