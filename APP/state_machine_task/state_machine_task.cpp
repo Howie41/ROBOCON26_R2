@@ -18,6 +18,7 @@
 #include "topic_pool.h"
 #include "topics.hpp"
 #include <cmath>
+#include <iterator>
 osThreadId_t StateMachineTaskHandle;
 
 static std::atomic<RobotState> current_state{RobotState::begin};
@@ -29,7 +30,7 @@ static TypedTopicPublisher<pub_tail_claw_cmd> tail_claw_cmd_pub("tail_claw_cmd")
 //下位机发信息给上位机，告诉它当前的状态，或者说事件发生了，或者说需要它做什么
 static TypedTopicPublisher<tail_claw_msg>tail_claw_weapon_event_pub("tail_claw_weapon_event");
 //static TypedTopicPublisher<tail_claw_msg>tail_claw_rod_event_pub("tail_claw_rod_event");
-tail_claw_msg msg{};
+tail_claw_msg msg{0};
 extern PID_t tail_claw_roll_pos_pid;
 extern PID_t tail_claw_roll_speed_pid;
 extern bool weapon_claw_open;                 //武器气泵的夹紧，ture 为吸，false为放
@@ -183,7 +184,7 @@ void stateMachineTask(void *argument) {
                     }
                     if (start==1) {//按下View键进入下一状态
                         //开始进行自动
-                        tail_claw_setRollTarget(31);
+                        tail_claw_setRollTarget(-55.5);
                         //tail_claw_setAirPump(true);//闭合夹爪，夹紧武器头
                         tail_claw_setWeaponClaw(true);
                         move_to_pos(-500, 15, 0,5000);
@@ -202,13 +203,11 @@ void stateMachineTask(void *argument) {
                 //发个信号，唤醒通知tail_claw_task去对准武器头
                 //暂时不用
                 //move_to_pos(-286, -840, 90,5000);
-                move_to_pos(-266, -840, 95,50000);
+                move_to_pos(-266, -840, 95,5000);
                 tail_claw_setMode(TailClawMode::AutoAlign);//进入自动对齐模式
-
                 //发消息给上位机，他要发消息给我了
                 msg.distance = 1;
                 tail_claw_weapon_event_pub.Publish(msg);
-
                 // tail_claw_task会根据距离数据调整位置
                 change_state_to(RobotState::aim_at_weapon);
                 break;
@@ -242,7 +241,7 @@ void stateMachineTask(void *argument) {
             }
 
             case RobotState::rotate_weapon_claw: {  
-                    tail_claw_setRollTarget(83.0f);
+                    tail_claw_setRollTarget(2.0f);
 
                     /*wait_until([]() -> bool {
                         constexpr float roll_reduction_ratio = 2.5f;
@@ -255,7 +254,7 @@ void stateMachineTask(void *argument) {
                     });*/
                     const bool roll_ok = wait_until_timeout_or([]() -> bool {
                     constexpr float roll_reduction_ratio = 2.5f;
-                    constexpr float target_roll_pos = 83.0f * roll_reduction_ratio;
+                    constexpr float target_roll_pos = 2.0f * roll_reduction_ratio;
                      constexpr float pos_tolerance = 4.0f;
                     constexpr float speed_tolerance = 5.0f;
 
