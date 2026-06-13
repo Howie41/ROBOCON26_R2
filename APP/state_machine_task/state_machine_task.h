@@ -8,6 +8,7 @@
 #pragma once
 
 #include "cmsis_os2.h"
+#include <cstdint>
 extern osThreadId_t StateMachineTaskHandle;
 
 void stateMachineTask(void *argument);
@@ -26,12 +27,15 @@ enum class RobotState: uint8_t {
 #ifdef MATCH_CWTY
     /** ========== 崇武探幽 单项赛 ========== */
     // 武馆
-    begin = 0,             // 启动
-    go_to_SHR,             // 前往端头架
-    aim_at_weapon,         // 夹爪对准对应武器头
-    catch_weapon,          // 夹爪夹取武器
-    rotate_weapon_claw,    // 夹爪反转
-    wait_for_cmd,          // 等待R1指令 决定继续夹取or前往梅林
+    begin = 0,            // 启动
+    go_to_SHR,            // 前往端头架
+    aim_at_weapon,        // 夹爪对准对应武器头
+    catch_weapon,         // 夹爪夹取武器
+    rotate_weapon_claw,   // 夹爪反转
+    wait_for_cmd,         // 等待R1指令 决定继续夹取or前往梅林
+    test1,
+    test2,
+    test3,
     // 梅林
     go_to_MF_entrance,     // 前往梅林入口
     request_for_path_cmd,  // 请求路径规划命令
@@ -74,3 +78,9 @@ enum class PathCmd: uint16_t {
 #if defined(MATCH_CWTY) && defined(MATCH_JGCB)
 #error "比赛类型配置异常"
 #endif
+
+struct Waypoint {
+    int16_t x;
+    int16_t y;
+    int16_t yaw;
+};
