@@ -5,6 +5,7 @@
  * @date 2026-05-23
  */
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 
@@ -16,6 +17,12 @@
 class Logger {
     public:
         static constexpr size_t BUFFER_LENGTH = 256;
+        enum class LogLevel : uint8_t {
+            debug = 0,
+            info = 1,
+            warn = 2,
+            error = 3,
+        };
 
         Logger(UartPort &uart) : uart_(uart) {}
 
@@ -31,8 +38,8 @@ class Logger {
             return result;
         }
 
-        HAL_StatusTypeDef log_priority(uint8_t priority, const char *format, ...) {
-            if (priority < current_priority_) {
+        HAL_StatusTypeDef log_level(LogLevel level, const char *format, ...) {
+            if (static_cast<uint8_t>(level) < static_cast<uint8_t>(current_level_)) {
                 return HAL_ERROR;
             }
 
@@ -43,13 +50,13 @@ class Logger {
             return result;
         }
 
-        void set_priority(uint8_t priority) {
-            current_priority_ = priority;
+        void set_level(LogLevel level) {
+            current_level_ = level;
         }
 
     private:
         UartPort &uart_;
-        uint8_t current_priority_{0}; // 默认允许所有优先级输出
+        LogLevel current_level_{LogLevel::debug};
 
         HAL_StatusTypeDef format_raw(const char *format, va_list args) {
             char buffer[BUFFER_LENGTH];
