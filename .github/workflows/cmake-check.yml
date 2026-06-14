@@ -1,0 +1,108 @@
+name: CMake Build & Report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR 编号（若想将结果评论到指定 PR，请输入数字；留空则仅编译不评论）'
+        required: false
+        default: ''
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  build-and-comment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ARM GCC Toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: 'latest'
+
+      - name: Configure CMake
+        run: cmake -B build/Debug -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
+
+      - name: Build and Parse Logs
+        run: |
+          # 1. 执行编译并记录日志
+          cmake --build build/Debug > build.log 2>&1 && echo "BUILD_STATUS=success" >> $GITHUB_ENV || echo "BUILD_STATUS=failure" >> $GITHUB_ENV
+          
+          # 2. 安全统计 Warning 和 Error 数量
+          WARNINGS=$(grep -i "warning:" build.log | wc -l | awk '{print $1}')
+          ERRORS=$(grep -i "error:" build.log | wc -l | awk '{print $1}')
+          
+          echo "WARNINGS=$WARNINGS" >> $GITHUB_ENV
+          echo "ERRORS=$ERRORS" >> $GITHUB_ENV
+          
+          # 3. 🚀 核心新增：利用 sed 抓取从 Memory region 开始到 FLASH 结束的这一段内存报告
+          # 使用 GitHub 规定的 <<EOF 多行变量语法进行安全写入
+          echo "MEMORY_REPORT<<EOF" >> $GITHUB_ENV
+          if grep -q "Memory region" build.log; then
+            sed -n '/Memory region/,/FLASH:/p' build.log
+          else
+            echo "未检测到内存分配报告（可能编译失败导致未生成 size 信息）"
+          fi
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const prNumber = context.issue.number || context.payload.inputs?.pr_number;
+            
+            if (!prNumber) {
+              console.log("提示：未检测到自动 PR 上下文，且未手动输入 PR 编号。将跳过评论步骤。");
+              return;
+            }
+            
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            
+            const warnings = process.env.WARNINGS;
+            const errors = process.env.ERRORS;
+            const status = process.env.BUILD_STATUS;
+            const memoryReport = process.env.MEMORY_REPORT; // 获取多行内存报告
+            
+            const isSuccess = status === "success";
+            const statusEmoji = isSuccess ? "✅" : "❌";
+            const statusText = isSuccess ? "编译通过" : "编译失败";
+            
+            // 构建基础报告
+            let body = `### 🛠️ CMake 自动化编译报告 (Debug/ARM)
+            
+            **编译状态**: ${statusEmoji} **${statusText}**
+            
+            | 统计项 | 数量 |
+            | :--- | :--- |
+            | 🔴 **Errors** | \`${errors}\` |
+            | 🟡 **Warnings** | \`${warnings}\` |
+            
+            ${isSuccess ? `> 🎉 恭喜，固件编译成功！你可以点击 [🔍 查看编译日志](${runUrl}) 检查潜在的 Warning。` : `> ⚠️ **注意**: 编译未通过！请直接点击 [❌ 查看具体报错日志](${runUrl}) 快速定位并修复。`}
+            `;
+            
+            // 🚀 核心新增：如果抓取到了内存报告，将其以漂亮的文本代码块形式追加到评论里
+            if (memoryReport) {
+              body += `\n### 📊 固件内存分配报告 (Memory Region)\n\`\`\`text\n${memoryReport}\n\`\`\`\n`;
+            }
+            
+            await github.rest.issues.createComment({
+              issue_number: parseInt(prNumber),
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

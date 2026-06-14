@@ -10,7 +10,7 @@ struct StairContext {
 };
 
 extern StairContext g_stair_ctx;
-
+inline bool stairSMIdle() { return !g_stair_ctx.active; }
 // ---- 事件码: 下位机→上位机 ----
 #define STAIR_EVT_HD_START  0x0207  // 2006 高位驱动开始
 #define STAIR_EVT_HD_DONE   0x0208  // 2006 高位驱动到达

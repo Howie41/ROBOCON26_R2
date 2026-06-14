@@ -1,35 +1,72 @@
 #include "PCcom.hpp"
 #include "NavProtocol.hpp"
-#include "field_waypoints.hpp"
-#include "waypoint_navigator.hpp"
+#include "lift_task.h"
 #include "topic_pool.h"
 #include "topics.hpp"
+#include "waypoint_navigator.hpp"
+
 #include <codecvt>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <sys/types.h>
 
-void PcCom::init()
-{
-   manager_.set_send_function([this](const uint8_t *begin,
-                                    const uint8_t *end)noexcept{
-    const size_t len=static_cast<size_t>(end-begin);
+namespace {
 
-    if(uart_!=nullptr){
-        uart_->write(begin, len);
-    }else if(usb_!=nullptr){
-        usb_->WriteAsync(begin, len);
+TypedTopicPublisher<pub_chassis_cmd> chassis_cmd_pub("chassis_cmd");
+TypedTopicPublisher<pc_nav_event_t> pc_nav_event_pub("pc_nav_event_pub");
+
+void applyNavTarget(int16_t x, int16_t y, int16_t yaw) {
+  nav_control::target_x = x;
+  nav_control::target_y = y;
+  nav_control::target_yaw = yaw;
+  nav_control::auto_enabled = true;
+  nav_control::arrived = false;
+  nav_control::target_active = true;
+  nav_control::arrival_reported = false;
+  nav_control::resetAllPIDs();
+}
+
+void handleEmergencyStop() {
+  g_stair_ctx.active = false;
+  g_stair_ctx.phase = 0;
+
+  nav_control::auto_enabled = false;
+  nav_control::arrived = false;
+  nav_control::target_active = false;
+  nav_control::arrival_reported = false;
+  nav_control::target_x = nav_control::current_x;
+  nav_control::target_y = nav_control::current_y;
+  nav_control::target_yaw = nav_control::current_yaw;
+
+  pub_chassis_cmd stop_cmd{};
+  stop_cmd.nav_mode_ = true;
+  chassis_cmd_pub.Publish(stop_cmd);
+
+  pc_nav_event_t evt{static_cast<uint16_t>(PcCmd::nav_stop_ok)};
+  pc_nav_event_pub.Publish(evt);
+}
+
+}  // namespace
+
+void PcCom::init() {
+  manager_.set_send_function([this](const uint8_t *begin,
+                                    const uint8_t *end) noexcept {
+    const size_t len = static_cast<size_t>(end - begin);
+
+    if (uart_ != nullptr) {
+      uart_->write(begin, len);
+    } else if (usb_ != nullptr) {
+      usb_->WriteAsync(begin, len);
     }
-    });
+  });
 
-    manager_.set_receive_function([this](Packet packet)noexcept{
-        OnPacket(std::move(packet));
-    });
+  manager_.set_receive_function(
+      [this](Packet packet) noexcept { OnPacket(std::move(packet)); });
 }
 
 void PcCom::ProcessRx() {
-    if (usb_ != nullptr) {
+  if (usb_ != nullptr) {
     UsbPort::Packet rx{};
     while (usb_->Read(rx)) {
       manager_.receive(rx.data, rx.data + rx.len);
@@ -44,27 +81,24 @@ void PcCom::ProcessRx() {
   }
 }
 
-
 void PcCom::OnPacket(Packet packet) {
-  switch(packet.code()){
-    // ---- tail_claw 消息 ----
-    case static_cast<uint16_t>(PcCmd::tail_claw_msg):{
-      if(packet.body_size()!=sizeof(tail_claw_msg)){
+  switch (packet.code()) {
+    case static_cast<uint16_t>(PcCmd::tail_claw_msg): {
+      if (packet.body_size() != sizeof(tail_claw_msg)) {
         return;
       }
       tail_claw_msg msg{};
-      std::memcpy(&msg,packet.body_data(),sizeof(tail_claw_msg));
+      std::memcpy(&msg, packet.body_data(), sizeof(tail_claw_msg));
       pc_tail_claw_pub_.Publish(msg);
       break;
     }
 
-    // ---- 导航: 上位机上报当前位置 (0x0101) ----
-    case static_cast<uint16_t>(PcCmd::nav_position):{
-      if(packet.body_size()!=sizeof(pc_nav_position_t)){
+    case static_cast<uint16_t>(PcCmd::nav_position): {
+      if (packet.body_size() != sizeof(pc_nav_position_t)) {
         return;
       }
       pc_nav_position_t msg{};
-      std::memcpy(&msg,packet.body_data(),sizeof(msg));
+      std::memcpy(&msg, packet.body_data(), sizeof(msg));
       nav_control::current_x = msg.x;
       nav_control::current_y = msg.y;
       nav_control::pc_reported_yaw = msg.yaw;
@@ -72,50 +106,32 @@ void PcCom::OnPacket(Packet packet) {
       break;
     }
 
-    // ---- 导航: 上位机下发目标点 (0x0102) ----
-    case static_cast<uint16_t>(PcCmd::nav_target):{
-      if(packet.body_size()!=sizeof(pc_nav_target_t)){
+    case static_cast<uint16_t>(PcCmd::nav_target): {
+      if (packet.body_size() != sizeof(pc_nav_target_t)) {
         return;
       }
       pc_nav_target_t msg{};
-      std::memcpy(&msg,packet.body_data(),sizeof(msg));
-      nav_control::target_x = msg.x;
-      nav_control::target_y = msg.y;
-      nav_control::target_yaw = msg.yaw;
-      nav_control::auto_enabled = true;
-      nav_control::arrived = false;
-      nav_control::target_active = true;
-      nav_control::arrival_reported = false;
-      nav_control::resetAllPIDs();
+      std::memcpy(&msg, packet.body_data(), sizeof(msg));
+      applyNavTarget(msg.x, msg.y, msg.yaw);
       break;
     }
 
-    // ---- 上/下台阶指令 ----
     case static_cast<uint16_t>(PcCmd::nav_climb_up):
       stairSMStart(true);
       break;
     case static_cast<uint16_t>(PcCmd::nav_climb_down):
       stairSMStart(false);
       break;
-
-    // ---- 执行航点: PC 下发索引 (0x010A), body 1 字节 ----
-    case static_cast<uint16_t>(PcCmd::nav_execute_waypoint): {
-      if (packet.body_size() != 1) return;
-      uint8_t idx = *packet.body_data();
-      if (idx >= 128) return;
-      const auto &wp = field::LIST[idx];
-      nav_control::target_x = wp.x;
-      nav_control::target_y = wp.y;
-      nav_control::target_yaw = wp.yaw;
-      nav_control::auto_enabled = true;
-      nav_control::arrived = false;
-      nav_control::target_active = true;
-      nav_control::arrival_reported = false;
-      nav_control::resetAllPIDs();
+    case static_cast<uint16_t>(PcCmd::nav_enter_high):
+      liftRequestHigh();
       break;
-    }
+    case static_cast<uint16_t>(PcCmd::nav_enter_low):
+      liftRequestLow();
+      break;
+    case static_cast<uint16_t>(PcCmd::nav_emergency_stop):
+      handleEmergencyStop();
+      break;
 
-    // ---- 二维码解析结果 ----
     case static_cast<uint16_t>(PcCmd::qr_code_parsed): {
       if (packet.body_size() != sizeof(pub_qr_code_parsed)) {
         return;
@@ -130,48 +146,38 @@ void PcCom::OnPacket(Packet packet) {
       break;
   }
 }
-/*
-void PcCom::ProcessTx()
-{
-  static TypedTopicSubscriber<tail_claw_msg> tail_claw_subscriber(
-      "pc_tail_claw_pub", 8);
 
-  tail_claw_msg msg{};
-  if (tail_claw_subscriber.TryGet(&msg)) {
-    send(static_cast<uint16_t>(PcCmd::tail_claw_msg), msg);
-  }
-}
-*/
-void PcCom::ProcessTx()
-{
-  // tail_claw 发送
+void PcCom::ProcessTx() {
   tail_claw_msg claw_msg{};
-  if(pc_tail_claw_sub_.TryGet(&claw_msg)){
-    send(static_cast<uint16_t>(PcCmd::tail_claw_msg),claw_msg);
+  if (pc_tail_claw_sub_.TryGet(&claw_msg)) {
+    send(static_cast<uint16_t>(PcCmd::tail_claw_msg), claw_msg);
   }
 
-  // 导航事件发送: 订阅 pc_nav_event_pub topic
-  // 事件码即消息码，直接作为 packet code 发送
   pc_nav_event_t nav_event{};
-  if(pc_nav_event_sub_.TryGet(&nav_event)){
-    send(nav_event.event_code, nav_event);
+  if (pc_nav_event_sub_.TryGet(&nav_event)) {
+    send(nav_event.event_code);
   }
 }
 
-template<typename T>
-bool PcCom::send(uint16_t code,const T &msg)
-{
-  const uint8_t *begin=reinterpret_cast<const uint8_t*>(&msg);
+template <typename T>
+bool PcCom::send(uint16_t code, const T &msg) {
+  const uint8_t *begin = reinterpret_cast<const uint8_t *>(&msg);
 
-  Packet packet{
-    code,
-    begin,
-    begin+sizeof(T),
-    gdut::build_packet
-  };
+  Packet packet{code, begin, begin + sizeof(T), gdut::build_packet};
 
-  if(!packet)
-  {
+  if (!packet) {
+    return false;
+  }
+
+  manager_.send(packet);
+  return true;
+}
+
+bool PcCom::send(uint16_t code) {
+  const uint8_t *dummy = nullptr;
+  Packet packet{code, dummy, dummy, gdut::build_packet};
+
+  if (!packet) {
     return false;
   }
 

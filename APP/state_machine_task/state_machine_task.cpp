@@ -15,7 +15,8 @@
 #include "infrared_com.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
-
+#include "waypoint_navigator.hpp"
+#include "chassis_task.h"
 osThreadId_t StateMachineTaskHandle;
 
 static std::atomic<RobotState> current_state{RobotState::begin};
@@ -58,14 +59,23 @@ void change_state_to(RobotState new_state) {
 }
 
 // 这个函数必须在任务环境里调用
-void move_to_pos(int16_t x, int16_t y, int16_t yaw) {
+bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0) {
     taskENTER_CRITICAL();
     nav_control::target_x = x;
     nav_control::target_y = y;
     nav_control::target_yaw = yaw;
+    nav_control::auto_enabled = true;
     nav_control::arrived = false;
+    nav_control::target_active = true;
+    nav_control::arrival_reported = false;
+    nav_control::resetAllPIDs();
     taskEXIT_CRITICAL();
-    wait_until([&]() { return nav_control::arrived; });
+
+    if (timeout_ms == 0) {
+      wait_until([&]() { return nav_control::arrived; });
+      return true;
+    }
+    return wait_until_timeout_or([&]() { return nav_control::arrived; }, timeout_ms);
 }
 
 /**
