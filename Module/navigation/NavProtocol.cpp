@@ -1,5 +1,4 @@
 #include "NavProtocol.hpp"
-#include "waypoint_navigator.hpp"
 
 #include "UsbPort.hpp"
 #include "pid_controller.h"
@@ -14,9 +13,9 @@
 extern volatile float g_chassis_yaw_deg;
 
 PID_t pid_x = {
-    .Kp = 2.0f,
-    .Ki = 0.16f,
-    .Kd = 0.05f,
+    .Kp = 2.8f,
+    .Ki = 0.30f,
+    .Kd = 0.08f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
     .DeadBand = 10.0f,
@@ -24,9 +23,9 @@ PID_t pid_x = {
 };
 
 PID_t pid_y = {
-    .Kp = 2.0f,
-    .Ki = 0.16f,
-    .Kd = 0.05f,
+    .Kp = 2.8f,
+    .Ki = 0.30f,
+    .Kd = 0.08f,
     .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
     .DeadBand = 10.0f,
@@ -34,18 +33,18 @@ PID_t pid_y = {
 };
 
 PID_t pid_yaw = {
-    .Kp = 0.1f,
+    .Kp = 0.16f,
     .Ki = 0.001f,
-    .Kd = 0.005f,
+    .Kd = 0.001f,
     .MaxOut = 2.0f,
-    .IntegralLimit = 0.5f,
-    .DeadBand = 1.0f,
+    .IntegralLimit = 0.35f,
+    .DeadBand = 0.3f,
     .Improve = Integral_Limit,
 };
 
 // Phase 2: 高位2006导航 — 距离→速度PID
 PID_t pid_high_distance = {
-    .Kp = 0.1f,
+    .Kp = 0.16f,
     .Ki = 0.05f,
     .Kd = 0.0f,
     .MaxOut = 400.0f,
@@ -105,6 +104,9 @@ void resetAllPIDs() {
 namespace {
 
 constexpr TickType_t kPositionTimeoutTicks = pdMS_TO_TICKS(200);
+constexpr float kHighCruiseSpeedRpm = 400.0f;
+constexpr float kHighCrawlSpeedRpm = 100.0f;
+constexpr float kHighSlowdownDistMm = 100.0f;
 
 bool isPositionFresh(TickType_t now) {
   return (nav_control::g_last_position_update_tick != 0U) &&
@@ -267,11 +269,6 @@ void NavControlTask(void *argument) {
     nav_control::current_yaw = static_cast<int16_t>(g_chassis_yaw_deg);
 
     // ---- 楼梯状态机: 接管导航 ----
-    if (runStairSM()) {
-      vTaskDelayUntil(&lastWakeTime, 10);
-      continue;
-    }
-
     if (nav_control::auto_enabled) {
       if (!isPositionFresh(now)) {
         nav_control::arrived = false;
@@ -302,7 +299,11 @@ void NavControlTask(void *argument) {
         high_cmd.active = true;
 
         // 目标在车体前方→前进300RPM, 后方→后退400RPM
-        high_cmd.forward_speed = (error_x_body >= 0) ? 300.0f : -300.0f;
+        const float abs_error_x_body = fabsf(error_x_body);
+        const float base_speed =
+            (abs_error_x_body <= kHighSlowdownDistMm) ? kHighCrawlSpeedRpm
+                                                      : kHighCruiseSpeedRpm;
+        high_cmd.forward_speed = (error_x_body >= 0) ? base_speed : -base_speed;
         high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
 
         // 限幅
@@ -311,7 +312,7 @@ void NavControlTask(void *argument) {
         if (high_cmd.omega > 500.0f) high_cmd.omega = 500.0f;
         if (high_cmd.omega < -500.0f) high_cmd.omega = -500.0f;
 
-        const bool reached = (fabsf(error_x_body) < 13.0f);
+        const bool reached = (fabsf(error_x_body) < 10.0f);
         nav_control::arrived = reached;
         if (reached) {
           reportArrivalOnce();
@@ -350,7 +351,7 @@ void NavControlTask(void *argument) {
       chassis_cmd_pub.Publish(cmd);
 
       const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
-      const bool reached = (dist_error < 10.0f) && (fabsf(error_yaw) < 3.0f);
+      const bool reached = (dist_error < 30.0f) && (fabsf(error_yaw) < 1.0f);
 
       nav_control::arrived = reached;
       if (reached) {

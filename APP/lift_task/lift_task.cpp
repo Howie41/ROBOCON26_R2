@@ -267,7 +267,7 @@ PID_t lift_3508_sync_pid = {
 // Phase 2: 高位模式手动yaw锁角PID
 PID_t high_yaw_lock_pid = {
     .Kp = 15.0f, .Ki = 0.05f, .Kd = 0.0f, .MaxOut = 300.0f,
-    .IntegralLimit = 150.0f, .DeadBand = 0.5f, .Improve = Integral_Limit,
+    .IntegralLimit = 150.0f, .DeadBand = 2.0f, .Improve = Integral_Limit,
 };
 static float high_yaw_lock_ref = 0.0f;
 static bool high_was_active = false;
@@ -525,7 +525,8 @@ void liftTask(void *argument) {
         float high_forward = 0.0f;
         float high_omega = 0.0f;
 
-        if (high_nav_cmd.active && nav_control::auto_enabled) {
+        if (high_nav_cmd.active &&
+            (nav_control::auto_enabled || high_nav_cmd.allow_without_auto)) {
             high_forward = -high_nav_cmd.forward_speed;
             high_omega = high_nav_cmd.omega;
         } else if (nav_control::high_mode_active) {

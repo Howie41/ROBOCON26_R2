@@ -16,10 +16,12 @@
 #include "chassis_task.h"
 #include "lift_task.h"
 #include "pid_controller.h"
+#include "state_machine_task.h"
 #include "stair_assist.h"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "tracking.h"
+#include "waypoint_navigator.hpp"
 
 extern PID_t pid_x;
 extern PID_t pid_y;
@@ -37,10 +39,13 @@ static TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
 pub_Xbox_Data control_xbox_cmd{};
 
 static bool xbox_mode_last = false;
+static bool xbox_view_last = false;
 static bool xbox_lb_last = false;
 static bool xbox_rb_last = false;
 static bool xbox_ls_last = false;
 static bool xbox_rs_last = false;
+static bool xbox_y_last_for_stair = false;
+static bool xbox_a_last_for_stair = false;
 static bool stair_assist_high_request_latched = false;
 static bool stair_assist_low_request_latched = false;
 //处理底盘控制输入并发布底盘指令
@@ -214,21 +219,29 @@ void controlTask(void *argument) {
       updateStairAssistSwitch();
 
       if (consumeModeSwitch(control_xbox_cmd.btnXbox)) {
-        nav_control::auto_enabled = !nav_control::auto_enabled;
-
-        if (nav_control::auto_enabled) {
-          nav_control::target_x = nav_control::current_x;
-          nav_control::target_y = nav_control::current_y;
-          nav_control::target_yaw = nav_control::current_yaw;
-          nav_control::arrived = false;
-          nav_control::arrival_reported = false;
-          PID_Init(&pid_x);
-          PID_Init(&pid_y);
-          PID_Init(&pid_yaw);
+        if (state_machine_idle()) {
+          change_state_to(RobotState::go_to_stair_front);
         }
       }
 
+      if (consumeButtonRisingEdge(control_xbox_cmd.btnView, &xbox_view_last)) {
+        // 保留 View 边沿消费，避免旧按键状态干扰。
+      }
+
       if (!nav_control::auto_enabled) {
+        const bool stair_y_pressed =
+            consumeButtonRisingEdge(control_xbox_cmd.btnY, &xbox_y_last_for_stair);
+        const bool stair_a_pressed =
+            consumeButtonRisingEdge(control_xbox_cmd.btnA, &xbox_a_last_for_stair);
+
+        if (stairWaypointArmed() && state_machine_idle()) {
+          if (stair_y_pressed) {
+            change_state_to(RobotState::test_stair_up);
+          } else if (stair_a_pressed) {
+            change_state_to(RobotState::test_stair_down);
+          }
+        }
+
         if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
           chassis_action::requestYawRotateCcw90();
         }
@@ -243,7 +256,16 @@ void controlTask(void *argument) {
           chassis_cmd.linear_y_ = 0.0f;
           chassis_cmd.omega_ = 0.0f;
         }
-        Lift_Data_Process();
+
+        if (!stairWaypointArmed()) {
+          Lift_Data_Process();
+        } else {
+          lift_cmd.request_high = false;
+          lift_cmd.request_low = false;
+          lift_cmd.lift_up = false;
+          lift_cmd.lift_down = false;
+          lift_cmd.lift_2006_input = 0.0f;
+        }
         applyManualStairAssist();
         lift_data_pub.Publish(lift_cmd);
         chassis_cmd.nav_mode_ = false;

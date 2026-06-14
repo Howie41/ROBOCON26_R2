@@ -288,40 +288,47 @@ void chassisTask(void *argument) {
 
     g_chassis_final_omega = final_cmd.omega_;
 
-    const bool motion_requested = hasMotionCommand(chassis_cmd);
-    if (!motion_requested) {
-      if (chassis_hold_idle_count < kHoldIdleCycles)
-        ++chassis_hold_idle_count;
-    } else {
-      chassis_hold_idle_count = 0U;
+    if (chassis_cmd.nav_mode_) {
       chassis_hold_active = false;
-    }
-
-    static std::array<float, Omni45Chassis::kWheelCount> hold_base_pos{};
-
-    if (!chassis_hold_active && chassis_hold_idle_count >= kHoldIdleCycles) {
-      hold_base_pos = {
-          chassis_motor1.getCurrentSumPos(),
-          chassis_motor2.getCurrentSumPos(),
-          chassis_motor3.getCurrentSumPos(),
-          chassis_motor4.getCurrentSumPos(),
-      };
-      chassis_hold_target_pos = hold_base_pos;
-      chassis_hold_active = true;
-    }
-
-    g_chassis_hold_active = chassis_hold_active;
-    if (chassis_hold_active) {
-      const float yaw_target = chassis_cmd.nav_mode_
-          ? static_cast<float>(nav_control::target_yaw)
-          : g_chassis_yaw_lock_deg;
-      float yaw_error = normalizeDeg(yaw_target - g_chassis_yaw_deg);
-      float wheel_offset = PID_Calculate(&hold_yaw_pos_pid, 0.0f, yaw_error);
-      for (size_t i = 0; i < 4; i++)
-        chassis_hold_target_pos[i] = hold_base_pos[i] - wheel_offset;
-      chassis_solver.runHold(chassis_hold_target_pos);
-    } else {
+      chassis_hold_idle_count = 0U;
+      g_chassis_hold_active = false;
       chassis_solver.run(final_cmd);
+    } else {
+      const bool motion_requested = hasMotionCommand(chassis_cmd);
+      if (!motion_requested) {
+        if (chassis_hold_idle_count < kHoldIdleCycles) {
+          ++chassis_hold_idle_count;
+        }
+      } else {
+        chassis_hold_idle_count = 0U;
+        chassis_hold_active = false;
+      }
+
+      static std::array<float, Omni45Chassis::kWheelCount> hold_base_pos{};
+
+      if (!chassis_hold_active && chassis_hold_idle_count >= kHoldIdleCycles) {
+        hold_base_pos = {
+            chassis_motor1.getCurrentSumPos(),
+            chassis_motor2.getCurrentSumPos(),
+            chassis_motor3.getCurrentSumPos(),
+            chassis_motor4.getCurrentSumPos(),
+        };
+        chassis_hold_target_pos = hold_base_pos;
+        chassis_hold_active = true;
+      }
+
+      g_chassis_hold_active = chassis_hold_active;
+      if (chassis_hold_active) {
+        const float yaw_target = g_chassis_yaw_lock_deg;
+        float yaw_error = normalizeDeg(yaw_target - g_chassis_yaw_deg);
+        float wheel_offset = PID_Calculate(&hold_yaw_pos_pid, 0.0f, yaw_error);
+        for (size_t i = 0; i < 4; i++) {
+          chassis_hold_target_pos[i] = hold_base_pos[i] - wheel_offset;
+        }
+        chassis_solver.runHold(chassis_hold_target_pos);
+      } else {
+        chassis_solver.run(final_cmd);
+      }
     }
     const auto &target_rpm = chassis_solver.targetRpm();
     g_chassis_target_rpm_fl = target_rpm[0];
