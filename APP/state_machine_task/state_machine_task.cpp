@@ -10,17 +10,17 @@
 #include <cstdint>
 
 #include "state_machine_task.h"
+#include "com_config.h"
 #include "NavProtocol.hpp"
 #include "infrared_com.hpp"
 #include "topic_pool.h"
-#include "topics.hpp" 
+#include "topics.hpp"
 #include "waypoint_navigator.hpp"
 #include "chassis_task.h"
 osThreadId_t StateMachineTaskHandle;
 
 static std::atomic<RobotState> current_state{RobotState::begin};
 
-TypedTopicSubscriber<pub_infrared_msg> infrared_sub(InfraredModule::INFRARED_MSG_TOPIC, 1);
 TypedTopicSubscriber<pub_qr_code_parsed> qr_code_sub("qr_code_parsed", 1);
 
 /**
@@ -84,9 +84,7 @@ bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0) {
  * @note 不要放入 wait_until，只清理一次就好了
  */
 void clean_previous_cmd() {
-    pub_infrared_msg temp_im{};
     pub_qr_code_parsed temp_qr{};
-    infrared_sub.TryGet(&temp_im);
     qr_code_sub.TryGet(&temp_qr);
 }
 
@@ -98,12 +96,12 @@ void clean_previous_cmd() {
  */
 uint8_t get_cmd_from_r1() {
     uint8_t cmd{0x00};
-    pub_infrared_msg infrared_msg{.data = 0x00};
     pub_qr_code_parsed qr_code_msg{.data = 0x00};
 
     // 先取红外（作为默认），再用二维码覆盖
-    if (infrared_sub.TryGet(&infrared_msg)) {
-        cmd = infrared_msg.data;
+    auto ir_result = infrared_group.tryGet();
+    if (ir_result.has_value()) {
+        cmd = static_cast<uint8_t>(ir_result.value().data);
     }
     if (qr_code_sub.TryGet(&qr_code_msg)) {
         cmd = qr_code_msg.data;
