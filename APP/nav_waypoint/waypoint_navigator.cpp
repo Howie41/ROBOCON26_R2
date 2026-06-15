@@ -12,7 +12,7 @@
 #include "topic_pool.h"
 #include "topics.hpp"
 
-namespace {
+namespace { 
 
 std::atomic<uint8_t> g_stair_waypoint_step{0};
 std::atomic<uint8_t> g_stair_waypoint_level{0};

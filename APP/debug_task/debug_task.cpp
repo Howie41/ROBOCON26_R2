@@ -9,6 +9,7 @@
 
 #include "logger.hpp"
 #include "com_config.h"
+#include "merlin_map/merlin_map.h"
 #include "Motor.hpp"
 #include "NavProtocol.hpp"
 #include "lift_task.h"
@@ -30,6 +31,7 @@ void debugTask(void *argument) {
 
   for (;;) {
     vTaskDelayUntil(&lastWake, 20);
+    const auto &map_debug = merlin_map::debug();
 
     logger.log(
         "%.1f,%.0f,%.1f,%.1f,"
@@ -38,7 +40,7 @@ void debugTask(void *argument) {
         "%.1f,%.0f,%.1f,%.1f,"
         "%.1f,%.1f,%.1f,%.1f,"
         "%d,%d,%d,%d,%d,%d,%d,"
-        "%ld,%d,%d\n",
+        "%ld,%d,%d,%d,%d,%d,%ld\n",
         chassis_motor1.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
         chassis_motor1.getRawCurrentTorque(),
         chassis_motor1.getCurrentTemperature(),
@@ -73,6 +75,12 @@ void debugTask(void *argument) {
         stairWaypointArmed() ? 1 : 0,
         stairAssistDebug().laser2_mm,
         stairAssistDebug().laser2_fresh ? 1 : 0,
-        stairAssistDebug().should_lower_after_descend ? 1 : 0);
+        stairAssistDebug().should_lower_after_descend ? 1 : 0,
+        map_debug.cell_valid ? 1 : 0,
+        static_cast<int>(map_debug.row),
+        static_cast<int>(map_debug.col),
+        static_cast<int>(map_debug.height_mm),
+        static_cast<int>(map_debug.heading),
+        static_cast<long>(map_debug.nearest_dist_sq));
   }
 }

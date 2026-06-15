@@ -12,9 +12,11 @@
  * @versioninfo :
  */
 #include "control_task.h"
+
 #include "NavProtocol.hpp"
 #include "chassis_task.h"
 #include "lift_task.h"
+#include "merlin_map/merlin_map.h"
 #include "pid_controller.h"
 #include "state_machine_task.h"
 #include "stair_assist.h"
@@ -48,7 +50,15 @@ static bool xbox_y_last_for_stair = false;
 static bool xbox_a_last_for_stair = false;
 static bool stair_assist_high_request_latched = false;
 static bool stair_assist_low_request_latched = false;
-//处理底盘控制输入并发布底盘指令
+
+enum class PendingHeadingTurn : uint8_t {
+  None = 0,
+  Ccw90,
+  Cw90,
+};
+
+static PendingHeadingTurn merlin_pending_turn = PendingHeadingTurn::None;
+
 void Xbox_Data_Process() {
   if (ABS(control_xbox_cmd.joyLVert - 32767) > 2000) {
     chassis_cmd.linear_x_ =
@@ -66,7 +76,8 @@ void Xbox_Data_Process() {
 
   if (ABS(control_xbox_cmd.joyRHori - 32767) > 2000) {
     chassis_cmd.omega_ =
-        -(int)(control_xbox_cmd.joyRHori - 32767) / 32767.0f * MAX_ROTATION_VELOCITY;
+        -(int)(control_xbox_cmd.joyRHori - 32767) / 32767.0f *
+        MAX_ROTATION_VELOCITY;
   } else {
     chassis_cmd.omega_ = 0.0f;
   }
@@ -76,42 +87,44 @@ static bool xbox_y_last = false;
 static bool xbox_a_last = false;
 static TickType_t xbox_y_press_tick = 0;
 static TickType_t xbox_a_press_tick = 0;
-constexpr TickType_t kLiftTapTimeout = pdMS_TO_TICKS(300);  // 300ms以内算"点按"
-void Lift_Data_Process(){
-  // === Y键：按下记录时刻，松开判断是否短按 ===
-    if (control_xbox_cmd.btnY && !xbox_y_last) {
-        // 上升沿：记录按下时刻
-        xbox_y_press_tick = xTaskGetTickCount();
-    }
-    // 下降沿（松开）且持续时间 < 300ms → 短按，触发去高位
-    lift_cmd.request_high = false;
-    if (!control_xbox_cmd.btnY && xbox_y_last) {
-        if ((xTaskGetTickCount() - xbox_y_press_tick) < kLiftTapTimeout) {
-            lift_cmd.request_high = true;
-        }
-    }
-    xbox_y_last = control_xbox_cmd.btnY;
-    if (control_xbox_cmd.btnA && !xbox_a_last) {
-        xbox_a_press_tick = xTaskGetTickCount();
-    }
-    lift_cmd.request_low = false;
-    if (!control_xbox_cmd.btnA && xbox_a_last) {
-        if ((xTaskGetTickCount() - xbox_a_press_tick) < kLiftTapTimeout) {
-            lift_cmd.request_low = true;
-        }
-    }
-    xbox_a_last = control_xbox_cmd.btnA;
-    lift_cmd.lift_up = control_xbox_cmd.btnY;
-    lift_cmd.lift_down = control_xbox_cmd.btnA;
+constexpr TickType_t kLiftTapTimeout = pdMS_TO_TICKS(300);
 
-  if(ABS(control_xbox_cmd.joyRVert - 32767) > 2000){
-    lift_cmd.lift_2006_input = (int)(control_xbox_cmd.joyRVert - 32767) / 32767.0f * MAX_LIFT_VELOCITY;
+void Lift_Data_Process() {
+  if (control_xbox_cmd.btnY && !xbox_y_last) {
+    xbox_y_press_tick = xTaskGetTickCount();
+  }
+
+  lift_cmd.request_high = false;
+  if (!control_xbox_cmd.btnY && xbox_y_last) {
+    if ((xTaskGetTickCount() - xbox_y_press_tick) < kLiftTapTimeout) {
+      lift_cmd.request_high = true;
+    }
+  }
+  xbox_y_last = control_xbox_cmd.btnY;
+
+  if (control_xbox_cmd.btnA && !xbox_a_last) {
+    xbox_a_press_tick = xTaskGetTickCount();
+  }
+
+  lift_cmd.request_low = false;
+  if (!control_xbox_cmd.btnA && xbox_a_last) {
+    if ((xTaskGetTickCount() - xbox_a_press_tick) < kLiftTapTimeout) {
+      lift_cmd.request_low = true;
+    }
+  }
+  xbox_a_last = control_xbox_cmd.btnA;
+
+  lift_cmd.lift_up = control_xbox_cmd.btnY;
+  lift_cmd.lift_down = control_xbox_cmd.btnA;
+
+  if (ABS(control_xbox_cmd.joyRVert - 32767) > 2000) {
+    lift_cmd.lift_2006_input =
+        (int)(control_xbox_cmd.joyRVert - 32767) / 32767.0f *
+        MAX_LIFT_VELOCITY;
   } else {
     lift_cmd.lift_2006_input = 0.0f;
   }
 }
-  
-
 
 static bool consumeModeSwitch(bool current_state) {
   const bool rising_edge = current_state && !xbox_mode_last;
@@ -197,6 +210,24 @@ static void applyManualStairAssist() {
   }
 }
 
+static void updateMerlinHeadingAfterRotation() {
+  if (merlin_pending_turn == PendingHeadingTurn::None) {
+    return;
+  }
+
+  if (chassis_action::yawRotateActive()) {
+    return;
+  }
+
+  if (merlin_pending_turn == PendingHeadingTurn::Ccw90) {
+    merlin_map::rotateCcw90();
+  } else if (merlin_pending_turn == PendingHeadingTurn::Cw90) {
+    merlin_map::rotateCw90();
+  }
+
+  merlin_pending_turn = PendingHeadingTurn::None;
+}
+
 void controlInit() {
   if (!chassis_data_pub.IsValid()) {
     return;
@@ -205,9 +236,10 @@ void controlInit() {
     return;
   }
   if (!lift_data_pub.IsValid()) {
-  return;
-}
+    return;
+  }
   stairAssistInit();
+  merlin_map::init();
 }
 
 void controlTask(void *argument) {
@@ -215,6 +247,8 @@ void controlTask(void *argument) {
 
   controlInit();
   for (;;) {
+    updateMerlinHeadingAfterRotation();
+
     if (control_xbox_sub.TryGet(&control_xbox_cmd)) {
       updateStairAssistSwitch();
 
@@ -225,14 +259,17 @@ void controlTask(void *argument) {
       }
 
       if (consumeButtonRisingEdge(control_xbox_cmd.btnView, &xbox_view_last)) {
-        // 保留 View 边沿消费，避免旧按键状态干扰。
+        merlin_map::identifyCurrentCell(nav_control::current_x,
+                                        nav_control::current_y);
       }
 
       if (!nav_control::auto_enabled) {
         const bool stair_y_pressed =
-            consumeButtonRisingEdge(control_xbox_cmd.btnY, &xbox_y_last_for_stair);
+            consumeButtonRisingEdge(control_xbox_cmd.btnY,
+                                    &xbox_y_last_for_stair);
         const bool stair_a_pressed =
-            consumeButtonRisingEdge(control_xbox_cmd.btnA, &xbox_a_last_for_stair);
+            consumeButtonRisingEdge(control_xbox_cmd.btnA,
+                                    &xbox_a_last_for_stair);
 
         if (stairWaypointArmed() && state_machine_idle()) {
           if (stair_y_pressed) {
@@ -243,11 +280,17 @@ void controlTask(void *argument) {
         }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
-          chassis_action::requestYawRotateCcw90();
+          if (!chassis_action::yawRotateActive()) {
+            chassis_action::requestYawRotateCcw90();
+            merlin_pending_turn = PendingHeadingTurn::Ccw90;
+          }
         }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
-          chassis_action::requestYawRotateCw90();
+          if (!chassis_action::yawRotateActive()) {
+            chassis_action::requestYawRotateCw90();
+            merlin_pending_turn = PendingHeadingTurn::Cw90;
+          }
         }
 
         Xbox_Data_Process();

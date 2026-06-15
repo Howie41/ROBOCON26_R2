@@ -16,6 +16,7 @@
 #include "Motor.hpp"
 #include "NavProtocol.hpp"
 #include "com_config.h"
+#include "photogate.hpp"
 #include "pid_controller.h"
 #include "topic_pool.h"
 #include "topics.hpp"
@@ -338,6 +339,7 @@ static inline void liftInit(void) {
     PID_Init(&lift_3508_pos_pid);
     PID_Init(&lift_3508_sync_pid);
     PID_Init(&high_yaw_lock_pid);
+    photogate::init();
 
     lift_3508_motor1_pos = -lift_3508_motor1.getCurrentSumPos();
     lift_3508_motor2_pos = -lift_3508_motor2.getCurrentSumPos();
@@ -515,6 +517,7 @@ void liftTask(void *argument) {
     liftInit();
 
     for (;;) {
+        photogate::update();
         if (lift_cmd_sub.TryGet(&lift_cmd)) {
         }
         if (high_nav_sub.TryGet(&high_nav_cmd)) {
