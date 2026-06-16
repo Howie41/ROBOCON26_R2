@@ -147,9 +147,8 @@ void PcCom::OnPacket(Packet packet) {
 
     default: {
       // 路径规划指令
-      if (packet.code() >= static_cast<uint16_t>(PathCmd::request) &&
-          packet.code() <= static_cast<uint16_t>(PathCmd::no_more_commands)) {
-        PathCmd cmd = static_cast<PathCmd>(packet.code());
+      if (path_cmd::is_path_cmd(packet.code())) {
+        path_cmd::code cmd = static_cast<path_cmd::code>(packet.code());
         pc_path_cmd_pub_.Publish(cmd);
       }
       break;
@@ -171,7 +170,7 @@ void PcCom::ProcessTx() {
   // 请求路径规划步骤
   bool request_path_cmd{};
   if (pc_path_cmd_request_sub_.TryGet(&request_path_cmd)) {
-    send(static_cast<uint16_t>(PathCmd::request), request_path_cmd);
+    send(static_cast<uint16_t>(path_cmd::code::request), request_path_cmd);
   }
 }
 

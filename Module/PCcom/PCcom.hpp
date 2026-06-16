@@ -75,5 +75,5 @@ private:
 
     // 请求路径规划动作
     TypedTopicSubscriber<bool> pc_path_cmd_request_sub_{"pc_path_cmd_request", 1};
-    TypedTopicPublisher<PathCmd> pc_path_cmd_pub_{"pc_path_cmd"};
+    TypedTopicPublisher<path_cmd::code> pc_path_cmd_pub_{"pc_path_cmd"};
 };
