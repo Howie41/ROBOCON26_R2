@@ -39,9 +39,9 @@ float tail_claw_roll_target_pos= 0.0f;
 float move_cmd=0.0f;
 
 static constexpr int16_t match_enter_threshold = 5;    // 进入对准范围
-static constexpr int16_t match_exit_threshold  = 10;   // 退出对准范围，做滞回
-static constexpr uint8_t match_ok_count_limit   = 5;    // 连续5次才认为对准
-static constexpr uint8_t match_lost_count_limit = 3;    // 连续3次偏离才取消对准
+static constexpr int16_t match_exit_threshold  = 9;   // 退出对准范围，做滞回
+static constexpr uint8_t match_ok_count_limit   = 7;    // 连续7次才认为对准
+static constexpr uint8_t match_lost_count_limit = 2;    // 连续2次偏离才取消对准
 
 static uint8_t match_ok_count = 0;
 static uint8_t match_lost_count = 0;
@@ -375,7 +375,7 @@ void tail_claw_task(void *argument) {
         weapon_match_state_ &= ~(motor_move_left | motor_move_right | motor_roll_up | motor_roll_down);
         //每次执行完都清零，等待下一次指令,只清理左右移动和翻转的指令，
         // ismatch位由状态机根据稳定的对准结果来控制，不受Xbox输入的影响
-        vTaskDelayUntil(&currentTime, 2);
+        vTaskDelayUntil(&currentTime, 1);
     }
 }
 

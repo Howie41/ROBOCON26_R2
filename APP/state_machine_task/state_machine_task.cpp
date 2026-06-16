@@ -186,8 +186,8 @@ void stateMachineTask(void *argument) {
                     }
                     if (start==1) {//按下View键进入下一状态
                         //开始进行自动
-                        tail_claw_setRollTarget(-55.5);
-                        //tail_claw_setAirPump(true);//闭合夹爪，夹紧武器头
+                        tail_claw_setRollTarget(-54.5);
+                        tail_claw_setAirPump(true);//闭合夹爪，夹紧武器头
                         tail_claw_setWeaponClaw(true);
                         move_to_pos(-500, 15, 0,5000);
                         change_state_to(RobotState::go_to_SHR);
@@ -205,7 +205,8 @@ void stateMachineTask(void *argument) {
                 //发个信号，唤醒通知tail_claw_task去对准武器头
                 //暂时不用
                 //move_to_pos(-286, -840, 90,5000);
-                move_to_pos(-266, -840, 95,5000);
+                move_to_pos(-266, -840, 92,5000);
+                tail_claw_setAirPump(false);
                 tail_claw_setMode(TailClawMode::AutoAlign);//进入自动对齐模式
                 //发消息给上位机，他要发消息给我了
                 msg.distance = 1;
@@ -235,7 +236,7 @@ void stateMachineTask(void *argument) {
                         change_state_to(RobotState::stop);
                         break;
                 }*/// 对准后向前移动一段距离，具体数值待调试
-                move_to_pos(-266, -970, 95, 10000U);
+                move_to_pos(-266, -960, 90, 10000U);
                 tail_claw_setWeaponClaw(false);//闭合夹爪，夹紧武器头
                 osDelay(100); // 等待夹爪动作完成，具体时间待调试
                 change_state_to(RobotState::rotate_weapon_claw);
@@ -254,7 +255,7 @@ void stateMachineTask(void *argument) {
                         return fabsf(tail_claw_roll_motor.getCurrentSumPos() - target_roll_pos) < pos_tolerance &&
                             fabsf(tail_claw_roll_motor.getCurrentSpeed()) < speed_tolerance;
                     });*/
-                    const bool roll_ok = wait_until_timeout_or([]() -> bool {
+                     wait_until_timeout_or([]() -> bool {
                     constexpr float roll_reduction_ratio = 2.5f;
                     constexpr float target_roll_pos = 2.0f * roll_reduction_ratio;
                      constexpr float pos_tolerance = 4.0f;
@@ -275,7 +276,7 @@ void stateMachineTask(void *argument) {
                          change_state_to(RobotState::stop);
                             break;
                      } */// TODO: 填入武器rod位置
-                move_to_pos(20, -100, -95, 4000U);
+                move_to_pos(20, -100, -90, 4000U);
                 tail_claw_setMode(TailClawMode::AutoAlign);//进入自动对齐模式
 
                 /*static TypedTopicPublisher<tail_claw_msg>
@@ -299,7 +300,7 @@ void stateMachineTask(void *argument) {
                 msg.distance = 4;
                 tail_claw_weapon_event_pub.Publish(msg);
 
-                //change_state_to(RobotState::wait_for_cmd);
+                change_state_to(RobotState::wait_for_cmd);
                 break;
             }
             // R2松开武器头夹爪，等待操作手决策，决定是否拼装新的武器
@@ -307,12 +308,12 @@ void stateMachineTask(void *argument) {
                 clean_previous_cmd();
                 wait_until([&]() -> bool {
                     switch (get_cmd_from_r1()) {
-                        case 0x1A: // 夹取新的武器头
+                        /*case 0x1A: // 夹取新的武器头
                             change_state_to(RobotState::go_to_SHR);
                             return true;
                         case 0x1B: // 进入梅林
                             change_state_to(RobotState::go_to_MF);
-                            return true;
+                            return true;*/
                         default:
                             return false;
                     }
