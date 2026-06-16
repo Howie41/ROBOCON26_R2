@@ -43,6 +43,10 @@ defined in linker script */
 .word  _sbss
 /* end address for the .bss section. defined in linker script */
 .word  _ebss
+/* start address for the .ram_d1 section. defined in linker script */
+.word  _sram_d1
+/* end address for the .ram_d1 section. defined in linker script */
+.word  _eram_d1
 /* stack used for SystemInit_ExtMemCtl; always internal RAM used */
 
 /**
@@ -111,6 +115,20 @@ FillZerobss:
 LoopFillZerobss:
   cmp r2, r4
   bcc FillZerobss
+
+/* Zero fill the ram_d1 segment. */
+  ldr r2, =_sram_d1
+  ldr r4, =_eram_d1
+  movs r3, #0
+  b LoopFillZeroram_d1
+
+FillZeroram_d1:
+  str  r3, [r2]
+  adds r2, r2, #4
+
+LoopFillZeroram_d1:
+  cmp r2, r4
+  bcc FillZeroram_d1
 
 /* Call static constructors */
     bl __libc_init_array

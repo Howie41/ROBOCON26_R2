@@ -16,7 +16,9 @@
 #include "stm32h7xx_hal.h"
 #include "tail_claw_task.hpp"
 #include "topic_pool.h"
-#include "topics.hpp"
+#include "topics.hpp" 
+#include "waypoint_navigator.hpp"
+#include "chassis_task.h"
 #include <cmath>
 #include <iterator>
 osThreadId_t StateMachineTaskHandle;
@@ -340,3 +342,4 @@ void stateMachineTask(void *argument) {
         osDelay(1);
     }
 }
+
