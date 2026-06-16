@@ -43,14 +43,14 @@ public:
             .pos_pid = {
                 .Kp = 45.0f,
                 .Ki = 0.0f,
-                .Kd = 2.5f,
+                .Kd = 0.7f,
                 .MaxOut = 60.0f,
                 .DeadBand = 0.01f
             },
             .speed_pid = {
                 .Kp = 2200.0f,
-                .Ki = 600.0f,
-                .Kd = 1.8f,
+                .Ki = 0.02f,
+                .Kd = 0.9f,
                 .MaxOut = 12000.0f,
                 .DeadBand = 0.1f
             }
@@ -67,7 +67,7 @@ public:
      */
     void update() {
         for (uint8_t i = 0; i < motor_count_; i++) {
-            motor_planning_units_[i]->pos_pid.MaxOut = motor_planning_units_[i]->motor->updateSpeedProcess();
+            motor_planning_units_[i]->pos_pid.MaxOut = 2.0f;
             motor_planning_units_[i]->motor->setMotorCmd(PID_Calculate(&motor_planning_units_[i]->speed_pid, motor_planning_units_[i]->motor->getCurrentSpeed(), PID_Calculate(&motor_planning_units_[i]->pos_pid, motor_planning_units_[i]->motor->getCurrentSumPos(), motor_planning_units_[i]->motor->tar_sum_pos_)));
         }
     }

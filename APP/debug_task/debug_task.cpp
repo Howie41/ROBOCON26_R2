@@ -32,19 +32,26 @@
 
 
 osThreadId_t Debug_TaskHandle;
-static inline void debugInit(void) {
 
-}
+uint8_t flag = 1;
+float angle = 0.0f;
 
-extern Logger logger;
+extern C610Motor arm2006_motor;
 
 /** @brief 调试任务函数
  * @note 该函数用于测试电机控制和PID调节功能，周期性地更新电机命令以验证系统响应。实际使用中可以根据需要修改测试内容或删除该任务。
  *  @param argument 任务参数
  */
 void debugTask(void *argument) {
-  osThreadExit();
+  // osThreadExit();
+
   for (;;) {
+
+    if (flag == 1) {
+        arm2006_motor.posWithSpeedControl(angle, 12.0f, 2.0f, 2.0f, 0.0f, 0.0f);
+        flag = 0;
+    }
+
     osDelay(1);
   }
 }

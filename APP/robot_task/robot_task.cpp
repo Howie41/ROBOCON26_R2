@@ -29,7 +29,7 @@
 #include "lift_task.h"
 #include "tail_claw_task.hpp"
 #include "motor_task.hpp"
-#include "arm_task.hpp"
+// #include "arm_task.hpp"
 #include "watchdog_task.h"
 
 /* module层接口头文件 */
@@ -42,7 +42,7 @@ extern osThreadId_t uart2ProcessTaskHandle;
 extern osThreadId_t uart3ProcessTaskHandle;
 extern osThreadId_t Debug_TaskHandle;
 extern osThreadId_t Motor_TaskHandle;
-extern osThreadId_t Arm_TaskHandle;
+// extern osThreadId_t Arm_TaskHandle;
 extern osThreadId_t ChassisTaskHandle;
 extern osThreadId_t ControlTaskHandle;
 extern osThreadId_t usbcdcProcessTaskHandle;
@@ -79,17 +79,17 @@ static const osThreadAttr_t sym##Handle_attributes = { \
     .priority = (osPriority_t)prio, \
 };
 
-DECLARE_STATIC_TASK(CAN1_SendTask, 256 * 4, osPriorityNormal);
-DECLARE_STATIC_TASK(CAN2_SendTask, 256 * 4, osPriorityNormal);
-DECLARE_STATIC_TASK(CAN3_SendTask, 256 * 4, osPriorityNormal);
+DECLARE_STATIC_TASK(CAN1_SendTask, 512 * 4, osPriorityNormal);
+DECLARE_STATIC_TASK(CAN2_SendTask, 512 * 4, osPriorityNormal);
+DECLARE_STATIC_TASK(CAN3_SendTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(DebugTask, 512 * 4, osPriorityBelowNormal);
 DECLARE_STATIC_TASK(motorTask, 512 * 4, osPriorityNormal);
-DECLARE_STATIC_TASK(armTask, 512 * 4, osPriorityNormal);
+// DECLARE_STATIC_TASK(armTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(ChassisTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(ControlTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(Uart2ProcessTask, 512 * 4, osPriorityNormal1);
 DECLARE_STATIC_TASK(Uart3ProcessTask, 512 * 4, osPriorityNormal1);
-DECLARE_STATIC_TASK(tail_claw_Task, 128 * 4, osPriorityNormal1);
+DECLARE_STATIC_TASK(tail_claw_Task, 512 * 4, osPriorityNormal1);
 DECLARE_STATIC_TASK(NavControlTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(LiftTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(PcComTask, 512 * 4, osPriorityNormal);
@@ -101,7 +101,7 @@ void osTaskInit(void) {
   CAN3_Send_TaskHandle = osThreadNew(can3SendTask, NULL, &CAN3_SendTaskHandle_attributes);
   Debug_TaskHandle = osThreadNew(debugTask, NULL, &DebugTaskHandle_attributes);
   Motor_TaskHandle = osThreadNew(motorTask, NULL, &motorTaskHandle_attributes);
-  Arm_TaskHandle = osThreadNew(armTask, NULL, &armTaskHandle_attributes);
+//   Arm_TaskHandle = osThreadNew(armTask, NULL, &armTaskHandle_attributes);
   ChassisTaskHandle = osThreadNew(chassisTask, NULL, &ChassisTaskHandle_attributes);
   ControlTaskHandle = osThreadNew(controlTask, NULL, &ControlTaskHandle_attributes);
   uart2ProcessTaskHandle = osThreadNew(uart2RxProcessTask, NULL, &Uart2ProcessTaskHandle_attributes);
