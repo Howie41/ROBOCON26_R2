@@ -101,11 +101,8 @@ public:
    * @param mode        触发模式（默认自动重武装）
    * @param debounce    防抖次数（默认 1，即首次超时就触发）
    */
-  SoftwareWatchdog(uint32_t timeout_ms, Action action,
-                   WatchdogMode mode = WatchdogMode::AUTO_REARM,
-                   uint32_t debounce = 1)
-      : timeout_ms_(timeout_ms), mode_(mode),
-        debounce_(debounce > 0 ? debounce : 1), action_(action) {}
+  SoftwareWatchdog(uint32_t timeout_ms, Action action, WatchdogMode mode = WatchdogMode::AUTO_REARM, uint32_t debounce = 1) :
+    timeout_ms_(timeout_ms), action_(action), mode_(mode), debounce_(debounce > 0 ? debounce : 1) {}
 
   /// 喂狗 — 在数据到达路径中调用
   void feed() {
@@ -192,10 +189,12 @@ public:
 
 private:
   uint32_t timeout_ms_{100};
+  Action action_{};
+  WatchdogMode mode_{WatchdogMode::AUTO_REARM};
+  uint32_t debounce_{1};
+
   uint32_t last_feed_time_{0};
   uint32_t miss_count_{0};
-  uint32_t debounce_{1};
   WatchdogState state_{WatchdogState::IDLE};
-  WatchdogMode mode_{WatchdogMode::AUTO_REARM};
-  Action action_{};
+
 };
