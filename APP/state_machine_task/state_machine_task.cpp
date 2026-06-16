@@ -23,16 +23,18 @@ volatile bool triggered{false};
 
 class StateMachine {
 public:
+    StateMachine() = default;
+    ~StateMachine() = default;
     // 禁止拷贝和移动
-    StateMachine(const StateMachine&) = delete;
-    StateMachine& operator=(const StateMachine&) = delete;
-    StateMachine(StateMachine&&) = delete;
-    StateMachine& operator=(StateMachine&&) = delete;
+    // StateMachine(const StateMachine&) = delete;
+    // StateMachine& operator=(const StateMachine&) = delete;
+    // StateMachine(StateMachine&&) = delete;
+    // StateMachine& operator=(StateMachine&&) = delete;
 
-    static StateMachine& instance() {
-        RAM_D1_ATTR static StateMachine instance;
-        return instance;
-    }
+    // static StateMachine& instance() {
+    //     RAM_D1_ATTR static StateMachine instance;
+    //     return instance;
+    // }
     void run() {
         switch (current_state_.load()) {
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
@@ -40,7 +42,7 @@ public:
             case robot_state::begin: {
                 wait_until([&]() -> bool { return triggered; });
                 triggered = false;
-                change_state_to(robot_state::go_to_SHR);
+                change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
@@ -117,10 +119,14 @@ public:
             }
 
             case robot_state::execute_chassis_action: {
+                osDelay(2000);
+                change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
             case robot_state::execute_arm_action: {
+                osDelay(2000);
+                change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
@@ -144,8 +150,6 @@ public:
     }
 
 private:
-    StateMachine() = default;
-    ~StateMachine() = default;
 
     enum class robot_state: uint8_t {
     #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
@@ -292,9 +296,10 @@ private:
     }
 };
 
+RAM_D1_ATTR static StateMachine state_machine;
 void stateMachineTask(void *argument) {
     for (;;) {
-        StateMachine::instance().run();
+        state_machine.run();
         osDelay(1);
     }
 }
