@@ -35,7 +35,8 @@ static float time_rec = 0.0f;
 static float now_t = 0.0f;
 static float last_t = 0.0f;
 
-static uint8_t flag = 0;
+static uint8_t flag = 0;  // 当前功能状态值
+static uint8_t test_flag = 0;  // 上位机进行速度规划调试用时的flag
 
 void fetch_step(int8_t step) {
     if (arm.kfs_num_ == 3) return;
@@ -209,11 +210,11 @@ void armTask(void *argument) {
             last_t = now_t;
         }
 
-        if (arm_cmd_sub.TryGet(&arm_cmd)) {
+        if (arm_cmd_sub.TryGet(&arm_cmd) || test_flag) {
             if (arm_cmd.update) {
                 flag++;
             }
-            if (arm_cmd.fetch) {
+            if (arm_cmd.fetch || test_flag) {
                 switch (flag) {
                     case 1:
                         fetch_step(1);
@@ -230,8 +231,11 @@ void armTask(void *argument) {
                     case 5:
                         place_release();
                         break;
+                    case 100:
+                        arm.arm_expand_.posWithSpeedControl(720.0f, 6.0f, 180.0f, 180.0f, 0.0f, 0.0f);
                 }
                 flag = 0;
+                test_flag = 0;
             }
         }
 
