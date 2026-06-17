@@ -180,6 +180,7 @@ LaserMeasure laser2(uart8_port, 0x50);
 #endif
 // 日志
 Logger logger(uart10_port);
+LoggerQueue logger_queue(logger);
 
 // USB
 osSemaphoreId_t usbcdc_rx_semphore = NULL;
