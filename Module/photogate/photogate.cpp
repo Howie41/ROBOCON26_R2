@@ -27,7 +27,7 @@ constexpr uint16_t kRearPin = GPIO_PIN_15;
 // the line low. If field wiring or Light-ON/Dark-ON selection is reversed,
 // only this level mapping needs to change.
 constexpr GPIO_PinState kActiveLevel = GPIO_PIN_RESET;
-constexpr bool kActiveMeansBlocked = true;
+constexpr bool kActiveMeansBlocked = false;
 constexpr uint8_t kStableSamplesRequired = 3;
 
 struct GateRuntimeState {
@@ -149,6 +149,20 @@ bool unblocked(GateId id) { return !gateState(id).blocked; }
 bool blockedEdge(GateId id) { return gateState(id).blocked_edge; }
 
 bool unblockedEdge(GateId id) { return gateState(id).unblocked_edge; }
+
+bool consumeBlockedEdge(GateId id) {
+  auto &state = gateState(id);
+  const bool edge = state.blocked_edge;
+  state.blocked_edge = false;
+  return edge;
+}
+
+bool consumeUnblockedEdge(GateId id) {
+  auto &state = gateState(id);
+  const bool edge = state.unblocked_edge;
+  state.unblocked_edge = false;
+  return edge;
+}
 
 const DebugState& debugState() { return g_debug_state; }
 

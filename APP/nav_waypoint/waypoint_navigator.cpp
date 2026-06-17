@@ -20,6 +20,8 @@ std::atomic<bool> g_stair_waypoint_armed{false};
 
 TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
 constexpr float kDescendLaserSeekSpeedRpm = -30.0f;
+constexpr float kClimbLaserSeekSpeedRpm = 30.0f;
+constexpr float kDescendEdgeSeekSpeedMps = -0.12f;
 constexpr float kPassDistanceMm = 200.0f;
 constexpr uint32_t kPassHoldMs = 1000U;
 constexpr TickType_t kPassFreshWindowTicks = pdMS_TO_TICKS(200);
@@ -82,6 +84,22 @@ void stop_auto_nav() {
   nav_control::target_active = false;
   nav_control::arrived = false;
   nav_control::arrival_reported = false;
+}
+
+void publishManualChassisCmd(float linear_x, float linear_y, float omega) {
+  pub_chassis_cmd cmd{};
+  cmd.linear_x_ = linear_x;
+  cmd.linear_y_ = linear_y;
+  cmd.omega_ = omega;
+  cmd.nav_mode_ = false;
+  TypedTopicPublisher<pub_chassis_cmd> chassis_pub("chassis_cmd");
+  if (chassis_pub.IsValid()) {
+    chassis_pub.Publish(cmd);
+  }
+}
+
+void stop_manual_chassis_motion() {
+  publishManualChassisCmd(0.0f, 0.0f, 0.0f);
 }
 
 bool move_to_pose(const field::StairPose &pose, bool allow_pass = false) {
@@ -149,11 +167,24 @@ void stairWaypointRunUp() {
       stairHighDrivePoseForLevel(current_level);
   const field::StairPose center_pose = stairCenterPoseForLevel(next_level);
 
+  stairAssistSetMode(StairAssistMode::ClimbUp);
+  stairAssistSetAutoLowerEnabled(true);
+  stairAssistSetEnabled(true);
+
   g_stair_waypoint_step.store(1);
   move_to_pose(standby_pose, true);
 
   g_stair_waypoint_step.store(2);
   move_to_pose(close_pose, false);
+
+  g_stair_waypoint_step.store(21);
+  stop_auto_nav();
+  publishManualChassisCmd(0.12f, 0.0f, 0.0f);
+  wait_until([]() {
+    stairAssistUpdate();
+    return stairAssistSuggestClimbUp();
+  }, 10U);
+  stop_manual_chassis_motion();
 
   g_stair_waypoint_step.store(3);
   stop_auto_nav();
@@ -165,8 +196,30 @@ void stairWaypointRunUp() {
 
   g_stair_waypoint_step.store(5);
   stop_auto_nav();
+  {
+    pub_high_nav_cmd crawl_cmd{};
+    crawl_cmd.active = true;
+    crawl_cmd.allow_without_auto = true;
+    crawl_cmd.forward_speed = kClimbLaserSeekSpeedRpm;
+    crawl_cmd.omega = 0.0f;
+    stair_high_nav_pub.Publish(crawl_cmd);
+  }
+  wait_until([]() {
+    stairAssistUpdate();
+    return stairAssistShouldLowerAfterClimbAdvance();
+  }, 10U);
+  {
+    pub_high_nav_cmd stop_cmd{};
+    stop_cmd.active = false;
+    stop_cmd.allow_without_auto = false;
+    stop_cmd.forward_speed = 0.0f;
+    stop_cmd.omega = 0.0f;
+    stair_high_nav_pub.Publish(stop_cmd);
+  }
   liftRequestLow();
   wait_until([]() { return !nav_control::high_mode_active; }, 10U);
+  stairAssistSetEnabled(false);
+  stairAssistSetAutoLowerEnabled(false);
 
   g_stair_waypoint_step.store(6);
   move_to_pose(center_pose, true);
@@ -205,6 +258,12 @@ void stairWaypointRunDown() {
 
   g_stair_waypoint_step.store(13);
   stop_auto_nav();
+  publishManualChassisCmd(kDescendEdgeSeekSpeedMps, 0.0f, 0.0f);
+  wait_until([]() {
+    stairAssistUpdate();
+    return stairAssistSuggestDescendHighMode();
+  }, 10U);
+  stop_manual_chassis_motion();
   liftRequestHigh();
   wait_until([]() { return nav_control::high_mode_active; }, 10U);
 

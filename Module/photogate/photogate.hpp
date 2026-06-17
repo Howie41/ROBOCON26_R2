@@ -30,6 +30,8 @@ bool unblocked(GateId id);
 
 bool blockedEdge(GateId id);
 bool unblockedEdge(GateId id);
+bool consumeBlockedEdge(GateId id);
+bool consumeUnblockedEdge(GateId id);
 
 const DebugState& debugState();
 
