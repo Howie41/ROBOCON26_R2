@@ -137,7 +137,7 @@ DMA_BUFFER_ATTR static uint8_t uart2_tx_dma[64];
 UartPort uart2_port(&huart2, uart2_rx_dma, sizeof(uart2_rx_dma), uart2_tx_dma, sizeof(uart2_tx_dma), onUart2RxCb, nullptr);
 osSemaphoreId_t uart2_rx_semphore = NULL;
 
- // USART6 红外模块
+ // 4、5、6、9 红外模块 波特率 9600bps
 DMA_BUFFER_ATTR static uint8_t uart6_rx_dma[UartPort::kPacketPayloadSize] = {0};
 DMA_BUFFER_ATTR static uint8_t uart6_tx_dma[64] = {0};
 UartPort uart6_port(&huart6, uart6_rx_dma, sizeof(uart6_rx_dma),
