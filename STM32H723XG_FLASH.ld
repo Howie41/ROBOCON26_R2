@@ -248,12 +248,15 @@ SECTIONS
     . = ALIGN(32);
   } >RAM_D2
 
-  /* Task stacks and control blocks can be placed here when DMA access is not needed. */
+  /* Task stacks and control blocks can be placed here when DMA access is not needed.
+   * Zero-filled at startup like .bss — no flash init values required. */
   .ram_d1 (NOLOAD) : ALIGN(8)
   {
+    _sram_d1 = .;       /* create a global symbol at ram_d1 start */
     *(.ram_d1)
     *(.ram_d1*)
     . = ALIGN(8);
+    _eram_d1 = .;       /* create a global symbol at ram_d1 end */
   } >RAM_D1
 
   PROVIDE( __bss_start = __tbss_start );

@@ -40,6 +40,7 @@ extern osThreadId_t CAN2_Send_TaskHandle;
 extern osThreadId_t CAN3_Send_TaskHandle;
 extern osThreadId_t uart2ProcessTaskHandle;
 extern osThreadId_t uart3ProcessTaskHandle;
+extern osThreadId_t laserMeasureTaskHandle;
 extern osThreadId_t Debug_TaskHandle;
 extern osThreadId_t Motor_TaskHandle;
 extern osThreadId_t Arm_TaskHandle;
@@ -82,16 +83,24 @@ static const osThreadAttr_t sym##Handle_attributes = { \
 DECLARE_STATIC_TASK(CAN1_SendTask, 256 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(CAN2_SendTask, 256 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(CAN3_SendTask, 256 * 4, osPriorityNormal);
+<<<<<<< HEAD
 DECLARE_STATIC_TASK(DebugTask, 512 * 4, osPriorityBelowNormal);
 DECLARE_STATIC_TASK(motorTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(armTask, 512 * 4, osPriorityNormal);
+=======
+DECLARE_STATIC_TASK(DebugTask, 1024 * 4, osPriorityBelowNormal);
+DECLARE_STATIC_TASK(MotorTask, 512 * 4, osPriorityNormal);
+>>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
 DECLARE_STATIC_TASK(ChassisTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(ControlTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(Uart2ProcessTask, 512 * 4, osPriorityNormal1);
 DECLARE_STATIC_TASK(Uart3ProcessTask, 512 * 4, osPriorityNormal1);
+#if LASER_MEASURE_ENABLE
+DECLARE_STATIC_TASK(LaserMeasureTask, 256 * 4, osPriorityNormal1);
+#endif
 DECLARE_STATIC_TASK(tail_claw_Task, 128 * 4, osPriorityNormal1);
 DECLARE_STATIC_TASK(NavControlTask, 512 * 4, osPriorityNormal);
-DECLARE_STATIC_TASK(LiftTask, 512 * 4, osPriorityNormal);
+DECLARE_STATIC_TASK(LiftTask, 256 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(PcComTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(StateMachineTask, 512 * 4, osPriorityNormal);
 
@@ -106,6 +115,9 @@ void osTaskInit(void) {
   ControlTaskHandle = osThreadNew(controlTask, NULL, &ControlTaskHandle_attributes);
   uart2ProcessTaskHandle = osThreadNew(uart2RxProcessTask, NULL, &Uart2ProcessTaskHandle_attributes);
   uart3ProcessTaskHandle = osThreadNew(uart3RxProcessTask, NULL, &Uart3ProcessTaskHandle_attributes);
+#if LASER_MEASURE_ENABLE
+  laserMeasureTaskHandle = osThreadNew(laserMeasureTask, NULL, &LaserMeasureTaskHandle_attributes);
+#endif
   tail_claw_TaskHandle = osThreadNew(tail_claw_task, NULL, &tail_claw_TaskHandle_attributes);
   //用于定位
   NavControlTaskHandle = osThreadNew(NavControlTask, NULL, &NavControlTaskHandle_attributes);
