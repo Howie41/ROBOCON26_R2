@@ -15,13 +15,12 @@
 #include "UsbPort.hpp"
 
 #include "UsbPortC.h"
-#include "memory_map.h"
 #include "usbd_cdc_if.h"
 
 #include <cstring>
 
 UsbPort &UsbPort::Instance() {
-  RAM_D1_ATTR static UsbPort instance;
+  static UsbPort instance;
   return instance;
 }
 

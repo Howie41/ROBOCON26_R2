@@ -14,7 +14,9 @@
 #include "control_task.h"
 #include "NavProtocol.hpp"
 #include "chassis_task.h"
+#include "lift_task.h"
 #include "pid_controller.h"
+#include "stair_assist.h"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "tracking.h"
@@ -23,12 +25,15 @@
 osThreadId_t ControlTaskHandle;
 
 
+
+
 extern PID_t pid_x;
 extern PID_t pid_y;
 extern PID_t pid_yaw;
 static bool xbox_mode_last = false;
 static bool xbox_lb_last = false;
 static bool xbox_rb_last = false;
+<<<<<<< HEAD
 //处理升降控制输入并发布升降指令
 static bool xbox_x_last = false;
 static bool xbox_y_last = false;
@@ -49,6 +54,12 @@ TypedTopicPublisher<pub_lift_cmd> lift_data_pub("lift_cmd");
 TypedTopicPublisher<pub_arm_cmd> arm_data_pub("arm_cmd");
 
 
+=======
+static bool xbox_ls_last = false;
+static bool xbox_rs_last = false;
+static bool stair_assist_high_request_latched = false;
+static bool stair_assist_low_request_latched = false;
+>>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
 //处理底盘控制输入并发布底盘指令
 void Xbox_Data_Process() {
   if (ABS(control_xbox_cmd.joyLVert - 32767) > 2000) {
@@ -67,7 +78,7 @@ void Xbox_Data_Process() {
 
   if (ABS(control_xbox_cmd.joyRHori - 32767) > 2000) {
     chassis_cmd.omega_ =
-        -(int)(control_xbox_cmd.joyRHori - 32767) / 32767.0f * MAX_VELOCITY;
+        -(int)(control_xbox_cmd.joyRHori - 32767) / 32767.0f * MAX_ROTATION_VELOCITY;
   } else {
     chassis_cmd.omega_ = 0.0f;
   }
@@ -159,6 +170,80 @@ static bool consumeButtonRisingEdge(bool current_state, bool *last_state) {
   return rising_edge;
 }
 
+<<<<<<< HEAD
+=======
+static void updateStairAssistSwitch() {
+  if (consumeButtonRisingEdge(control_xbox_cmd.btnLS, &xbox_ls_last)) {
+    const StairAssistMode next_mode =
+        (stairAssistMode() == StairAssistMode::ClimbUp)
+            ? StairAssistMode::Descend
+            : StairAssistMode::ClimbUp;
+    stairAssistSetMode(next_mode);
+    stair_assist_high_request_latched = false;
+    stair_assist_low_request_latched = false;
+  }
+
+  if (consumeButtonRisingEdge(control_xbox_cmd.btnRS, &xbox_rs_last)) {
+    const bool next_enabled = !stairAssistEnabled();
+    stairAssistSetEnabled(next_enabled);
+    stairAssistSetAutoLowerEnabled(next_enabled);
+    stair_assist_high_request_latched = false;
+    stair_assist_low_request_latched = false;
+  }
+}
+
+static void applyManualStairAssist() {
+  stairAssistUpdate();
+
+  if (highModeActive()) {
+    stair_assist_high_request_latched = false;
+  } else {
+    stair_assist_low_request_latched = false;
+  }
+
+  if (!stairAssistEnabled()) {
+    stair_assist_high_request_latched = false;
+    stair_assist_low_request_latched = false;
+    return;
+  }
+
+  if (nav_control::auto_enabled) {
+    return;
+  }
+
+  if (!highModeActive()) {
+    const bool should_request_high =
+        (stairAssistMode() == StairAssistMode::ClimbUp)
+            ? stairAssistSuggestClimbUp()
+            : stairAssistSuggestDescendHighMode();
+
+    if (!stair_assist_high_request_latched && should_request_high) {
+      lift_cmd.request_high = true;
+      stair_assist_high_request_latched = true;
+      stair_assist_low_request_latched = false;
+    }
+    return;
+  }
+
+  if (!stairAssistAutoLowerEnabled()) {
+    return;
+  }
+
+  if (stair_assist_low_request_latched) {
+    return;
+  }
+
+  const bool should_request_low =
+      (stairAssistMode() == StairAssistMode::ClimbUp)
+          ? stairAssistShouldLowerAfterClimbAdvance()
+          : stairAssistShouldLowerAfterDescendRetreat();
+
+  if (should_request_low) {
+    lift_cmd.request_low = true;
+    stair_assist_low_request_latched = true;
+  }
+}
+>>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
 
 void controlInit() {
   if (!chassis_data_pub.IsValid()) {
@@ -174,7 +259,12 @@ void controlInit() {
   return;
   }
 }
+<<<<<<< HEAD
 
+=======
+  stairAssistInit();
+}
+>>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
 
 void controlTask(void *argument) {
   TickType_t currentTime = xTaskGetTickCount();
@@ -182,6 +272,8 @@ void controlTask(void *argument) {
   controlInit();
   for (;;) {
     if (control_xbox_sub.TryGet(&control_xbox_cmd)) {
+      updateStairAssistSwitch();
+
       if (consumeModeSwitch(control_xbox_cmd.btnXbox)) {
         nav_control::auto_enabled = !nav_control::auto_enabled;
 
@@ -214,7 +306,11 @@ void controlTask(void *argument) {
         }
         Arm_Data_Process();
         Lift_Data_Process();
+<<<<<<< HEAD
         arm_data_pub.Publish(arm_cmd);
+=======
+        applyManualStairAssist();
+>>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
         lift_data_pub.Publish(lift_cmd);
         chassis_cmd.nav_mode_ = false;
         chassis_data_pub.Publish(chassis_cmd);

@@ -2,12 +2,12 @@
  * @file chassis_solution.hpp
  * @author YE
  * @brief 底盘解算方案，包含运动学解算和PID控制
- * @version 0.2
- * @date 2026-05-12
+ * @version 0.5
+ * @date 2026-06-11
  *
  * @copyright Copyright (c) 2026
  *
- * @attention :补充全向轮解算
+ * @attention :全向轮解算 + yaw-aware位置环 + pos_pid_ public供Ozone调参
  * @note :
  * @versioninfo :
  */
@@ -62,6 +62,7 @@ public:
         geometry_(geometry) {
     setWheelDirectionSign({1.0f, -1.0f, 1.0f, -1.0f});
     configureSpeedPid(SpeedPidParam());
+    configurePosHoldPid();
   }
 
   void configureGeometry(const Geometry &geometry) { geometry_ = geometry; }
@@ -111,8 +112,57 @@ public:
     }
   }
 
+  void runHold(const std::array<float, kWheelCount> &target_pos) {
+    hold_target_pos_ = target_pos;
+    for (size_t i = 0; i < motors_.size(); ++i) {
+      hold_pos_error_[i] =
+          hold_target_pos_[i] - motors_[i]->getCurrentSumPos();
+      float target_speed =
+          PID_Calculate(&pos_pid_[i], 0.0f, hold_pos_error_[i]);
+      pid_output_[i] = PID_Calculate(&speed_pid_[i],
+                                     motors_[i]->getRawCurrentSpeed(),
+                                     target_speed);
+      motors_[i]->setMotorCmd(pid_output_[i]);
+    }
+  }
+
+  void runHoldWithYaw(const std::array<float, kWheelCount> &base_pos,
+                      float yaw_delta_deg) {
+    const float ratio = yawToWheelRatio();
+    const float wheel_adjust = -ratio * yaw_delta_deg;
+    for (size_t i = 0; i < motors_.size(); ++i)
+      hold_target_pos_[i] = base_pos[i] + wheel_adjust;
+    runHold(hold_target_pos_);
+  }
+
+  float yawToWheelRatio() const {
+    return (geometry_.track_width_m + geometry_.wheel_base_m) /
+           geometry_.wheel_diameter_m;
+  }
+
+  void configurePosHoldPid(float kp = 10.0f, float ki = 0.03f,
+                           float kd = 0.0f, float max_out = 600.0f,
+                           float deadband = 0.0f,
+                           float integral_limit = 200.0f) {
+    for (PID_t &pid : pos_pid_) {
+      pid = {};
+      pid.Kp = kp;
+      pid.Ki = ki;
+      pid.Kd = kd;
+      pid.MaxOut = max_out;
+      pid.DeadBand = deadband;
+      pid.IntegralLimit = integral_limit;
+      pid.Improve = Integral_Limit;
+      PID_Init(&pid);
+    }
+  }
+
   const std::array<float, 4> &targetRpm() const { return target_rpm_; }
   const std::array<float, 4> &pidOutput() const { return pid_output_; }
+
+  std::array<PID_t, kWheelCount> pos_pid_{};
+  std::array<float, kWheelCount> hold_pos_error_{};
+  std::array<float, kWheelCount> hold_target_pos_{};
 
 private:
   static constexpr float kPi = 3.14159265358979323846f;
@@ -150,7 +200,7 @@ private:
  * @attention :现在只写了4麦克纳姆轮的底盘解算，后续如果有需要可以增加其他底盘类型的解算方案
  * @note :
  * @versioninfo :
- 
+
 #pragma once
 
 #include "Motor.hpp"
@@ -187,7 +237,7 @@ public:
 		float kp;
 		float ki;
 		float kd;
-		float max_out; 
+		float max_out;
 		float deadband;
 		uint16_t improve;
 
@@ -273,7 +323,7 @@ public:
 		for (size_t i = 0; i < motors_.size(); ++i) {
 			target_rpm_[i] *= direction_sign_[i];
 			pid_output_[i] = PID_Calculate(&speed_pid_[i], motors_[i]->getRawCurrentSpeed(),
-																		 target_rpm_[i]);
+																			 target_rpm_[i]);
 			motors_[i]->setMotorCmd(pid_output_[i]);
 		}
 	}

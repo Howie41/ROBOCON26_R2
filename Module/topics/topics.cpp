@@ -6,8 +6,6 @@
  * @date 2026-05-24 修订版
  */
 #include "topics.hpp"
-#include "memory_map.h"
-
 #include <atomic>
 #include <cstdint>
 #include <cstring>

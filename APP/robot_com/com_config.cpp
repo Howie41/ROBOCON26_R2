@@ -1,7 +1,7 @@
-/**
+﻿/**
  * @file com_config.cpp
  * @author Keten (2863861004@qq.com)
- * @brief 全局通信配置，包含can设备、串口设备、协议解析等
+ * @brief 全局通信配置，包含 CAN 设备、串口设备、协议解析等
  * @version 0.1
  * @date 2026-04-21
  *
@@ -36,16 +36,19 @@
 #include "topic_pool.h"
 #include "usart.h"
 #include "motor_task.hpp"
+#include <atomic>
 #include <cstddef>
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <sys/types.h>
 
 osThreadId_t CAN1_Send_TaskHandle;
 osThreadId_t CAN2_Send_TaskHandle;
 osThreadId_t CAN3_Send_TaskHandle;
 osThreadId_t uart2ProcessTaskHandle;
 osThreadId_t uart3ProcessTaskHandle;
+osThreadId_t laserMeasureTaskHandle;
 osThreadId_t usbcdcProcessTaskHandle;
 osThreadId_t PcComTaskHandle;
 
@@ -57,7 +60,7 @@ CanBus fdcan1_bus(hfdcan1);
 CanBus fdcan2_bus(hfdcan2);
 CanBus fdcan3_bus(hfdcan3);
 
-// can设备
+// CAN 设备
 
 // 底盘电机
 C620Motor chassis_motor1(&fdcan3_bus, 0x201, 0, 0x200, 0);
@@ -84,24 +87,45 @@ C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
 C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
 
 
-//抬升电机
+// 抬升电机
 C610Motor lift_2006_motor1(&fdcan1_bus, 0x201, 0, 0x200, 0);
 C610Motor lift_2006_motor2(&fdcan1_bus, 0x202, 0, 0x200, 0);
 C620Motor lift_3508_motor1(&fdcan1_bus, 0x203, 0, 0x200, 0);
 C620Motor lift_3508_motor2(&fdcan1_bus, 0x204, 0, 0x200, 0);
 
 
-// 串口外设（回调+信号量唤醒处理线程进行解包）
+// 串口外设（回调中释放信号量，唤醒处理线程解包）
 void onUart3RxCb(const uint8_t *data, size_t len, void *user);
 void onUart2RxCb(const uint8_t *data, size_t len, void *user);
 void onUart6RxCb(const uint8_t *data, size_t len, void *user);
+void onUart5RxCb(const uint8_t *data, size_t len, void *user);
+void onUart4RxCb(const uint8_t *data, size_t len, void *user);
+void onUart9RxCb(const uint8_t *data, size_t len, void *user);
+void onUart7RxCb(const uint8_t *data, size_t len, void *user);
+void onUart8RxCb(const uint8_t *data, size_t len, void *user);
 
 void onUsbRxCb(const uint8_t *data, size_t len, void *user);
 
+extern UART_HandleTypeDef huart7;
+extern UART_HandleTypeDef huart8;
 extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart6;
 extern DMA_HandleTypeDef hdma_usart6_rx;
+
+DMA_BUFFER_ATTR static uint8_t uart7_rx_dma[64];
+DMA_BUFFER_ATTR static uint8_t uart7_tx_dma[16];
+UartPort uart7_port(&huart7, uart7_rx_dma, sizeof(uart7_rx_dma),
+                    uart7_tx_dma, sizeof(uart7_tx_dma), onUart7RxCb,
+                    nullptr);
+osSemaphoreId_t uart7_rx_semphore = NULL;
+
+DMA_BUFFER_ATTR static uint8_t uart8_rx_dma[64];
+DMA_BUFFER_ATTR static uint8_t uart8_tx_dma[16];
+UartPort uart8_port(&huart8, uart8_rx_dma, sizeof(uart8_rx_dma),
+                    uart8_tx_dma, sizeof(uart8_tx_dma), onUart8RxCb,
+                    nullptr);
+osSemaphoreId_t uart8_rx_semphore = NULL;
 
 DMA_BUFFER_ATTR static uint8_t uart3_rx_dma[64];
 DMA_BUFFER_ATTR static uint8_t uart3_tx_dma[64];
@@ -119,44 +143,67 @@ DMA_BUFFER_ATTR static uint8_t uart6_tx_dma[64] = {0};
 UartPort uart6_port(&huart6, uart6_rx_dma, sizeof(uart6_rx_dma),
                             uart6_tx_dma, sizeof(uart6_tx_dma), onUart6RxCb, nullptr);
 
+DMA_BUFFER_ATTR static uint8_t uart5_rx_dma[UartPort::kPacketPayloadSize] = {0};
+UartPort uart5_port(&huart5, uart5_rx_dma, sizeof(uart5_rx_dma),
+                            nullptr, 0, onUart5RxCb, nullptr);
+
+DMA_BUFFER_ATTR static uint8_t uart4_rx_dma[UartPort::kPacketPayloadSize] = {0};
+UartPort uart4_port(&huart4, uart4_rx_dma, sizeof(uart4_rx_dma),
+                            nullptr, 0, onUart4RxCb, nullptr);
+
+DMA_BUFFER_ATTR static uint8_t uart9_rx_dma[UartPort::kPacketPayloadSize] = {0};
+UartPort uart9_port(&huart9, uart9_rx_dma, sizeof(uart9_rx_dma),
+                            nullptr, 0, onUart9RxCb, nullptr);
+
 // USART10 日志
 DMA_BUFFER_ATTR static uint8_t uart10_rx_dma[64] = {0};
 DMA_BUFFER_ATTR static uint8_t uart10_tx_dma[Logger::BUFFER_LENGTH] = {0};
 UartPort uart10_port(&huart10, uart10_rx_dma, sizeof(uart10_rx_dma),
                              uart10_tx_dma, sizeof(uart10_tx_dma), nullptr, nullptr);
 
-// Xbox控制器（基于uart3）
+// Xbox 控制器（基于 UART3）
 XboxRemote xbox_remote(uart3_port);
 TypedTopicPublisher<pub_Xbox_Data> xbox_data_pub("xbox");
 pub_Xbox_Data xbox_msg;
 
 // HWT101 陀螺仪
 volatile float g_hwt101_yaw_deg = 0.0f;
-volatile uint32_t g_hwt101_frame_count = 0;  //同样 需要roll和pitch再开启
+volatile uint32_t g_hwt101_frame_count = 0;  // 如需 roll 和 pitch，可在此处一并启用
 Hwt101Parser hwt101_parser;
 
 // 导航协议解析器
 NavProtocol nav_protocol;
 // 红外通信
+InfraredModule infrared_module_uart6(uart6_port);
+InfraredModule infrared_module_uart5(uart5_port);
+InfraredModule infrared_module_uart4(uart4_port);
+InfraredModule infrared_module_uart9(uart9_port);
+InfraredModuleGroup infrared_group{&infrared_module_uart6, &infrared_module_uart5};
+
 InfraredModule infrared_module(uart6_port);
+#if LASER_MEASURE_ENABLE
+LaserMeasure laser1(uart7_port, 0x50);
+LaserMeasure laser2(uart8_port, 0x50);
+#endif
 // 日志
 Logger logger(uart10_port);
+LoggerQueue logger_queue(logger);
 
-// usb
+// USB
 osSemaphoreId_t usbcdc_rx_semphore = NULL;
 ROSProtocol ros_protocol(nullptr, &UsbPort::Instance());
 
-//上下位机通信
+// 上下位机通信
 PcCom pc_com(UsbPort::Instance());
-// Motor速度规划相关
+// Motor 速度规划相关
 MotorPlanningSystem motor_planning_system;
 
 
-/** @brief 通信系统初始化函数，负责初始化can设备、串口设备、协议解析器等
- *  @return 初始化结果，0表示成功，非0表示失败
+/** @brief 通信系统初始化函数，负责初始化 CAN 设备、串口设备、协议解析器等
+ *  @return 初始化结果，0 表示成功，非 0 表示失败
  */
 uint8_t comServiceInit() {
-    // can外设初始化
+    // CAN 外设初始化
     canFilterInit(&hfdcan1, FDCAN_STANDARD_ID, FDCAN_FILTER_TO_RXFIFO0, 0, 0);
     canFilterInit(&hfdcan1, FDCAN_STANDARD_ID, FDCAN_FILTER_TO_RXFIFO1, 0, 0);
     bspCanInit(&hfdcan1);
@@ -167,7 +214,7 @@ uint8_t comServiceInit() {
     canFilterInit(&hfdcan3, FDCAN_STANDARD_ID, FDCAN_FILTER_TO_RXFIFO1, 0, 0);
     bspCanInit(&hfdcan3);
 
-    // can 总线初始化
+    // CAN 总线初始化
     fdcan1_bus.init();
     fdcan2_bus.init();
     fdcan3_bus.init();
@@ -182,7 +229,7 @@ uint8_t comServiceInit() {
   arm4310_motor.init();
   arm4340_motor.init();
 
-//尾部电机的初始化
+// 尾部电机初始化
   tail_claw_move_motor.init();
   tail_claw_roll_motor.init();
   
@@ -202,7 +249,7 @@ uint8_t comServiceInit() {
     fdcan2_bus.registerDevice(&arm4310_motor);
     fdcan2_bus.registerDevice(&arm4340_motor);
 
-  //注册尾部电机
+  // 注册尾部电机
   fdcan2_bus.registerDevice(&tail_claw_move_motor);
   fdcan2_bus.registerDevice(&tail_claw_roll_motor);
 
@@ -217,17 +264,26 @@ uint8_t comServiceInit() {
   fdcan1_bus.registerDevice(&lift_3508_motor1);
   fdcan1_bus.registerDevice(&lift_3508_motor2);
 
-  // 串口外设
-   uart2_rx_semphore = osSemaphoreNew(1, 0, NULL);
+  // 串口外设初始化
+  #if LASER_MEASURE_ENABLE
+  uart7_rx_semphore = osSemaphoreNew(1, 0, NULL);
+  uart7_port.startRxDmaIdle();
+  laser1.init();
+  uart8_rx_semphore = osSemaphoreNew(1, 0, NULL);
+  uart8_port.startRxDmaIdle();
+  laser2.init();
+  #endif
+  uart2_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart2_port.startRxDmaIdle();
   uart3_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart3_port.startRxDmaIdle();
   uart6_port.startRxDmaIdle();
+  uart5_port.startRxDmaIdle();
  
-  // Xbox控制器初始化
+  // Xbox 控制器初始化
   xbox_remote.init();
 
-    // usb 外设
+    // USB 外设初始化
     usbcdc_rx_semphore = osSemaphoreNew(1, 0, NULL);
     ros_protocol.init();
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
@@ -235,6 +291,7 @@ uint8_t comServiceInit() {
     // Motor速度规划系统注册电机
     motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
     motor_planning_system.registerMotor(arm2006_motor);
+
 
     return 0;
 }
@@ -256,10 +313,46 @@ void onUart3RxCb(const uint8_t *data, size_t len, void *user) {
   }
 }
 
+void onUart7RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)user;
+#if LASER_MEASURE_ENABLE
+  if (data != nullptr && len > 0 && uart7_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(uart7_rx_semphore);
+  }
+#else
+  (void)data;
+  (void)len;
+#endif
+}
+
+void onUart8RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)user;
+#if LASER_MEASURE_ENABLE
+  if (data != nullptr && len > 0 && uart8_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(uart8_rx_semphore);
+  }
+#else
+  (void)data;
+  (void)len;
+#endif
+}
+
 // 红外模块回调
 void onUart6RxCb(const uint8_t *data, size_t len, void *user) {
   (void)user;
-  infrared_module.UartPortRxCbHandler(data, len);
+  infrared_module_uart6.UartPortRxCbHandler(data, len);
+}
+void onUart5RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)user;
+  infrared_module_uart5.UartPortRxCbHandler(data, len);
+}
+void onUart9RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)user;
+  infrared_module_uart9.UartPortRxCbHandler(data, len);
+}
+void onUart4RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)user;
+  infrared_module_uart4.UartPortRxCbHandler(data, len);
 }
 
 void onUsbRxCb(const uint8_t *data, size_t len, void *user) {
@@ -270,7 +363,7 @@ void onUsbRxCb(const uint8_t *data, size_t len, void *user) {
 }
 
 
-//can发送任务
+// CAN 发送任务
 void can1SendTask(void *argument) {
   TickType_t currentTime = xTaskGetTickCount();
   CanBus::ClassicPack pack;
@@ -289,7 +382,7 @@ void can1SendTask(void *argument) {
     commands[3] = static_cast<int16_t>(lift_3508_motor2.cmdTrans()); // 0x204
     packDJIMotorCanMsg(pack.id,lift_motor_ids, commands, 4, pack.data, len);
     fdcan1_bus.addCanMsg(pack);
-    vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
+    vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
   }
 }
 
@@ -302,10 +395,10 @@ void can2SendTask(void *argument) {
   const uint32_t arm_motor_ids[4] = {0x201, 0x202, 0x203, 0x204};
   for (;;) {
     pack.id = 0x200; // DJI Group 2
-    // 当前仅有 0x201(arm2006) 和 0x203(arm3508)，其余槽位置 0
+    // 按 0x201~0x204 顺序组帧
     int16_t commands[4] = {0};
 
-    // arm motor
+    // tail / arm motors
     commands[0] = static_cast<int16_t>(tail_claw_move_motor.cmdTrans()); // 0x201
     commands[1] = static_cast<int16_t>(tail_claw_roll_motor.cmdTrans()); // 0x202
     commands[2] = static_cast<int16_t>(arm2006_motor.cmdTrans()); // 0x203
@@ -313,7 +406,7 @@ void can2SendTask(void *argument) {
     packDJIMotorCanMsg(pack.id, arm_motor_ids, commands, 4, pack.data, len);
     fdcan2_bus.addCanMsg(pack);
 
-    vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
+    vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
   }
 }
 
@@ -330,7 +423,7 @@ void can3SendTask(void *argument) {
     // 一帧固定打包 4 个槽位：0x201~0x204
     pack.id = 0x200; // DJI Group 2
 
-    // 当前仅有 0x201(arm2006) 和 0x203(arm3508)，其余槽位置 0
+    // 按 0x201~0x204 顺序组帧
     int16_t commands[4] = {0};
     commands[0] = static_cast<int16_t>(chassis_motor1.cmdTrans()); // 0x201
     commands[1] = static_cast<int16_t>(chassis_motor2.cmdTrans()); // 0x202
@@ -339,11 +432,11 @@ void can3SendTask(void *argument) {
     packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
     // arm3508_motor.manager_->addCanMsg(pack);
      fdcan3_bus.addCanMsg(pack);
-    vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
+    vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
   }
 }
 
-//接收并处理任务
+// 接收并处理任务
 void uart2RxProcessTask(void *argument){
   (void)argument;
   for (;;) {
@@ -373,11 +466,11 @@ void uart3RxProcessTask(void *argument) {
 
     UartPort::Packet packet{};
     while (uart3_port.Read(packet)) {
-      // 逐字节送进Xbox协议解析器
+      // 逐字节送入 Xbox 协议解析器
       for (uint16_t i = 0; i < packet.len; ++i) {
         uint8_t frame_id = xbox_remote.processByte(packet.data[i]);
         if (frame_id != 0) {
-          // 帧解析完成，可以在这里获取控制器数据并做业务处理
+          // 帧解析完成后，获取控制器数据并发布
           const auto &ctrl_data = xbox_remote.getControllerData();
           xbox_msg.btnY = ctrl_data.btnY;
           xbox_msg.btnA = ctrl_data.btnA;
@@ -408,33 +501,48 @@ void uart3RxProcessTask(void *argument) {
   }
 }
 
+void laserMeasureTask(void *argument) {
+  (void)argument;
 
-/*
-void usbCdcProcessTask(void *argument) {
-    (void)argument;
+  uint32_t laser1_tick = osKernelGetTickCount();
+  uint32_t laser2_tick = laser1_tick + 25U;
 
-    for (;;) {
-        (void)osSemaphoreAcquire(usbcdc_rx_semphore, osWaitForever);
+  for (;;) {
+    const uint32_t now_tick = osKernelGetTickCount();
 
-        UsbPort::Packet packet{};
-        while (UsbPort::Instance().Read(packet)) {
-            // 逐个字节解析
-            for (uint16_t i = 0; i < packet.len; ++i) {
-                NavProtocol::NavCmd cmd;
-                if (nav_protocol.processByte(packet.data[i], cmd)) {
-                    // 解析成功，生成响应
-                    char resp[64] = {0};
-                    NavProtocol::buildResponse(cmd, resp, sizeof(resp));
-                    // 通过USB发送响应
-                    UsbPort::Instance().WriteAsync(reinterpret_cast<uint8_t*>(resp), strlen(resp));
-                }
-            }
-        }
+    if ((now_tick - laser1_tick) >= 50U) {
+      (void)laser1.triggerSingleMeasure();
+      laser1_tick = now_tick;
     }
-}
-*/
 
-// 下面是协议解析和校验算法的实现，基于之前的设计
+    if ((now_tick - laser2_tick) >= 50U) {
+      (void)laser2.triggerSingleMeasure();
+      laser2_tick = now_tick;
+    }
+
+    if (uart7_rx_semphore != NULL &&
+        osSemaphoreAcquire(uart7_rx_semphore, 0) == osOK) {
+      UartPort::Packet packet{};
+      while (uart7_port.Read(packet)) {
+        (void)laser1.processFrame(packet.data, packet.len);
+      }
+    }
+
+    if (uart8_rx_semphore != NULL &&
+        osSemaphoreAcquire(uart8_rx_semphore, 0) == osOK) {
+      UartPort::Packet packet{};
+      while (uart8_port.Read(packet)) {
+        (void)laser2.processFrame(packet.data, packet.len);
+      }
+    }
+
+    osDelay(5);
+  }
+
+}
+
+
+// 上下位机协议解析与收发任务
 void PcComTask(void *argument) {
   (void)argument;
   pc_com.init();
@@ -444,7 +552,7 @@ void PcComTask(void *argument) {
   for (;;) {
     osSemaphoreAcquire(usbcdc_rx_semphore, 1);
     pc_com.ProcessRx();
-    
+
     pc_com.ProcessTx();
     vTaskDelayUntil(&currentTime, 1);
   }
