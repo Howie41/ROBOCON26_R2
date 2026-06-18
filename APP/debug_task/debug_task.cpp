@@ -29,14 +29,30 @@ osThreadId_t Debug_TaskHandle;
 extern C610Motor arm2006_motor;
 
 PID_t arm2006_pid_pos = {
-
+    .Kp = 45.0f,
+    .Ki = 0.0f,
+    .Kd = 2.5f,
+    .MaxOut = 60.0f,
+    .DeadBand = 0.01f
 };
+
+PID_t arm2006_pid_speed = {
+    .Kp = 2200.0f,
+    .Ki = 600.0f,
+    .Kd = 1.8f,
+    .MaxOut = 12000.0f,
+    .DeadBand = 0.1f
+};
+
+float tar_speed = 0.0f;
 
 void debugTask(void *argument) {
     
     for (;;) {
 
-
+        float output = PID_Calculate(&arm2006_pid_speed, arm2006_motor.getCurrentSpeed(), tar_speed);
+        arm2006_motor.setMotorCmd(output);
+        
         osDelay(1);
     }
 }

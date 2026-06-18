@@ -37,7 +37,7 @@ void motorTask(void *argument) {
   currentTime = xTaskGetTickCount();
 
   for (;;) {
-    motor_planning_system.update();
+    // motor_planning_system.update();
     vTaskDelayUntil(&currentTime, 1);
 
   }

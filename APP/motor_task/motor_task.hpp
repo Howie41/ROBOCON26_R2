@@ -14,7 +14,6 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 #include "Motor.hpp"
 #include "pid_controller.h"
 
