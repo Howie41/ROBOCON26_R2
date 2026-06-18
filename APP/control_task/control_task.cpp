@@ -33,7 +33,6 @@ extern PID_t pid_yaw;
 static bool xbox_mode_last = false;
 static bool xbox_lb_last = false;
 static bool xbox_rb_last = false;
-<<<<<<< HEAD
 //处理升降控制输入并发布升降指令
 static bool xbox_x_last = false;
 static bool xbox_y_last = false;
@@ -54,12 +53,10 @@ TypedTopicPublisher<pub_lift_cmd> lift_data_pub("lift_cmd");
 TypedTopicPublisher<pub_arm_cmd> arm_data_pub("arm_cmd");
 
 
-=======
 static bool xbox_ls_last = false;
 static bool xbox_rs_last = false;
 static bool stair_assist_high_request_latched = false;
 static bool stair_assist_low_request_latched = false;
->>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
 //处理底盘控制输入并发布底盘指令
 void Xbox_Data_Process() {
   if (ABS(control_xbox_cmd.joyLVert - 32767) > 2000) {
@@ -170,8 +167,6 @@ static bool consumeButtonRisingEdge(bool current_state, bool *last_state) {
   return rising_edge;
 }
 
-<<<<<<< HEAD
-=======
 static void updateStairAssistSwitch() {
   if (consumeButtonRisingEdge(control_xbox_cmd.btnLS, &xbox_ls_last)) {
     const StairAssistMode next_mode =
@@ -243,7 +238,6 @@ static void applyManualStairAssist() {
     stair_assist_low_request_latched = true;
   }
 }
->>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
 
 void controlInit() {
   if (!chassis_data_pub.IsValid()) {
@@ -258,13 +252,9 @@ void controlInit() {
   if (!arm_data_pub.IsValid()) {
   return;
   }
-}
-<<<<<<< HEAD
-
-=======
+  
   stairAssistInit();
 }
->>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
 
 void controlTask(void *argument) {
   TickType_t currentTime = xTaskGetTickCount();
@@ -306,11 +296,8 @@ void controlTask(void *argument) {
         }
         Arm_Data_Process();
         Lift_Data_Process();
-<<<<<<< HEAD
         arm_data_pub.Publish(arm_cmd);
-=======
         applyManualStairAssist();
->>>>>>> c6c3c2da201613770fce097c77a66e7e2fb1dc16
         lift_data_pub.Publish(lift_cmd);
         chassis_cmd.nav_mode_ = false;
         chassis_data_pub.Publish(chassis_cmd);
