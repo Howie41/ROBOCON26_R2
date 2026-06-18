@@ -25,8 +25,6 @@
 osThreadId_t ControlTaskHandle;
 
 
-
-
 extern PID_t pid_x;
 extern PID_t pid_y;
 extern PID_t pid_yaw;
