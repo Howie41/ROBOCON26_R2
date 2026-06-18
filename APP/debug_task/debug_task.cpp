@@ -13,6 +13,7 @@
 
 extern C620Motor chassis_motor1, chassis_motor2, chassis_motor3, chassis_motor4;
 extern Logger logger;
+extern LoggerQueue logger_queue;
 
 osThreadId_t Debug_TaskHandle;
 
@@ -22,7 +23,8 @@ void debugTask(void *argument) {
 
   for (;;) {
     vTaskDelayUntil(&lastWake, 20);
-
+    // 异步发送日志
+    logger_queue.trySend();
     // VOFA+ Firewater: CSV格式, \n结尾
     // 通道: M1转速(RPM),M1电流(CAN原始值),M1温度(℃),M1指令,
     //       M2转速,M2电流,M2温度,M2指令,
