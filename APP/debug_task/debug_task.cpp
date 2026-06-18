@@ -23,49 +23,15 @@
 #include <cstring>
 
 
-extern C620Motor chassis_motor1, chassis_motor2, chassis_motor3, chassis_motor4;
-extern Logger logger;
-extern LoggerQueue logger_queue;
-
 osThreadId_t Debug_TaskHandle;
 
-void debugTask(void *argument) {
-  (void)argument;
-  TickType_t lastWake = xTaskGetTickCount();
+extern C610Motor arm2006_motor;
 
-  for (;;) {
-    vTaskDelayUntil(&lastWake, 20);
-    // 异步发送日志
-    logger_queue.trySend();
-    // VOFA+ Firewater: CSV格式, \n结尾
-    // 通道: M1转速(RPM),M1电流(CAN原始值),M1温度(℃),M1指令,
-    //       M2转速,M2电流,M2温度,M2指令,
-    //       M3转速,M3电流,M3温度,M3指令,
-    //       M4转速,M4电流,M4温度,M4指令
-    logger.log(
-        "%.1f,%.0f,%.1f,%.1f,"
-        "%.1f,%.0f,%.1f,%.1f,"
-        "%.1f,%.0f,%.1f,%.1f,"
-        "%.1f,%.0f,%.1f,%.1f\n",
-        // Motor 1 (左前)
-        chassis_motor1.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor1.getRawCurrentTorque(),
-        chassis_motor1.getCurrentTemperature(),
-        chassis_motor1.cmd_,
-        // Motor 2 (右前)
-        chassis_motor2.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor2.getRawCurrentTorque(),
-        chassis_motor2.getCurrentTemperature(),
-        chassis_motor2.cmd_,
-        // Motor 3 (左后)
-        chassis_motor3.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor3.getRawCurrentTorque(),
-        chassis_motor3.getCurrentTemperature(),
-        chassis_motor3.cmd_,
-        // Motor 4 (右后)
-        chassis_motor4.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor4.getRawCurrentTorque(),
-        chassis_motor4.getCurrentTemperature(),
-        chassis_motor4.cmd_);
-  }
+void debugTask(void *argument) {
+    
+    for (;;) {
+
+        
+        osDelay(1);
+    }
 }
