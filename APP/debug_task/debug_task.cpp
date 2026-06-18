@@ -21,17 +21,22 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include "pid_controller.h"
 
 
 osThreadId_t Debug_TaskHandle;
 
 extern C610Motor arm2006_motor;
 
+PID_t arm2006_pid_pos = {
+
+};
+
 void debugTask(void *argument) {
     
     for (;;) {
 
-        
+
         osDelay(1);
     }
 }
