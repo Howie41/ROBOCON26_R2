@@ -31,10 +31,26 @@ TypedTopicSubscriber<pub_qr_code_parsed> qr_code_sub("qr_code_parsed", 1);
 static TypedTopicPublisher<pub_tail_claw_cmd> tail_claw_cmd_pub("tail_claw_cmd");
 //下位机发信息给上位机，告诉它当前的状态，或者说事件发生了，或者说需要它做什么
 static TypedTopicPublisher<tail_claw_msg>tail_claw_weapon_event_pub("tail_claw_weapon_event");
-//static TypedTopicPublisher<tail_claw_msg>tail_claw_rod_event_pub("tail_claw_rod_event");
-  
-extern uint8_t weapon_match_state_;
-extern C620Motor tail_claw_roll_motor;
+//尾爪状态
+static TypedTopicSubscriber<pub_tail_claw_status>
+    tail_claw_status_sub("tail_claw_status", 4);
+
+static pub_tail_claw_status tail_claw_status_cache{};
+static bool tail_claw_status_valid = false;
+//更新尾爪状态
+static bool tail_claw_update_status()
+{
+    pub_tail_claw_status status{};
+    bool updated = false;
+
+    while (tail_claw_status_sub.TryGet(&status)) {
+        tail_claw_status_cache = status;
+        tail_claw_status_valid = true;
+        updated = true;
+    }
+
+    return updated;
+}
 
 static bool state_machine_view_last = false;
 static bool consume_state_machine_view(bool current_state) {
@@ -46,13 +62,13 @@ static bool consume_state_machine_view(bool current_state) {
 //切换尾爪模式
 static void tail_claw_setMode(TailClawMode mode) {
     pub_tail_claw_cmd cmd{};
+    cmd.set_mode = true;
     cmd.mode = mode;
     tail_claw_cmd_pub.Publish(cmd);
 }
 //设置尾爪翻转目标位置，单位为度
 static void tail_claw_setRollTarget(float deg) {
     pub_tail_claw_cmd cmd{};
-    cmd.mode = TailClawMode::Hold;
     cmd.set_roll_target = true;
     cmd.roll_target_deg = deg;
     tail_claw_cmd_pub.Publish(cmd);
@@ -60,7 +76,6 @@ static void tail_claw_setRollTarget(float deg) {
 //设置武器夹爪状态，true为夹紧，false为放松
 static void tail_claw_setWeaponClaw(bool close) {
     pub_tail_claw_cmd cmd{};
-    cmd.mode = TailClawMode::Hold;
     cmd.set_weapon_claw = true;
     cmd.weapon_claw_close = close;
     tail_claw_cmd_pub.Publish(cmd);
@@ -72,7 +87,7 @@ static void tail_claw_setAirPump(bool on) {
     cmd.air_pump_on = on;
     tail_claw_cmd_pub.Publish(cmd);
 }
-//osSemaphoreId_t tail_claw_task_start_sem=nullptr;     //用于状态机通知tail_claw_task开始对准武器头的信号量
+
 /**
  * @brief 等待直到条件满足
  * @param condition 条件函数，传一个匿名函数就行，返回布尔值
@@ -169,19 +184,6 @@ void stateMachineTask(void *argument) {
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case RobotState::begin: {
-               /* switch (get_cmd_from_r1()) {
-                        /*case 0x1A: // 夹取新的武器头
-                            change_state_to(RobotState::go_to_SHR);
-                            return true;
-                        case 0x1B: // 进入梅林
-                            change_state_to(RobotState::go_to_MF);
-                            return true;*/
-                           /* case 0x0A:
-                                tail_claw_setWeaponClaw(true);
-                                break;
-                        default:
-                                break;
-                    }*/
                 if(start==2)
                 {
                     clean_previous_cmd();
@@ -225,13 +227,7 @@ void stateMachineTask(void *argument) {
             }
 
             case RobotState::go_to_SHR: {
-                /* if(!move_to_pos(-300, -900, 90,20000))
-                 {
-                    change_state_to(RobotState::stop);
-                    break;
-                 }*/// TODO: 填入端头架位置
                 //发个信号，唤醒通知tail_claw_task去对准武器头
-                //暂时不用
                 //move_to_pos(-286, -840, 90,5000);
                 move_to_pos(-266, -860, 90,5000);
                 //tail_claw_setAirPump(false);
@@ -248,7 +244,8 @@ void stateMachineTask(void *argument) {
             case RobotState::aim_at_weapon: {
                 wait_until([&]() -> bool {
                     // TODO: 判断夹爪是否对准武器头
-                    return (weapon_match_state_ & ismatch)!= 0;      //对准
+                    tail_claw_update_status();
+                    return tail_claw_status_valid && tail_claw_status_cache.weapon_matched;     //对准
                 });
                 //关闭武器对准，告诉上位机不用发了
                 tail_claw_msg msg{};
@@ -284,7 +281,7 @@ void stateMachineTask(void *argument) {
                         return fabsf(tail_claw_roll_motor.getCurrentSumPos() - target_roll_pos) < pos_tolerance &&
                             fabsf(tail_claw_roll_motor.getCurrentSpeed()) < speed_tolerance;
                     });*/
-                     wait_until_timeout_or([]() -> bool {
+                     /*wait_until_timeout_or([]() -> bool {
                     constexpr float roll_reduction_ratio = 2.5f;
                     constexpr float target_roll_pos = 2.0f * roll_reduction_ratio;
                      constexpr float pos_tolerance = 4.0f;
@@ -292,8 +289,11 @@ void stateMachineTask(void *argument) {
 
                     return fabsf(tail_claw_roll_motor.getCurrentSumPos() - target_roll_pos) < pos_tolerance &&
                     fabsf(tail_claw_roll_motor.getCurrentSpeed()) < speed_tolerance;
-                    }, 3000U, 10U);   // 最多等 3000ms，每 10ms 检查一次
-
+                    }, 3000U, 10U);   // 最多等 3000ms，每 10ms 检查一次*/
+                    wait_until_timeout_or([]() -> bool {
+                        tail_claw_update_status();
+                        return tail_claw_status_valid && tail_claw_status_cache.roll_arrived;
+                    }, 3000U, 10U);
                     //change_state_to(RobotState::stop);
 
                     change_state_to(RobotState::match_rod);
@@ -316,10 +316,15 @@ void stateMachineTask(void *argument) {
                 tail_claw_msg msg{};
                 msg.distance = 3;
                 tail_claw_weapon_event_pub.Publish(msg);
-                weapon_match_state_&=~ismatch;
-                wait_until([&]() -> bool {
+                tail_claw_reset_match();
+                /*wait_until([&]() -> bool {
                     // TODO: 判断夹爪是否对准武器杆
                     return (weapon_match_state_ & ismatch)!= 0;      //对准
+                });*/
+                wait_until([&]() -> bool {
+                    // TODO: 判断夹爪是否对准武器杆
+                    tail_claw_update_status();
+                    return tail_claw_status_valid && tail_claw_status_cache.weapon_matched;
                 });
 
                 //关闭武器对准，告诉上位机不用发了
