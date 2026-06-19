@@ -37,7 +37,7 @@ PID_t arm2006_pid_pos = {
 };
 
 PID_t arm2006_pid_speed = {
-    .Kp = 8000.0f,
+    .Kp = 8000.00f,
     .Ki = 600.0f,
     .Kd = 5.2f,
     .MaxOut = 12000.0f,
