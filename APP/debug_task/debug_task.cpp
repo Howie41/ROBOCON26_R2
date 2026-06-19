@@ -10,6 +10,7 @@
 #include "logger.hpp"
 #include "com_config.h"
 #include "Motor.hpp"
+#include "ws2812_rgb.hpp"
 
 extern C620Motor chassis_motor1, chassis_motor2, chassis_motor3, chassis_motor4;
 extern Logger logger;
