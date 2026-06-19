@@ -40,8 +40,8 @@ float move_cmd=0.0f;
 
 static constexpr int16_t match_enter_threshold = 5;    // 进入对准范围
 static constexpr int16_t match_exit_threshold  = 9;   // 退出对准范围，做滞回
-static constexpr uint8_t match_ok_count_limit   = 7;    // 连续7次才认为对准
-static constexpr uint8_t match_lost_count_limit = 2;    // 连续2次偏离才取消对准
+static constexpr uint8_t match_ok_count_limit   = 5;    // 连续7次才认为对准
+static constexpr uint8_t match_lost_count_limit = 3;    // 连续2次偏离才取消对准
 
 static uint8_t match_ok_count = 0;
 static uint8_t match_lost_count = 0;
