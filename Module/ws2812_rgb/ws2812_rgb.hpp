@@ -1,6 +1,7 @@
 #pragma once
 
 #include "main.h"
+#include "memory_map.h"
 #include "stm32h7xx_hal_def.h"
 #include "stm32h7xx_hal_tim.h"
 #include <cstdint>
@@ -31,11 +32,11 @@ public:
     ws2812_rgb& operator=(const ws2812_rgb&) = delete;
 
     /*硬件绑定*/
-    void init(TIM_HandleTypeDef* htim,uint32_t channel)
+    void init(TIM_HandleTypeDef* htim,uint32_t channel,uint32_t *pwm_buffer)
     {
         htim_ = htim;
         channel_ = channel;
-
+        pwm_buffer_ = pwm_buffer;
         uint32_t period =__HAL_TIM_GET_AUTORELOAD(htim_)+1;
 
         /*
@@ -148,7 +149,7 @@ private:
 
     void encode_bit(uint8_t bit,uint32_t& idx)
     {
-        for(uint8_t i = 7;i >= 8;i--)
+        for(int8_t i = 7;i >= 0;i--)
         {
             if(bit & (1<<i))
             {
@@ -173,5 +174,5 @@ private:
 
     rgb_t leds_[LED_num];
 
-    uint32_t pwm_buffer_[LED_num * 24 + reset_time];
+    uint32_t* pwm_buffer_=nullptr;
 };

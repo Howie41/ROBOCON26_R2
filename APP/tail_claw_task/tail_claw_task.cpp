@@ -2,10 +2,12 @@
 #include "Motor.hpp"
 #include "pid_controller.h"
 #include <cstdint>
-
+#include "tim.h"
+#include "ws2812_rgb.hpp"
 #include "control_task.h"
 #include "stm32h723xx.h"
 #include "stm32h7xx_hal_gpio.h"
+#include "stm32h7xx_hal_tim.h"
 #include"topic_pool.h"
 
 constexpr float roll_reduction_ratio = 2.0f;     // 翻转的减速比
@@ -248,10 +250,22 @@ void tail_claw_move_close()
         tail_claw_move_motor.setMotorCmd(move_cmd);
          tail_claw_roll_motor.setMotorCmd(roll_cmd);
 }  
+extern "C" void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+{
+    using RgbStrip = ws2812_rgb<60>;
+    RgbStrip::instance().onDma_finished(htim);
+}
 void tail_claw_task(void *argument) {
     TickType_t currentTime = xTaskGetTickCount();
+    DMA_BUFFER_ATTR static uint32_t pwm_buffer[60*24+200];
     tail_claw_init();
-
+    using RgbStrip = ws2812_rgb<60>;
+    RgbStrip::instance().init(&htim4,TIM_CHANNEL_3,pwm_buffer);
+    RgbStrip::instance().clear();
+    for(int i=0;i<60;i++){
+    RgbStrip::instance().set_color(i,255-i*4,i*4,i);
+    RgbStrip::instance().show();
+    }
     static int16_t last_distance = 0;
     static bool has_last_distance = false;
 
