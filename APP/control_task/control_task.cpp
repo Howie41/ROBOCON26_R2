@@ -274,8 +274,12 @@ void controlTask(void *argument) {
         if (stairWaypointArmed() && state_machine_idle()) {
           if (stair_y_pressed) {
             change_state_to(RobotState::test_stair_up);
+            vTaskDelayUntil(&currentTime, 5);
+            continue;
           } else if (stair_a_pressed) {
             change_state_to(RobotState::test_stair_down);
+            vTaskDelayUntil(&currentTime, 5);
+            continue;
           }
         }
 
@@ -293,26 +297,28 @@ void controlTask(void *argument) {
           }
         }
 
-        Xbox_Data_Process();
-        if (chassis_action::yawRotateActive()) {
-          chassis_cmd.linear_x_ = 0.0f;
-          chassis_cmd.linear_y_ = 0.0f;
-          chassis_cmd.omega_ = 0.0f;
-        }
+        if (state_machine_idle()) {
+          Xbox_Data_Process();
+          if (chassis_action::yawRotateActive()) {
+            chassis_cmd.linear_x_ = 0.0f;
+            chassis_cmd.linear_y_ = 0.0f;
+            chassis_cmd.omega_ = 0.0f;
+          }
 
-        if (!stairWaypointArmed()) {
-          Lift_Data_Process();
-        } else {
-          lift_cmd.request_high = false;
-          lift_cmd.request_low = false;
-          lift_cmd.lift_up = false;
-          lift_cmd.lift_down = false;
-          lift_cmd.lift_2006_input = 0.0f;
+          if (!stairWaypointArmed()) {
+            Lift_Data_Process();
+          } else {
+            lift_cmd.request_high = false;
+            lift_cmd.request_low = false;
+            lift_cmd.lift_up = false;
+            lift_cmd.lift_down = false;
+            lift_cmd.lift_2006_input = 0.0f;
+          }
+          applyManualStairAssist();
+          lift_data_pub.Publish(lift_cmd);
+          chassis_cmd.nav_mode_ = false;
+          chassis_data_pub.Publish(chassis_cmd);
         }
-        applyManualStairAssist();
-        lift_data_pub.Publish(lift_cmd);
-        chassis_cmd.nav_mode_ = false;
-        chassis_data_pub.Publish(chassis_cmd);
       }
     }
 

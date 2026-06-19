@@ -11,11 +11,11 @@ struct StairPose {
 };
 
 // 当前楼梯直线测试坐标
-constexpr StairPose kStairFrontPose{1880, 1600, 0};      // center0
-constexpr StairPose kStairClosePose{2230, 1600, 0};      // close1
-constexpr StairPose kStairHighDrivePose{2920, 1600, 0};  // high_drive1
-constexpr StairPose kStairCenterPose{3220, 1600, 0};     // center1
-constexpr int16_t kStairSpanMm = 1340;
+constexpr StairPose kStairFrontPose{1300, 1470, 0};      // center0
+constexpr StairPose kStairClosePose{2150, 1470, 0};      // close1
+constexpr StairPose kStairHighDrivePose{2820, 1470, 0};  // lower-trigger1
+constexpr StairPose kStairCenterPose{3100, 1470, 0};     // center1
+constexpr int16_t kStairSpanMm = 1200;
 constexpr uint8_t kStairMaxLevel = 3;
 
 }  // namespace field
