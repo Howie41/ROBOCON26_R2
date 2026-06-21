@@ -32,7 +32,7 @@ class SCurvePlanner {
         double v1_;          // 末端速度
         double v_max_;       // 最大速度
         double a_max_;       // 最大加速度
-        double j_max_;       // 最大加加速度
+        double j_max_;       // 加加速度
         
         // 时间参数
         double Ta_, Tv_, Td_; // 加速/匀速/减速段时间
@@ -53,7 +53,7 @@ class SCurvePlanner {
             : q0_(q_start), q1_(q_end), v0_(v_start), v1_(v_end),
               v_max_(v_limit), a_max_(a_limit), j_max_(j_limit),
               t_(0.0), initialized_(false) 
-        {            
+        {
             calculateTimingParameters(desired_time);
             initialized_ = true;
         }

@@ -141,8 +141,7 @@ public:
     float torque_{0};      // 力矩
     float temperature_{0}; // 温度
 
-      // off-line check
-  // ,电机类只知道自己绑定了一个看门狗，但是不知道绑定了什么行为，绑定什么行为是应用层决定的
+    // off-line check, 电机类只知道自己绑定了一个看门狗，但是不知道绑定了什么行为，绑定什么行为是应用层决定的
     SoftwareWatchdog<DWTMsSource> offline_wd_ {
         50,
         {},
