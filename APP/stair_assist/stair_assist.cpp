@@ -24,7 +24,7 @@ constexpr int32_t kLaser1EdgeMinMm = 800;
 
 // Laser3 is another front-facing stair laser. It uses the same state logic as
 // laser1, but keeps its own thresholds so field tuning does not affect laser1.
-constexpr int32_t kLaser3NearMinMm = 450;
+constexpr int32_t kLaser3NearMinMm = 400;
 constexpr int32_t kLaser3NearMaxMm = 500;
 constexpr int32_t kLaser3EdgeMinMm = 800;
 

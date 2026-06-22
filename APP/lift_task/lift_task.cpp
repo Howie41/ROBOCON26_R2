@@ -346,7 +346,7 @@ static inline void liftInit(void) {
     lift_3508_avg_pos = (lift_3508_motor1_pos + lift_3508_motor2_pos) / 2.0f;
     lift_3508_diff_pos = lift_3508_motor1_pos - lift_3508_motor2_pos;
 
-    lift_3508_target_pos = lift_3508_avg_pos;
+    lift_3508_target_pos =LIFT_LOW_POS; 
     lift_3508_hold_enable = true;
     lift_3508_manual_last = false;
     lift_phase = LiftPhase::HOLDING;

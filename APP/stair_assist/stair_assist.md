@@ -1,62 +1,96 @@
-# stair_assist 说明
+# stair_assist 模块说明
 
-## 1. 模块作用
+## 1. 模块定位
 
-`APP/stair_assist/stair_assist.h/.cpp` 是一层“楼梯激光辅助判定模块”。
+`APP/stair_assist/stair_assist.h/.cpp` 是当前工程的“上下台阶判据层”。
 
-它的职责不是直接驱动电机，也不是直接切换整车状态机，而是：
+它不直接驱动电机，也不直接改状态机步骤，而是专门负责：
 
-1. 读取 `laser1` 和 `laser2` 的最新测距结果
-2. 把原始毫米值转换成有物理意义的状态
-3. 做连续多帧稳定判定，避免单帧抖动误触发
-4. 向外部提供“建议上楼 / 建议到下楼边缘 / 建议切回低位”这类可直接调用的接口
+1. 读取 `laser1 / laser2 / laser3 / rear photogate`
+2. 把原始测距值或遮挡状态转换成可用判据
+3. 做新鲜度判断
+4. 做稳定帧统计
+5. 向上层返回“是否该切高位 / 切低位”
 
-这层模块后面可以同时被下面几种逻辑复用：
+当前它被两类上层同时使用：
 
-- 手动模式下的半自动楼梯辅助
-- 自动状态机
-- 楼梯导航流程
-- 调试与上位机观察
+- 手动辅助模式
+- `nav_waypoint` 自动上下台阶流程
 
----
+## 2. 当前四个传感器各自负责什么
 
-## 2. 两个激光的职责分工
+### 2.1 laser1
 
-### 2.1 激光1
+作用：
 
-`laser1` 主要负责判断“什么时候可以开始动作”。
+- 前向判断是否已经贴近楼梯，可进入高位上台阶
 
-当前预期用途：
+当前近距离区间：
 
-- 上楼时，判断底盘是否已经贴近楼梯
-- 下楼时，在“前方还有下一阶楼梯可以扫到”的场景下，辅助判断是否已经到达边缘
+- `430 ~ 500 mm`
 
-注意：
+此外它还保留了两个辅助区间：
 
-- `laser1` 不是“什么时候切回低位”的主判据
-- 尤其是从最高一阶往下时，前方可能没有楼梯面可扫，这时 `laser1` 不可靠
+- `950 ~ 1120 mm`
+- `1650 ~ 1700 mm`
 
-### 2.2 激光2
+这两个区间主要是给后续扩展预留的，不是当前主流程的核心判据。
 
-`laser2` 主要负责判断“进入高位之后，什么时候该切回低位”。
+### 2.2 laser2
 
-当前预期用途：
+作用：
 
-- 上楼时：
-  `GroundNormal -> HighSuspended -> StepContact`
-- 下楼时：
-  先有近距离区，再进入更远的悬空区
+- 安装在前腿，朝下
+- 主要负责下台阶时“高位什么时候回低位”
+- 也保留了一个上高位辅助区间
 
-因此：
+当前关键区间：
 
-- 上楼切低位主要看 `laser2`
-- 下楼切低位主要也看 `laser2`
+- 上高位辅助区间：`210 ~ 240 mm`
+- 下台阶回低位区间：`300 ~ 400 mm`
 
----
+同时内部还会把它分成三类：
 
-## 3. 当前定义的状态
+- `StepContact`
+- `GroundNormal`
+- `HighSuspended`
 
-### 3.1 激光1状态
+当前分类区间：
+
+- `0 ~ 449 mm -> StepContact`
+- `450 ~ 800 mm -> GroundNormal`
+- `801 ~ 1400 mm -> HighSuspended`
+
+### 2.3 laser3
+
+作用：
+
+- 第二个前向激光
+- 和 `laser1` 在上层逻辑上等价
+- 当前只用于辅助“上台阶进入高位”
+
+当前近距离区间：
+
+- `450 ~ 500 mm`
+
+### 2.4 rear photogate
+
+作用：
+
+- 后部光电门
+- 不测距离，只看遮挡与边沿
+
+当前主流程中作用为：
+
+- 上台阶时：
+- 决定高位推进后什么时候回低位
+
+- 下台阶时：
+- 决定低位靠近楼梯边缘后什么时候进入高位
+
+## 3. 当前状态枚举
+
+### 3.1 laser1 / laser3 使用的状态
 
 ```cpp
 enum class StairAssistLaser1State : uint8_t {
@@ -70,15 +104,18 @@ enum class StairAssistLaser1State : uint8_t {
 含义：
 
 - `Invalid`
-  - 数据无效，不能参与判定
-- `Far`
-  - 离楼梯还远
-- `NearStair`
-  - 已经贴近楼梯，可用于开始上楼流程
-- `EdgeOpen`
-  - 前方距离明显变大，可辅助表示“可能到达下楼边缘”
+- 当前数据无效或不新鲜
 
-### 3.2 激光2状态
+- `Far`
+- 还没贴近楼梯
+
+- `NearStair`
+- 已进入贴近楼梯区间
+
+- `EdgeOpen`
+- 前向距离变大，可用于“前方开口 / 边缘”类辅助判断
+
+### 3.2 laser2 使用的状态
 
 ```cpp
 enum class StairAssistLaser2State : uint8_t {
@@ -92,445 +129,315 @@ enum class StairAssistLaser2State : uint8_t {
 含义：
 
 - `Invalid`
-  - 数据无效
+- 数据无效
+
 - `GroundNormal`
-  - 低位正常看地面
+- 低位正常看地面
+
 - `HighSuspended`
-  - 进入高位后离地更远
+- 进入高位后，脚下距离变大
+
 - `StepContact`
-  - 高位前推后扫到更近的台阶/平台结构
+- 已经扫到更近的结构
 
----
+### 3.3 模式枚举
 
-## 4. 当前预留的接口
+```cpp
+enum class StairAssistMode : uint8_t {
+  ClimbUp = 0,
+  Descend,
+};
+```
 
-### 4.1 初始化与开关
+含义：
+
+- `ClimbUp`
+- 当前把判据层当成“上台阶辅助”
+
+- `Descend`
+- 当前把判据层当成“下台阶辅助”
+
+## 4. 当前最重要的 5 个接口
+
+### 4.1 初始化
 
 ```cpp
 void stairAssistInit();
+```
+
+作用：
+
+- 清空内部状态
+- 清空计数
+- 默认回到关闭、上台阶模式
+
+### 4.2 开关
+
+```cpp
 void stairAssistSetEnabled(bool enabled);
 bool stairAssistEnabled();
 ```
 
 作用：
 
-- 初始化整个楼梯辅助模块
-- 启用或关闭楼梯辅助功能
+- 打开或关闭整个判据层
 
-典型用途：
+当前使用场景：
 
-- 手动模式下，给一个按键切换“激光楼梯辅助开/关”
+- 手动模式下，通过 `RS` 开关辅助
+- 自动 `Y / A` 流程中，在进入对应流程时打开，在流程结束时关闭
 
-### 4.2 周期刷新与过程复位
+### 4.3 模式切换
+
+```cpp
+void stairAssistSetMode(StairAssistMode mode);
+StairAssistMode stairAssistMode();
+```
+
+作用：
+
+- 告诉判据层当前是在做“上台阶”还是“下台阶”
+
+当前使用场景：
+
+- 手动模式下 `LS` 切换模式
+- 自动上台阶前强制切到 `ClimbUp`
+- 自动下台阶前强制切到 `Descend`
+
+### 4.4 自动回低位开关
+
+```cpp
+void stairAssistSetAutoLowerEnabled(bool enabled);
+bool stairAssistAutoLowerEnabled();
+```
+
+作用：
+
+- 控制判据层是否允许输出“回低位”相关结果
+
+这样做的原因：
+
+- 有时只想开“上高位判据”
+- 不想让系统过早自动回低位
+
+### 4.5 周期更新
 
 ```cpp
 void stairAssistUpdate();
-void stairAssistResetProgress();
 ```
 
 作用：
 
-- `stairAssistUpdate()`
-  - 周期调用一次
-  - 内部读取 `laser1`、`laser2`
-  - 更新状态分类、连续帧计数、过程记忆、最终判据
-- `stairAssistResetProgress()`
-  - 清除“已经见过高位区/近距离区”等过程记忆
-  - 适合在动作开始前重新置零
+- 每次调用时刷新全部传感器状态
+- 更新计数与判据
 
-### 4.3 当前状态查询
+这是本模块最核心的周期函数。
 
-```cpp
-StairAssistLaser1State stairAssistLaser1State();
-StairAssistLaser2State stairAssistLaser2State();
-```
+## 5. 当前给上层提供的判定函数
 
-作用：
-
-- 读取当前分类后的状态
-- 调试时很有用
-
-### 4.4 最终判据接口
+### 5.1 上台阶进入高位
 
 ```cpp
 bool stairAssistSuggestClimbUp();
+```
+
+返回 `true` 代表：
+
+- 现在可以请求进入高位
+
+当前成立条件：
+
+- `laser1` 命中近距离区间
+- 或 `laser3` 命中近距离区间
+- 或 `laser2` 命中 `210 ~ 240 mm`
+
+### 5.2 下台阶进入高位
+
+```cpp
+bool stairAssistSuggestDescendHighMode();
+```
+
+返回 `true` 代表：
+
+- 现在可以请求进入高位
+
+当前成立条件：
+
+- 后部光电门出现 `unblocked edge`
+- 或当前保持 `rear_unblocked`
+
+### 5.3 下台阶边缘辅助接口
+
+```cpp
 bool stairAssistSuggestDescendEdgeReady();
+```
+
+返回 `true` 代表：
+
+- `laser1` 认为前向出现开口
+
+注意：
+
+- 这个接口当前不是主流程核心
+- 只是辅助保留
+
+### 5.4 上台阶回低位
+
+```cpp
 bool stairAssistShouldLowerAfterClimbAdvance();
+```
+
+返回 `true` 代表：
+
+- 当前上台阶高位推进后，可以收腿回低位
+
+当前成立条件：
+
+- 自动回低位开关已打开
+- 当前模式是 `ClimbUp`
+- 后部光电门出现 `blocked edge`
+- 或当前保持 `rear_blocked`
+
+### 5.5 下台阶回低位
+
+```cpp
 bool stairAssistShouldLowerAfterDescendRetreat();
+```
+
+返回 `true` 代表：
+
+- 当前下台阶高位后退后，可以回低位
+
+当前成立条件：
+
+- 自动回低位开关已打开
+- 当前模式是 `Descend`
+- `laser2` 落在 `300 ~ 400 mm`
+
+## 6. 当前稳定判据
+
+当前内部设置：
+
+```cpp
+constexpr uint8_t kStableFrames = 1;
+```
+
+也就是说：
+
+- 现在只要满足 `1 帧` 就成立
+
+为什么现在是 1：
+
+- 用户已经在实车上验证过，当前响应速度优先
+- 如果后续出现误触发，再把它提高到 `2` 或 `3`
+
+## 7. 当前新鲜度判断
+
+当前超时时间：
+
+```cpp
+constexpr uint32_t kLaserDataTimeoutMs = 500;
 ```
 
 含义：
 
-- `stairAssistSuggestClimbUp()`
-  - 建议开始上楼
-  - 当前主要由 `laser1 == NearStair` 连续稳定若干帧得到
+- 超过 `500ms` 没更新的新数据，会被判成不新鲜
+- 不新鲜的数据不会参与有效判断
 
-- `stairAssistSuggestDescendEdgeReady()`
-  - 建议认为已经到达下楼边缘
-  - 当前主要由 `laser1 == EdgeOpen` 连续稳定若干帧得到
-  - 这是辅助接口，不是所有场景都可靠
+## 8. 当前手动模式下怎么用
 
-- `stairAssistShouldLowerAfterClimbAdvance()`
-  - 上楼时进入高位并向前推进后，是否该切回低位
-  - 当前主要由 `laser2` 先见过 `HighSuspended`，再稳定进入 `StepContact` 得到
+手动辅助接在：
 
-- `stairAssistShouldLowerAfterDescendRetreat()`
-  - 下楼时进入高位并向后退后，是否该切回低位
-  - 当前主要由 `laser2` 先见过近距离区，再稳定进入 `HighSuspended` 得到
+- `APP/control_task/control_task.cpp`
 
-### 4.5 调试接口
+当前手动逻辑：
 
-```cpp
-const StairAssistDebug &stairAssistDebug();
-```
+1. `RS` 打开 / 关闭辅助
+2. `LS` 切换上台阶辅助 / 下台阶辅助
+3. 当未处于高位时：
+- 上台阶模式看 `stairAssistSuggestClimbUp()`
+- 下台阶模式看 `stairAssistSuggestDescendHighMode()`
+4. 当已经处于高位时：
+- 上台阶模式看 `stairAssistShouldLowerAfterClimbAdvance()`
+- 下台阶模式看 `stairAssistShouldLowerAfterDescendRetreat()`
 
-作用：
+## 9. 当前自动模式下怎么用
 
-- 返回整个调试结构
-- 适合在 Ozone 中直接观察
+自动模式主要接在：
 
-可观察内容包括：
+- `APP/nav_waypoint/waypoint_navigator.cpp`
 
-- 当前是否启用
-- 两个激光的原始 mm 值
-- 两个激光的状态分类
-- 连续稳定帧计数
-- 是否已经见过某个关键阶段
-- 当前建议上楼/下楼/切低位的布尔结果
+当前用法是：
 
----
+- `Y` 上台阶流程开始时：
+- `stairAssistSetMode(ClimbUp)`
+- `stairAssistSetAutoLowerEnabled(true)`
+- `stairAssistSetEnabled(true)`
 
-## 5. 当前内部判定方式
+- `A` 下台阶流程开始时：
+- `stairAssistSetMode(Descend)`
+- `stairAssistSetAutoLowerEnabled(true)`
+- `stairAssistSetEnabled(true)`
 
-### 5.1 稳定判定
+流程结束后再关闭。
 
-当前使用：
+## 10. 当前推荐 Ozone 监视项
 
-- 连续 `3` 帧落在目标区间才认为成立
+### 10.1 最常用的一组
 
-原因：
+- `g_ozone_stair_assist_enabled`
+- `g_ozone_stair_assist_mode`
+- `g_ozone_suggest_climb_up`
+- `g_ozone_suggest_descend_high`
+- `g_ozone_should_lower_after_climb`
+- `g_ozone_should_lower_after_descend`
+- `g_ozone_laser2_mm`
+- `g_ozone_laser2_fresh`
+- `g_ozone_laser3_mm`
+- `g_ozone_laser3_fresh`
+- `g_photogate_rear_blocked`
+- `g_photogate_rear_unblocked`
 
-- 当前测距频率约 `10Hz`
-- `3` 帧大约就是 `300ms`
-- 可以明显减少单帧抖动引起的误触发
+### 10.2 如果要更细看内部状态
 
-### 5.2 数据新鲜度判断
+可以继续在 `stairAssistDebug()` 里看这些成员：
 
-模块不会只看 `distance_mm`，还会检查：
-
-- 当前帧是否有效
-- 是否是错误帧
-- 是否收到过新帧
-- 最近一段时间内是否更新过
-
-这样可以避免旧数据或错误数据误触发动作。
-
----
-
-## 6. 未来想实现的功能，当前接口是否支持
-
-### 6.1 手动模式下，移动到楼梯前自动上楼
-
-目标流程：
-
-1. 手动驾驶到底盘贴紧楼梯
-2. 激光辅助判断已经贴紧
-3. 自动请求高位
-4. 高位过程中继续根据激光2判断什么时候切回低位
-
-结论：
-
-- 这套接口可以支撑
-- 核心会用到：
-  - `stairAssistSetEnabled(true)`
-  - `stairAssistUpdate()`
-  - `stairAssistSuggestClimbUp()`
-  - `stairAssistShouldLowerAfterClimbAdvance()`
-
-但要真正落地，还需要在调用层补下面这些逻辑：
-
-1. 在 `control_task` 或别的上层任务里周期调用 `stairAssistUpdate()`
-2. 加一个“楼梯辅助开关”按键
-3. 当 `stairAssistSuggestClimbUp()` 成立时，自动触发 `liftRequestHigh()`
-4. 进入高位并开始 2006 前推后，等待 `stairAssistShouldLowerAfterClimbAdvance()` 成立，再触发 `liftRequestLow()`
-
-### 6.2 手动模式下，靠 2006 后退自动下楼
-
-目标流程：
-
-1. 手动把车退到底盘接近楼梯边缘
-2. 进入高位
-3. 2006 向后退
-4. 激光2判断是否已经跨出边缘，满足后自动切低位
-
-结论：
-
-- 这套接口也可以支撑
-- 核心会用到：
-  - `stairAssistSetEnabled(true)`
-  - `stairAssistUpdate()`
-  - `stairAssistShouldLowerAfterDescendRetreat()`
-
-辅助上可以用：
-
-- `stairAssistSuggestDescendEdgeReady()`
-
-但这个辅助接口有场景限制：
-
-- 如果前面还有一阶楼梯面可扫，它可能有帮助
-- 如果从最高一阶直接往下，前方没有楼梯面，这个接口不能强依赖
-
-因此下楼真正“什么时候切低位”，还是应以 `laser2` 的接口为主。
-
----
-
-## 7. 当前不能保证自动完成的部分
-
-虽然接口层已经具备，但下面这些内容还没有接入：
-
-1. 还没有接手柄按键开关
-2. 还没有接入 `control_task` 的自动触发逻辑
-3. 还没有接入 `state_machine_task` 或 `waypoint_navigator`
-4. 激光1、激光2的阈值目前还是第一版估值，需要实测调参
-
-所以现在的状态是：
-
-- “判据层”已经有了
-- “调用层”和“动作层”还没接
-
----
-
-## 8. 推荐下一步
-
-推荐按下面顺序继续：
-
-1. 在 `control_task` 中接入 `stairAssistUpdate()`
-2. 增加手动模式下的楼梯辅助启停按键
-3. 先实现“贴紧楼梯自动升高位”
-4. 再实现“高位过程中自动切回低位”
-5. 最后根据实测数据微调各阈值
-
-这样风险最小，也最容易调试。
-
----
-
-## 9. 后续重点调试项
-
-后续调试重点主要分成 4 类：
-
-### 9.1 距离阈值
-
-这是最核心的调试项。
-
-需要实测并修改：
-
-- `laser1` 贴近楼梯时的距离范围
-- `laser1` 到下楼边缘时的距离范围
-- `laser2` 低位正常地面范围
-- `laser2` 高位悬空范围
-- `laser2` 前推接阶范围
-
-当前这些阈值都在：
-
-- `APP/stair_assist/stair_assist.cpp`
-
-第一版只是估值，后面必须根据实机数据调整。
-
-### 9.2 稳定帧数
-
-当前使用：
-
-- 连续 `3` 帧成立才算有效
-
-后面如果发现：
-
-- 太敏感，容易误触发
-  - 可以改成 `4` 帧或 `5` 帧
-- 太迟钝，动作反应慢
-  - 可以改成 `2` 帧
-
-### 9.3 自动动作触发时机
-
-后面接入 `control_task` 或状态机后，要重点看：
-
-- 贴近楼梯后，是不是触发高位过早或过晚
-- 进入高位后，2006 前推/后退是否时机合适
-- `laser2` 满足条件后，是否应该立刻降低位
-- 降低位前是否需要延时或增加保护条件
-
-这部分不只是“阈值调参”，还是“动作节奏调参”。
-
-### 9.4 场景边界
-
-后面要特别注意这些特殊情况：
-
-- 从最高一阶下楼时，`laser1` 可能没有前方楼梯面可扫
-- 不同楼梯材质可能让反射稳定性变差
-- 底盘抖动时，`laser2` 可能在两个区间反复跳变
-- 高位过程中，传感器姿态变化可能导致距离值整体偏移
-
-因此：
-
-- `laser1` 的下楼边缘判定只能作为辅助
-- 下楼真正“什么时候切低位”还是要以 `laser2` 为主
-
----
-
-## 10. Ozone 推荐观察变量
-
-后面调试时，建议优先观察 `stairAssistDebug()` 返回结构中的这些成员：
-
-- `enabled`
-- `laser1_fresh`
-- `laser2_fresh`
 - `laser1_mm`
 - `laser2_mm`
+- `laser3_mm`
 - `laser1_state`
 - `laser2_state`
+- `laser3_state`
 - `laser1_near_count`
-- `laser1_edge_count`
-- `laser2_ground_count`
-- `laser2_high_count`
-- `laser2_step_count`
-- `saw_laser2_high_for_climb`
-- `saw_laser2_close_for_descend`
-- `suggest_climb_up`
-- `suggest_descend_edge_ready`
-- `should_lower_after_climb`
-- `should_lower_after_descend`
+- `laser3_near_count`
+- `laser2_climb_high_count`
+- `laser2_descend_lower_count`
+- `rear_photogate_blocked`
+- `rear_photogate_unblocked`
+- `rear_photogate_blocked_edge`
+- `rear_photogate_unblocked_edge`
 
-如果要抓最关键的一批，可以先重点看：
+## 11. 当前实际作用总结
 
-- `laser1_mm`
-- `laser2_mm`
-- `laser1_state`
-- `laser2_state`
-- `suggest_climb_up`
-- `should_lower_after_climb`
-- `should_lower_after_descend`
+一句话总结现在的 `stair_assist`：
 
----
+- 它已经不是单纯的“激光读数层”
+- 而是当前梅林上下台阶动作切换的统一判据层
 
-## 11. 各阶段预期数值变化
+当前已经被实车验证可用的主分工是：
 
-下面这些不是最终定值，而是后面调试时的“预期趋势”。
+- `laser1 / laser3`：上台阶进入高位
+- `rear photogate`：上台阶收腿回低位
+- `rear photogate`：下台阶进入高位
+- `laser2`：下台阶回低位
 
-### 11.1 上楼时
+## 12. 后续如果继续扩展，建议怎么做
 
-#### 阶段1：低位平地接近楼梯
+如果后面继续加新传感器或新判据，建议遵循下面规则：
 
-预期：
+1. 底层驱动只负责拿原始数据
+2. 是否触发动作，一律收口到 `stair_assist`
+3. `control_task` 只负责手动触发
+4. `waypoint_navigator` 只负责动作流程与阶段切换
 
-- `laser1` 从 `Far` 逐渐进入 `NearStair`
-- `suggest_climb_up` 最终变为 `true`
-
-重点观察：
-
-- `laser1_mm`
-- `laser1_state`
-- `laser1_near_count`
-
-#### 阶段2：进入高位
-
-预期：
-
-- `laser2` 从 `GroundNormal` 进入 `HighSuspended`
-- `laser2_high_count` 开始累积
-- `saw_laser2_high_for_climb` 变为 `true`
-
-重点观察：
-
-- `laser2_mm`
-- `laser2_state`
-- `laser2_high_count`
-
-#### 阶段3：2006 向前推进
-
-预期：
-
-- `laser2` 从 `HighSuspended` 进入 `StepContact`
-- `laser2_step_count` 开始累积
-- `should_lower_after_climb` 最终变为 `true`
-
-重点观察：
-
-- `laser2_mm`
-- `laser2_state`
-- `laser2_step_count`
-- `should_lower_after_climb`
-
-#### 阶段4：回到低位
-
-预期：
-
-- `laser2` 最终重新回到某个稳定地面区
-- 后续如需要，可再次重新开始下一轮判定
-
-### 11.2 下楼时
-
-#### 阶段1：接近下楼边缘
-
-预期：
-
-- 如果前方还有楼梯面可扫，`laser1` 可能进入 `EdgeOpen`
-- `suggest_descend_edge_ready` 可能变为 `true`
-
-注意：
-
-- 这个阶段不是所有楼梯场景都可靠
-- 尤其是最高一阶向下时，可能没有这个现象
-
-重点观察：
-
-- `laser1_mm`
-- `laser1_state`
-- `laser1_edge_count`
-- `suggest_descend_edge_ready`
-
-#### 阶段2：进入高位并开始后退
-
-预期：
-
-- `laser2` 先处于近距离区或地面区
-- `saw_laser2_close_for_descend` 变为 `true`
-
-重点观察：
-
-- `laser2_mm`
-- `laser2_state`
-- `saw_laser2_close_for_descend`
-
-#### 阶段3：2006 向后退，下方变空
-
-预期：
-
-- `laser2` 进入 `HighSuspended`
-- `laser2_high_count` 累积
-- `should_lower_after_descend` 最终变为 `true`
-
-重点观察：
-
-- `laser2_mm`
-- `laser2_state`
-- `laser2_high_count`
-- `should_lower_after_descend`
-
-#### 阶段4：回到低位
-
-预期：
-
-- 低位落下后，`laser2` 再次回到新的稳定地面区
-
----
-
-## 12. 调试建议顺序
-
-推荐按下面顺序调试：
-
-1. 先只看 `laser1_mm` 和 `laser2_mm` 原始值
-2. 确认每个机械阶段的实际距离范围
-3. 再看 `laser1_state` 和 `laser2_state` 是否分类正确
-4. 再看连续帧计数是否稳定增长
-5. 最后再看 `suggest_*` 和 `should_lower_*` 是否在正确时机翻转
-
-这样调试最稳，不容易一开始就把“阈值问题”和“动作流程问题”混在一起。
+这样结构最清楚，也最不容易打架。
