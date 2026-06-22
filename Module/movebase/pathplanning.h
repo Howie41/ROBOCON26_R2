@@ -46,14 +46,14 @@ class SCurvePlanner {
 
     
     public:
-        SCurvePlanner(double q_start, double q_end, 
+        SCurvePlanner(double q_start, double q_end,
                     double v_start, double v_end,
                     double v_limit, double a_limit,
-                    double j_limit, double desired_time) 
+                    double j_limit, double desired_time)
             : q0_(q_start), q1_(q_end), v0_(v_start), v1_(v_end),
               v_max_(v_limit), a_max_(a_limit), j_max_(j_limit),
-              t_(0.0), initialized_(false) 
-        {            
+              t_(0.0), initialized_(false)
+        {
             calculateTimingParameters(desired_time);
             initialized_ = true;
         }
