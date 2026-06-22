@@ -60,21 +60,21 @@ enum class PendingHeadingTurn : uint8_t {
 static PendingHeadingTurn merlin_pending_turn = PendingHeadingTurn::None;
 
 void Xbox_Data_Process() {
-  if (ABS(control_xbox_cmd.joyLVert - 32767) > 2000) {
+  if (ABS(control_xbox_cmd.joyLVert - 32767) > 2300) {
     chassis_cmd.linear_x_ =
         -(int)(control_xbox_cmd.joyLVert - 32767) / 32767.0f * MAX_VELOCITY;
   } else {
     chassis_cmd.linear_x_ = 0.0f;
   }
 
-  if (ABS(control_xbox_cmd.joyLHori - 32767) > 2000) {
+  if (ABS(control_xbox_cmd.joyLHori - 32767) > 2300) {
     chassis_cmd.linear_y_ =
         (int)(control_xbox_cmd.joyLHori - 32767) / 32767.0f * MAX_VELOCITY;
   } else {
     chassis_cmd.linear_y_ = 0.0f;
   }
 
-  if (ABS(control_xbox_cmd.joyRHori - 32767) > 2000) {
+  if (ABS(control_xbox_cmd.joyRHori - 32767) > 2300) {
     chassis_cmd.omega_ =
         -(int)(control_xbox_cmd.joyRHori - 32767) / 32767.0f *
         MAX_ROTATION_VELOCITY;

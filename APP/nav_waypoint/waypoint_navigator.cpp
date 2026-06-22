@@ -20,9 +20,9 @@ std::atomic<uint8_t> g_stair_waypoint_level{0};
 std::atomic<bool> g_stair_waypoint_armed{false};
 
 TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
-constexpr float kDescendLaserSeekSpeedRpm = -30.0f;
-constexpr float kClimbLaserSeekSpeedRpm = 30.0f;
-constexpr float kDescendEdgeSeekSpeedMps = -0.12f;
+constexpr float kDescendLaserSeekSpeedRpm = -100.0f;
+constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
+constexpr float kDescendEdgeSeekSpeedMps = -0.2f;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
 constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
