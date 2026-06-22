@@ -35,6 +35,7 @@ void PcComTask(void *argument);
 #include "infrared_com.hpp"
 
 extern InfraredModule infrared_module;
+extern InfraredModuleGroup infrared_group;
 extern LaserMeasure laser1;
 extern LaserMeasure laser2;
 extern SK60PlusLaser laser3;

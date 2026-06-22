@@ -41,9 +41,9 @@ enum class RobotState : uint8_t {
 #endif
 };
 
-void change_state_to(RobotState new_state);
-RobotState get_current_state();
-bool state_machine_idle();
+// void change_state_to(RobotState new_state);
+// RobotState get_current_state();
+// bool state_machine_idle();
 
 #endif // __cplusplus
 

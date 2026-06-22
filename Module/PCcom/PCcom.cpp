@@ -36,7 +36,7 @@ void handleEmergencyStop() {
   nav_control::target_x = nav_control::current_x;
   nav_control::target_y = nav_control::current_y;
   nav_control::target_yaw = nav_control::current_yaw;
-  change_state_to(RobotState::begin);
+  // change_state_to(RobotState::begin);
 
   pub_chassis_cmd stop_cmd{};
   stop_cmd.nav_mode_ = true;
@@ -116,14 +116,14 @@ void PcCom::OnPacket(Packet packet) {
     }
 
     case static_cast<uint16_t>(PcCmd::nav_climb_up):
-      if (state_machine_idle()) {
-        change_state_to(RobotState::test_stair_up);
-      }
+      // if (state_machine_idle()) {
+      //   change_state_to(RobotState::test_stair_up);
+      // }
       break;
     case static_cast<uint16_t>(PcCmd::nav_climb_down):
-      if (state_machine_idle()) {
-        change_state_to(RobotState::test_stair_down);
-      }
+      // if (state_machine_idle()) {
+      //   change_state_to(RobotState::test_stair_down);
+      // }
       break;
     case static_cast<uint16_t>(PcCmd::nav_enter_high):
       liftRequestHigh();

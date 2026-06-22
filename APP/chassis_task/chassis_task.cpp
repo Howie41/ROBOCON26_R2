@@ -285,6 +285,8 @@ void chassisTask(void *argument) {
     }
     nav_mode_was_auto = chassis_cmd.nav_mode_;
   
+    nav_mode_was_auto = chassis_cmd.nav_mode_;
+  
 
     g_chassis_final_omega = final_cmd.omega_;
 
