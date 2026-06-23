@@ -31,11 +31,12 @@ void PcComTask(void *argument);
 #ifdef __cplusplus
 
 #include "LaserMeasure/LaserMeasure.hpp"
+#include "SK60PlusLaser/SK60PlusLaser.hpp"
 #include "infrared_com.hpp"
 
 extern InfraredModule infrared_module;
-extern InfraredModuleGroup infrared_group;
 extern LaserMeasure laser1;
 extern LaserMeasure laser2;
+extern SK60PlusLaser laser3;
 
 #endif

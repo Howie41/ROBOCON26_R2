@@ -16,6 +16,7 @@
 #include "Motor.hpp"
 #include "NavProtocol.hpp"
 #include "com_config.h"
+#include "photogate.hpp"
 #include "pid_controller.h"
 #include "topic_pool.h"
 #include "topics.hpp"
@@ -76,8 +77,8 @@ constexpr float LIFT_POS_TOLERANCE =  2.0f;   // 位置到达判定容差 (度)
 
 constexpr float LIFT_SPEED_RAMP = 12000.0f; // 速度斜坡 (RPM/s), 出力爬升速率
 
-constexpr float LIFT_LOW_POS = -100.0f;
-constexpr float LIFT_HIGH_POS = 510.0f;
+constexpr float LIFT_LOW_POS = -50.0f;
+constexpr float LIFT_HIGH_POS = 470.0f;
 
 constexpr float LIFT_2006_MOTOR1_DIR = 1.0f;
 constexpr float LIFT_2006_MOTOR2_DIR = -1.0f;
@@ -267,7 +268,7 @@ PID_t lift_3508_sync_pid = {
 // Phase 2: 高位模式手动yaw锁角PID
 PID_t high_yaw_lock_pid = {
     .Kp = 15.0f, .Ki = 0.05f, .Kd = 0.0f, .MaxOut = 300.0f,
-    .IntegralLimit = 150.0f, .DeadBand = 0.5f, .Improve = Integral_Limit,
+    .IntegralLimit = 150.0f, .DeadBand = 2.0f, .Improve = Integral_Limit,
 };
 static float high_yaw_lock_ref = 0.0f;
 static bool high_was_active = false;
@@ -338,13 +339,14 @@ static inline void liftInit(void) {
     PID_Init(&lift_3508_pos_pid);
     PID_Init(&lift_3508_sync_pid);
     PID_Init(&high_yaw_lock_pid);
+    photogate::init();
 
     lift_3508_motor1_pos = -lift_3508_motor1.getCurrentSumPos();
     lift_3508_motor2_pos = -lift_3508_motor2.getCurrentSumPos();
     lift_3508_avg_pos = (lift_3508_motor1_pos + lift_3508_motor2_pos) / 2.0f;
     lift_3508_diff_pos = lift_3508_motor1_pos - lift_3508_motor2_pos;
 
-    lift_3508_target_pos = lift_3508_avg_pos;
+    lift_3508_target_pos =LIFT_LOW_POS; 
     lift_3508_hold_enable = true;
     lift_3508_manual_last = false;
     lift_phase = LiftPhase::HOLDING;
@@ -515,6 +517,7 @@ void liftTask(void *argument) {
     liftInit();
 
     for (;;) {
+        photogate::update();
         if (lift_cmd_sub.TryGet(&lift_cmd)) {
         }
         if (high_nav_sub.TryGet(&high_nav_cmd)) {
@@ -525,7 +528,8 @@ void liftTask(void *argument) {
         float high_forward = 0.0f;
         float high_omega = 0.0f;
 
-        if (high_nav_cmd.active && nav_control::auto_enabled) {
+        if (high_nav_cmd.active &&
+            (nav_control::auto_enabled || high_nav_cmd.allow_without_auto)) {
             high_forward = -high_nav_cmd.forward_speed;
             high_omega = high_nav_cmd.omega;
         } else if (nav_control::high_mode_active) {
