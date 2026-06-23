@@ -5,7 +5,6 @@
  * @date 2026-05-24
  */
 
-#include "Motor.hpp"
 #include "cmsis_os2.h"
 #include <atomic>
 #include <cstdint>
@@ -14,21 +13,15 @@
 #include "com_config.h"
 #include "NavProtocol.hpp"
 #include "infrared_com.hpp"
-#include "stm32h7xx_hal.h"
-#include "tail_claw_task.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "waypoint_navigator.hpp"
-#include "chassis_task.h"
-#include <cmath>
-#include <iterator>
+#include "tail_claw_task.hpp"
 osThreadId_t StateMachineTaskHandle;
 
 static std::atomic<RobotState> current_state{RobotState::begin};
 
 TypedTopicSubscriber<pub_qr_code_parsed> qr_code_sub("qr_code_parsed", 1);
-// 自动状态机能给尾爪任务发命令，而不是直接改尾爪内部变量。
-static TypedTopicPublisher<pub_tail_claw_cmd> tail_claw_cmd_pub("tail_claw_cmd");
 //下位机发信息给上位机，告诉它当前的状态，或者说事件发生了，或者说需要它做什么
 static TypedTopicPublisher<tail_claw_msg>tail_claw_weapon_event_pub("tail_claw_weapon_event");
 //尾爪状态
@@ -57,35 +50,6 @@ static bool consume_state_machine_view(bool current_state) {
     const bool rising_edge = current_state && !state_machine_view_last;
     state_machine_view_last = current_state;
     return rising_edge;
-}
-
-//切换尾爪模式
-static void tail_claw_setMode(TailClawMode mode) {
-    pub_tail_claw_cmd cmd{};
-    cmd.set_mode = true;
-    cmd.mode = mode;
-    tail_claw_cmd_pub.Publish(cmd);
-}
-//设置尾爪翻转目标位置，单位为度
-static void tail_claw_setRollTarget(float deg) {
-    pub_tail_claw_cmd cmd{};
-    cmd.set_roll_target = true;
-    cmd.roll_target_deg = deg;
-    tail_claw_cmd_pub.Publish(cmd);
-}
-//设置武器夹爪状态，true为夹紧，false为放松
-static void tail_claw_setWeaponClaw(bool close) {
-    pub_tail_claw_cmd cmd{};
-    cmd.set_weapon_claw = true;
-    cmd.weapon_claw_close = close;
-    tail_claw_cmd_pub.Publish(cmd);
-}
-
-static void tail_claw_setAirPump(bool on) {
-    pub_tail_claw_cmd cmd{};
-    cmd.set_air_pump = true;
-    cmd.air_pump_on = on;
-    tail_claw_cmd_pub.Publish(cmd);
 }
 
 /**
@@ -196,8 +160,8 @@ void stateMachineTask(void *argument) {
                             change_state_to(RobotState::go_to_MF);
                             return true;*/
                             case 0x0A:
-                                tail_claw_setWeaponClaw(true);
-                                tail_claw_setRollTarget(-56.5);
+                                tail_claw_set_weapon_claw(true);
+                                tail_claw_set_roll_target(-56.5);
                                 return true;
                         default:
                             return false;
@@ -211,15 +175,15 @@ void stateMachineTask(void *argument) {
                     consume_state_machine_view(control_xbox_cmd.btnView);
                     control_xbox_cmd.btnView = view_rising_edge;
                     if (view_rising_edge) {
-                        tail_claw_setMode(TailClawMode::Hold);//锁定当前的位置
+                        tail_claw_set_mode(TailClawMode::Hold);//锁定当前的位置
                     }
                     if (start==1) {//按下View键进入下一状态
                         //开始进行自动
-                        tail_claw_setRollTarget(-56.5);
+                        tail_claw_set_roll_target(-56.5);
                         //tail_claw_setAirPump(true);      //气泵的开关
-                        tail_claw_setWeaponClaw(true);     //闭合夹爪，夹紧武器头，
+                        tail_claw_set_weapon_claw(true);     //闭合夹爪，夹紧武器头，
                         move_to_pos(-500, 15, 0,5000);
-                        tail_claw_setRollTarget(-59.5);
+                        tail_claw_set_roll_target(-59.5);
                         change_state_to(RobotState::go_to_SHR);
                     }
                 }
@@ -231,7 +195,7 @@ void stateMachineTask(void *argument) {
                 //move_to_pos(-286, -840, 90,5000);
                 move_to_pos(-266, -860, 90,5000);
                 //tail_claw_setAirPump(false);
-                tail_claw_setMode(TailClawMode::AutoAlign);//进入自动对齐模式
+                tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
                 //发消息给上位机，他要发消息给我了
                 tail_claw_msg msg{0}; 
                 msg.distance = 1;
@@ -252,7 +216,7 @@ void stateMachineTask(void *argument) {
                 msg.distance = 2;
                 tail_claw_weapon_event_pub.Publish(msg);
 
-                tail_claw_setMode(TailClawMode::Hold);//对齐后锁定位置
+                tail_claw_set_mode(TailClawMode::Hold);//对齐后锁定位置
                 change_state_to(RobotState::catch_weapon);
                 break;
             }
@@ -263,14 +227,14 @@ void stateMachineTask(void *argument) {
                         break;
                 }*/// 对准后向前移动一段距离，具体数值待调试
                 move_to_pos(-266, -960, 90, 10000U);
-                tail_claw_setWeaponClaw(false);//闭合夹爪，夹紧武器头
+                tail_claw_set_weapon_claw(false);//闭合夹爪，夹紧武器头
                 osDelay(100); // 等待夹爪动作完成，具体时间待调试
                 change_state_to(RobotState::rotate_weapon_claw);
                 break;
             }
 
             case RobotState::rotate_weapon_claw: {  
-                    tail_claw_setRollTarget(2.0f);
+                    tail_claw_set_roll_target(2.0f);
 
                     /*wait_until([]() -> bool {
                         constexpr float roll_reduction_ratio = 2.5f;
@@ -306,7 +270,7 @@ void stateMachineTask(void *argument) {
                             break;
                      } */// TODO: 填入武器rod位置
                 move_to_pos(20, -100, -90, 4000U);
-                tail_claw_setMode(TailClawMode::AutoAlign);//进入自动对齐模式
+                tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
 
                 /*static TypedTopicPublisher<tail_claw_msg>
                 tail_claw_rod_event_pub("tail_claw_rod_event");
@@ -330,7 +294,7 @@ void stateMachineTask(void *argument) {
                 //关闭武器对准，告诉上位机不用发了
                 /*msg.distance = 2;
                 tail_claw_rod_event_pub.Publish(msg);
-                tail_claw_setMode(TailClawMode::Hold);*/
+                tail_claw_set_mode(TailClawMode::Hold);*/
                 msg.distance = 4;
                 tail_claw_weapon_event_pub.Publish(msg);
 
@@ -349,7 +313,8 @@ void stateMachineTask(void *argument) {
                             change_state_to(RobotState::go_to_MF);
                             return true;*/
                             case 0x0A:
-                                tail_claw_setWeaponClaw(true);
+                                tail_claw_set_weapon_claw(true);
+                                return true;
                         default:
                             return false;
                     }
