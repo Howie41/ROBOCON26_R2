@@ -16,9 +16,11 @@
 #include "Motor.hpp"
 #include "NavProtocol.hpp"
 #include "chassis_solution.hpp"
+#include "merlin_map/merlin_map.h"
 #include "pid_controller.h"
 #include "topic_pool.h"
 #include "topics.hpp"
+#include "waypoint_navigator.hpp"
 
 #include <array>
 #include <cmath>
@@ -50,6 +52,14 @@ namespace {
 float normalizeDeg(float angle_deg);
 void refreshYawReference();
 bool hasMotionCommand(const pub_chassis_cmd &cmd);
+void requestYawRotateDegInternal(float delta_deg);
+void requestYawRotateCcw90Internal();
+void requestYawRotateCw90Internal();
+bool yawRotateActiveInternal();
+bool takeYawRotateFinishedInternal();
+float yawRotateTargetDegInternal();
+void waitForYawRotateFinished();
+bool isNearCurrentMerlinCellCenter();
 
 }  // namespace
 
@@ -72,47 +82,68 @@ PID_t g_yaw_rotate_pid = {
     .Improve = Integral_Limit,
 };
 
-void requestYawRotateDeg(float delta_deg) {
-  refreshYawReference();
-  g_yaw_rotate_target_deg = normalizeDeg(g_chassis_yaw_deg + delta_deg);
-  g_yaw_rotate_active = true;
-  g_yaw_rotate_finished = false;
-  g_chassis_yaw_lock_deg = g_yaw_rotate_target_deg;
-  g_chassis_yaw_hold_omega = 0.0f;
-
-  g_yaw_rotate_was_auto = nav_control::auto_enabled;
-  if (g_yaw_rotate_was_auto) {
-    nav_control::auto_enabled = false;
-  }
-
-  PID_Init(&g_yaw_rotate_pid);
-}
-
-void requestYawRotateCcw90() {
-  requestYawRotateDeg(kYawRotate90Deg);
-}
-
-void requestYawRotateCw90() {
-  requestYawRotateDeg(-kYawRotate90Deg);
-}
-
-bool yawRotateActive() {
-  return g_yaw_rotate_active;
-}
-
-bool takeYawRotateFinished() {
-  const bool finished = g_yaw_rotate_finished;
-  g_yaw_rotate_finished = false;
-  return finished;
-}
-
-float yawRotateTargetDeg() {
-  return g_yaw_rotate_target_deg;
-}
-
 }  // namespace chassis_action
 
 namespace {
+
+void requestYawRotateDegInternal(float delta_deg) {
+  refreshYawReference();
+  chassis_action::g_yaw_rotate_target_deg =
+      normalizeDeg(g_chassis_yaw_deg + delta_deg);
+  chassis_action::g_yaw_rotate_active = true;
+  chassis_action::g_yaw_rotate_finished = false;
+  g_chassis_yaw_lock_deg = chassis_action::g_yaw_rotate_target_deg;
+  g_chassis_yaw_hold_omega = 0.0f;
+
+  chassis_action::g_yaw_rotate_was_auto = nav_control::auto_enabled;
+  if (chassis_action::g_yaw_rotate_was_auto) {
+    nav_control::auto_enabled = false;
+  }
+
+  PID_Init(&chassis_action::g_yaw_rotate_pid);
+}
+
+void requestYawRotateCcw90Internal() {
+  requestYawRotateDegInternal(chassis_action::kYawRotate90Deg);
+}
+
+void requestYawRotateCw90Internal() {
+  requestYawRotateDegInternal(-chassis_action::kYawRotate90Deg);
+}
+
+bool yawRotateActiveInternal() {
+  return chassis_action::g_yaw_rotate_active;
+}
+
+bool takeYawRotateFinishedInternal() {
+  const bool finished = chassis_action::g_yaw_rotate_finished;
+  chassis_action::g_yaw_rotate_finished = false;
+  return finished;
+}
+
+float yawRotateTargetDegInternal() {
+  return chassis_action::g_yaw_rotate_target_deg;
+}
+
+void waitForYawRotateFinished() {
+  while (yawRotateActiveInternal()) {
+    osDelay(10U);
+  }
+}
+
+bool isNearCurrentMerlinCellCenter() {
+  merlin_map::Cell current_cell{};
+  if (!merlin_map::tryGetCurrentCell(&current_cell)) {
+    return false;
+  }
+
+  const float error_x =
+      static_cast<float>(nav_control::current_x - current_cell.center_x);
+  const float error_y =
+      static_cast<float>(nav_control::current_y - current_cell.center_y);
+  const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
+  return dist_error < 30.0f;
+}
 
 Omni45Chassis chassis_solver(chassis_motor1, chassis_motor2, chassis_motor3,
                              chassis_motor4);
@@ -185,12 +216,12 @@ bool hasMotionCommand(const pub_chassis_cmd &cmd) {
 }
 
 bool updateYawRotateControl(pub_chassis_cmd &final_cmd) {
-  if (!chassis_action::yawRotateActive()) {
+  if (!yawRotateActiveInternal()) {
     return false;
   }
 
   const float yaw_error =
-      normalizeDeg(chassis_action::yawRotateTargetDeg() - g_chassis_yaw_deg);
+      normalizeDeg(yawRotateTargetDegInternal() - g_chassis_yaw_deg);
   final_cmd.linear_x_ = 0.0f;
   final_cmd.linear_y_ = 0.0f;
   final_cmd.omega_ =
@@ -246,11 +277,11 @@ void chassisTask(void *argument) {
       chassis_hold_active = false;
       chassis_hold_idle_count = 0U;
 
-      vTaskDelayUntil(&currentTime, 5);
+    vTaskDelayUntil(&currentTime, 5);
       continue;
     }
 
-    if (chassis_action::takeYawRotateFinished()) {
+    if (takeYawRotateFinishedInternal()) {
       chassis_hold_active = false;
       chassis_hold_idle_count = 0U;
       if (chassis_action::g_yaw_rotate_was_auto) {
@@ -288,40 +319,47 @@ void chassisTask(void *argument) {
 
     g_chassis_final_omega = final_cmd.omega_;
 
-    const bool motion_requested = hasMotionCommand(chassis_cmd);
-    if (!motion_requested) {
-      if (chassis_hold_idle_count < kHoldIdleCycles)
-        ++chassis_hold_idle_count;
-    } else {
-      chassis_hold_idle_count = 0U;
+    if (chassis_cmd.nav_mode_) {
       chassis_hold_active = false;
-    }
-
-    static std::array<float, Omni45Chassis::kWheelCount> hold_base_pos{};
-
-    if (!chassis_hold_active && chassis_hold_idle_count >= kHoldIdleCycles) {
-      hold_base_pos = {
-          chassis_motor1.getCurrentSumPos(),
-          chassis_motor2.getCurrentSumPos(),
-          chassis_motor3.getCurrentSumPos(),
-          chassis_motor4.getCurrentSumPos(),
-      };
-      chassis_hold_target_pos = hold_base_pos;
-      chassis_hold_active = true;
-    }
-
-    g_chassis_hold_active = chassis_hold_active;
-    if (chassis_hold_active) {
-      const float yaw_target = chassis_cmd.nav_mode_
-          ? static_cast<float>(nav_control::target_yaw)
-          : g_chassis_yaw_lock_deg;
-      float yaw_error = normalizeDeg(yaw_target - g_chassis_yaw_deg);
-      float wheel_offset = PID_Calculate(&hold_yaw_pos_pid, 0.0f, yaw_error);
-      for (size_t i = 0; i < 4; i++)
-        chassis_hold_target_pos[i] = hold_base_pos[i] - wheel_offset;
-      chassis_solver.runHold(chassis_hold_target_pos);
-    } else {
+      chassis_hold_idle_count = 0U;
+      g_chassis_hold_active = false;
       chassis_solver.run(final_cmd);
+    } else {
+      const bool motion_requested = hasMotionCommand(chassis_cmd);
+      if (!motion_requested) {
+        if (chassis_hold_idle_count < kHoldIdleCycles) {
+          ++chassis_hold_idle_count;
+        }
+      } else {
+        chassis_hold_idle_count = 0U;
+        chassis_hold_active = false;
+      }
+
+      static std::array<float, Omni45Chassis::kWheelCount> hold_base_pos{};
+
+      if (!chassis_hold_active && chassis_hold_idle_count >= kHoldIdleCycles) {
+        hold_base_pos = {
+            chassis_motor1.getCurrentSumPos(),
+            chassis_motor2.getCurrentSumPos(),
+            chassis_motor3.getCurrentSumPos(),
+            chassis_motor4.getCurrentSumPos(),
+        };
+        chassis_hold_target_pos = hold_base_pos;
+        chassis_hold_active = true;
+      }
+
+      g_chassis_hold_active = chassis_hold_active;
+      if (chassis_hold_active) {
+        const float yaw_target = g_chassis_yaw_lock_deg;
+        float yaw_error = normalizeDeg(yaw_target - g_chassis_yaw_deg);
+        float wheel_offset = PID_Calculate(&hold_yaw_pos_pid, 0.0f, yaw_error);
+        for (size_t i = 0; i < 4; i++) {
+          chassis_hold_target_pos[i] = hold_base_pos[i] - wheel_offset;
+        }
+        chassis_solver.runHold(chassis_hold_target_pos);
+      } else {
+        chassis_solver.run(final_cmd);
+      }
     }
     const auto &target_rpm = chassis_solver.targetRpm();
     g_chassis_target_rpm_fl = target_rpm[0];
@@ -332,3 +370,39 @@ void chassisTask(void *argument) {
     vTaskDelayUntil(&currentTime, 5);
   }
 }
+
+namespace chassis_action {
+
+void turn_left_90_deg() {
+  if (yawRotateActiveInternal()) {
+    waitForYawRotateFinished();
+  }
+
+  requestYawRotateCcw90Internal();
+  waitForYawRotateFinished();
+  merlin_map::rotateCcw90();
+}
+
+void turn_right_90_deg() {
+  if (yawRotateActiveInternal()) {
+    waitForYawRotateFinished();
+  }
+
+  requestYawRotateCw90Internal();
+  waitForYawRotateFinished();
+  merlin_map::rotateCw90();
+}
+
+void start_climb_upstairs() { stairWaypointRunUp(); }
+
+void start_climb_downstairs() { stairWaypointRunDown(); }
+
+bool is_chassis_idle() {
+  return !yawRotateActiveInternal() &&
+         (stairWaypointStep() == 0U) &&
+         !nav_control::auto_enabled &&
+         !nav_control::high_mode_active &&
+         isNearCurrentMerlinCellCenter();
+}
+
+}  // namespace chassis_action

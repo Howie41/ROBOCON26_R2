@@ -96,14 +96,18 @@ void onUart4RxCb(const uint8_t *data, size_t len, void *user);
 void onUart9RxCb(const uint8_t *data, size_t len, void *user);
 void onUart7RxCb(const uint8_t *data, size_t len, void *user);
 void onUart8RxCb(const uint8_t *data, size_t len, void *user);
+void onUart1RxCb(const uint8_t *data, size_t len, void *user);
 
 void onUsbRxCb(const uint8_t *data, size_t len, void *user);
 
 extern UART_HandleTypeDef huart7;
 extern UART_HandleTypeDef huart8;
+extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart6;
+extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart6_rx;
 
 DMA_BUFFER_ATTR static uint8_t uart7_rx_dma[64];
@@ -136,6 +140,11 @@ DMA_BUFFER_ATTR static uint8_t uart6_tx_dma[64] = {0};
 UartPort uart6_port(&huart6, uart6_rx_dma, sizeof(uart6_rx_dma),
                             uart6_tx_dma, sizeof(uart6_tx_dma), onUart6RxCb, nullptr);
 
+DMA_BUFFER_ATTR static uint8_t uart1_rx_dma[64] = {0};
+DMA_BUFFER_ATTR static uint8_t uart1_tx_dma[64] = {0};
+UartPort uart1_port(&huart1, uart1_rx_dma, sizeof(uart1_rx_dma),
+                    uart1_tx_dma, sizeof(uart1_tx_dma), onUart1RxCb, nullptr);
+osSemaphoreId_t uart1_rx_semphore = NULL;
 DMA_BUFFER_ATTR static uint8_t uart5_rx_dma[UartPort::kPacketPayloadSize] = {0};
 UartPort uart5_port(&huart5, uart5_rx_dma, sizeof(uart5_rx_dma),
                             nullptr, 0, onUart5RxCb, nullptr);
@@ -173,10 +182,10 @@ InfraredModule infrared_module_uart4(uart4_port);
 InfraredModule infrared_module_uart9(uart9_port);
 InfraredModuleGroup infrared_group{&infrared_module_uart6, &infrared_module_uart5};
 
-InfraredModule infrared_module(uart6_port);
 #if LASER_MEASURE_ENABLE
 LaserMeasure laser1(uart7_port, 0x50);
 LaserMeasure laser2(uart8_port, 0x50);
+SK60PlusLaser laser3(uart1_port, 0x00);
 #endif
 // 日志
 Logger logger(uart10_port);
@@ -265,6 +274,9 @@ uint8_t comServiceInit() {
   uart8_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart8_port.startRxDmaIdle();
   laser2.init();
+  uart1_rx_semphore = osSemaphoreNew(1, 0, NULL);
+  uart1_port.startRxDmaIdle();
+  laser3.init();
   #endif
   uart2_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart2_port.startRxDmaIdle();
@@ -323,6 +335,18 @@ void onUart8RxCb(const uint8_t *data, size_t len, void *user) {
 #if LASER_MEASURE_ENABLE
   if (data != nullptr && len > 0 && uart8_rx_semphore != NULL) {
     (void)osSemaphoreRelease(uart8_rx_semphore);
+  }
+#else
+  (void)data;
+  (void)len;
+#endif
+}
+
+void onUart1RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)user;
+#if LASER_MEASURE_ENABLE
+  if (data != nullptr && len > 0 && uart1_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(uart1_rx_semphore);
   }
 #else
   (void)data;
@@ -499,6 +523,7 @@ void laserMeasureTask(void *argument) {
 
   uint32_t laser1_tick = osKernelGetTickCount();
   uint32_t laser2_tick = laser1_tick + 25U;
+  uint32_t laser3_tick = laser1_tick + 40U;
 
   for (;;) {
     const uint32_t now_tick = osKernelGetTickCount();
@@ -511,6 +536,11 @@ void laserMeasureTask(void *argument) {
     if ((now_tick - laser2_tick) >= 50U) {
       (void)laser2.triggerSingleMeasure();
       laser2_tick = now_tick;
+    }
+
+    if ((now_tick - laser3_tick) >= 50U) {
+      (void)laser3.triggerSingleMeasure();
+      laser3_tick = now_tick;
     }
 
     if (uart7_rx_semphore != NULL &&
@@ -526,6 +556,14 @@ void laserMeasureTask(void *argument) {
       UartPort::Packet packet{};
       while (uart8_port.Read(packet)) {
         (void)laser2.processFrame(packet.data, packet.len);
+      }
+    }
+
+    if (uart1_rx_semphore != NULL &&
+        osSemaphoreAcquire(uart1_rx_semphore, 0) == osOK) {
+      UartPort::Packet packet{};
+      while (uart1_port.Read(packet)) {
+        (void)laser3.processFrame(packet.data, packet.len);
       }
     }
 
