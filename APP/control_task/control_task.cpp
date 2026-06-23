@@ -255,19 +255,14 @@ void controlTask(void *argument) {
         //   }
         // }
 
-        // if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
-        //   if (state_machine_idle()) {
-        //     change_state_to(RobotState::turn_left_90);
-        //   }
-        // }
+        if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
+            chassis_action::start_climb_upstairs();
+        }
 
-        // if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
-        //   if (state_machine_idle()) {
-        //     change_state_to(RobotState::turn_right_90);
-        //   }
-        // }
+        if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
+            chassis_action::turn_right_90_deg();
+        }
 
-        // if (state_machine_idle()) {
         Xbox_Data_Process();
 
         if (!stairWaypointArmed()) {
@@ -283,7 +278,6 @@ void controlTask(void *argument) {
         lift_data_pub.Publish(lift_cmd);
         chassis_cmd.nav_mode_ = false;
         chassis_data_pub.Publish(chassis_cmd);
-        // }
       }
     }
 
