@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstdint>
 
+#include "chassis_task.h"
 #include "infrared_com.hpp"
 #include "state_machine_task.h"
 #include "topic_pool.h"
@@ -78,13 +79,25 @@ void stateMachineTask(void *argument) {
       }
 
       case RobotState::test_stair_up: {
-        stairWaypointRunUp();
+        chassis_action::start_climb_upstairs();
         change_state_to(RobotState::begin);
         break;
       }
 
       case RobotState::test_stair_down: {
-        stairWaypointRunDown();
+        chassis_action::start_climb_downstairs();
+        change_state_to(RobotState::begin);
+        break;
+      }
+
+      case RobotState::turn_left_90: {
+        chassis_action::turn_left_90_deg();
+        change_state_to(RobotState::begin);
+        break;
+      }
+
+      case RobotState::turn_right_90: {
+        chassis_action::turn_right_90_deg();
         change_state_to(RobotState::begin);
         break;
       }

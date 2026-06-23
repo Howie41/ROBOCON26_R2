@@ -51,14 +51,6 @@ static bool xbox_a_last_for_stair = false;
 static bool stair_assist_high_request_latched = false;
 static bool stair_assist_low_request_latched = false;
 
-enum class PendingHeadingTurn : uint8_t {
-  None = 0,
-  Ccw90,
-  Cw90,
-};
-
-static PendingHeadingTurn merlin_pending_turn = PendingHeadingTurn::None;
-
 void Xbox_Data_Process() {
   if (ABS(control_xbox_cmd.joyLVert - 32767) > 2300) {
     chassis_cmd.linear_x_ =
@@ -210,24 +202,6 @@ static void applyManualStairAssist() {
   }
 }
 
-static void updateMerlinHeadingAfterRotation() {
-  if (merlin_pending_turn == PendingHeadingTurn::None) {
-    return;
-  }
-
-  if (chassis_action::yawRotateActive()) {
-    return;
-  }
-
-  if (merlin_pending_turn == PendingHeadingTurn::Ccw90) {
-    merlin_map::rotateCcw90();
-  } else if (merlin_pending_turn == PendingHeadingTurn::Cw90) {
-    merlin_map::rotateCw90();
-  }
-
-  merlin_pending_turn = PendingHeadingTurn::None;
-}
-
 void controlInit() {
   if (!chassis_data_pub.IsValid()) {
     return;
@@ -247,8 +221,6 @@ void controlTask(void *argument) {
 
   controlInit();
   for (;;) {
-    updateMerlinHeadingAfterRotation();
-
     if (control_xbox_sub.TryGet(&control_xbox_cmd)) {
       updateStairAssistSwitch();
 
@@ -284,26 +256,19 @@ void controlTask(void *argument) {
         }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
-          if (!chassis_action::yawRotateActive()) {
-            chassis_action::requestYawRotateCcw90();
-            merlin_pending_turn = PendingHeadingTurn::Ccw90;
+          if (state_machine_idle()) {
+            change_state_to(RobotState::turn_left_90);
           }
         }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
-          if (!chassis_action::yawRotateActive()) {
-            chassis_action::requestYawRotateCw90();
-            merlin_pending_turn = PendingHeadingTurn::Cw90;
+          if (state_machine_idle()) {
+            change_state_to(RobotState::turn_right_90);
           }
         }
 
         if (state_machine_idle()) {
           Xbox_Data_Process();
-          if (chassis_action::yawRotateActive()) {
-            chassis_cmd.linear_x_ = 0.0f;
-            chassis_cmd.linear_y_ = 0.0f;
-            chassis_cmd.omega_ = 0.0f;
-          }
 
           if (!stairWaypointArmed()) {
             Lift_Data_Process();

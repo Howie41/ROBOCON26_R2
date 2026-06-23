@@ -33,6 +33,8 @@ enum class RobotState : uint8_t {
     go_to_MF,
     test_stair_up,
     test_stair_down,
+    turn_left_90,
+    turn_right_90,
     go_to_R2_EXIT,
     stop
 
