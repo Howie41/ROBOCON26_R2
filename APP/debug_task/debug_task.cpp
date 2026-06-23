@@ -88,7 +88,7 @@ void debugTask(void *argument) {
     g_ozone_stair_step = stairWaypointStep();
     g_ozone_stair_level = stairWaypointLevel();
     g_ozone_stair_armed = stairWaypointArmed() ? 1U : 0U;
-    g_ozone_robot_state = static_cast<uint8_t>(get_current_state());
+    // g_ozone_robot_state = static_cast<uint8_t>(get_current_state());
     g_ozone_high_mode_active = nav_control::high_mode_active ? 1U : 0U;
 
     g_ozone_target_x = nav_control::target_x;

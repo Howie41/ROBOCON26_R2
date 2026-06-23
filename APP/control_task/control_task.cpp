@@ -41,9 +41,9 @@ static TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
 pub_Xbox_Data control_xbox_cmd{};
 
 static bool xbox_mode_last = false;
-static bool xbox_view_last = false;
-static bool xbox_lb_last = false;
-static bool xbox_rb_last = false;
+[[maybe_unused]] static bool xbox_view_last = false;
+[[maybe_unused]] static bool xbox_lb_last = false;
+[[maybe_unused]] static bool xbox_rb_last = false;
 static bool xbox_ls_last = false;
 static bool xbox_rs_last = false;
 static bool xbox_y_last_for_stair = false;
@@ -118,7 +118,7 @@ void Lift_Data_Process() {
   }
 }
 
-static bool consumeModeSwitch(bool current_state) {
+[[maybe_unused]] static bool consumeModeSwitch(bool current_state) {
   const bool rising_edge = current_state && !xbox_mode_last;
   xbox_mode_last = current_state;
   return rising_edge;
@@ -224,66 +224,66 @@ void controlTask(void *argument) {
     if (control_xbox_sub.TryGet(&control_xbox_cmd)) {
       updateStairAssistSwitch();
 
-      if (consumeModeSwitch(control_xbox_cmd.btnXbox)) {
-        if (state_machine_idle()) {
-          change_state_to(RobotState::go_to_stair_front);
-        }
-      }
+      // if (consumeModeSwitch(control_xbox_cmd.btnXbox)) {
+      //   if (state_machine_idle()) {
+      //     change_state_to(RobotState::go_to_stair_front);
+      //   }
+      // }
 
-      if (consumeButtonRisingEdge(control_xbox_cmd.btnView, &xbox_view_last)) {
-        merlin_map::identifyCurrentCell(nav_control::current_x,
-                                        nav_control::current_y);
-      }
+      // if (consumeButtonRisingEdge(control_xbox_cmd.btnView, &xbox_view_last)) {
+      //   merlin_map::identifyCurrentCell(nav_control::current_x,
+      //                                   nav_control::current_y);
+      // }
 
       if (!nav_control::auto_enabled) {
-        const bool stair_y_pressed =
+        [[maybe_unused]] const bool stair_y_pressed =
             consumeButtonRisingEdge(control_xbox_cmd.btnY,
                                     &xbox_y_last_for_stair);
-        const bool stair_a_pressed =
+        [[maybe_unused]] const bool stair_a_pressed =
             consumeButtonRisingEdge(control_xbox_cmd.btnA,
                                     &xbox_a_last_for_stair);
 
-        if (stairWaypointArmed() && state_machine_idle()) {
-          if (stair_y_pressed) {
-            change_state_to(RobotState::test_stair_up);
-            vTaskDelayUntil(&currentTime, 5);
-            continue;
-          } else if (stair_a_pressed) {
-            change_state_to(RobotState::test_stair_down);
-            vTaskDelayUntil(&currentTime, 5);
-            continue;
-          }
-        }
+        // if (stairWaypointArmed() && state_machine_idle()) {
+        //   if (stair_y_pressed) {
+        //     change_state_to(RobotState::test_stair_up);
+        //     vTaskDelayUntil(&currentTime, 5);
+        //     continue;
+        //   } else if (stair_a_pressed) {
+        //     change_state_to(RobotState::test_stair_down);
+        //     vTaskDelayUntil(&currentTime, 5);
+        //     continue;
+        //   }
+        // }
 
-        if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
-          if (state_machine_idle()) {
-            change_state_to(RobotState::turn_left_90);
-          }
-        }
+        // if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
+        //   if (state_machine_idle()) {
+        //     change_state_to(RobotState::turn_left_90);
+        //   }
+        // }
 
-        if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
-          if (state_machine_idle()) {
-            change_state_to(RobotState::turn_right_90);
-          }
-        }
+        // if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
+        //   if (state_machine_idle()) {
+        //     change_state_to(RobotState::turn_right_90);
+        //   }
+        // }
 
-        if (state_machine_idle()) {
-          Xbox_Data_Process();
+        // if (state_machine_idle()) {
+        Xbox_Data_Process();
 
-          if (!stairWaypointArmed()) {
-            Lift_Data_Process();
-          } else {
-            lift_cmd.request_high = false;
-            lift_cmd.request_low = false;
-            lift_cmd.lift_up = false;
-            lift_cmd.lift_down = false;
-            lift_cmd.lift_2006_input = 0.0f;
-          }
-          applyManualStairAssist();
-          lift_data_pub.Publish(lift_cmd);
-          chassis_cmd.nav_mode_ = false;
-          chassis_data_pub.Publish(chassis_cmd);
+        if (!stairWaypointArmed()) {
+          Lift_Data_Process();
+        } else {
+          lift_cmd.request_high = false;
+          lift_cmd.request_low = false;
+          lift_cmd.lift_up = false;
+          lift_cmd.lift_down = false;
+          lift_cmd.lift_2006_input = 0.0f;
         }
+        applyManualStairAssist();
+        lift_data_pub.Publish(lift_cmd);
+        chassis_cmd.nav_mode_ = false;
+        chassis_data_pub.Publish(chassis_cmd);
+        // }
       }
     }
 
