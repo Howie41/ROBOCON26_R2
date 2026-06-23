@@ -35,130 +35,93 @@ namespace arm_action {
 class Arm {
 
 public:
+    // 构造函数
     Arm(DM43xxMotor &arm_lift, MotorBase &arm_rotate, MotorBase &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
     ~Arm() {}
 
-    Arm& fetch() {
+    // 气泵控制类行为
+    void fetch() {
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET);
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET);
-        return *this;
     }
-    Arm& release() {
+    void release() {
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET);
-        return *this;
     }
-    Arm& destroy_vaccum_start() {
+    void destroy_vaccum_start() {
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_SET);
-        return *this;
     }
-    Arm& destroy_vaccum_stop() {
+    void destroy_vaccum_stop() {
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET);
         HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_RESET);
-        return *this;
     }
 
-    Arm& setHeight(float height_rate) {
-        arm_lift_.posWithSpeedControl(height_rate * 1080.0f, 1000.0f);
-        return *this;
-    }
+    // 气泵控制类接口
+    void place_release_start() { release(); destroy_vaccum_start(); }
+    void place_release_stop() { destroy_vaccum_stop(); }
 
-    Arm& setRotate(float rotate_angle) {
-        arm_rotate_.posWithSpeedControl(rotate_angle, 10.0f, 30.0f, 0.0f, 0.0f);
-        return *this;
-    }
-
-    Arm& setExpand(float expand_rate) {
-        arm_expand_.posWithSpeedControl(-expand_rate * 1080.0f, 8.0f, 0.2f, 0.3f, 0.0f, 0.0f);
-        return *this;
-    }
-
-    Arm& setFlip(float flip_angle) {
-        arm_flip_.posWithSpeedControl(flip_angle, 120.0f);
-        return *this;
-    }
-
-    bool getIsFinished() {
-        return arm_expand_.getIsFinished() && arm_rotate_.getIsFinished();
-    }
+    // 电机控制类行为基，为电机角度控制提供相对的基准值
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(B + pos_deg, speed_deg); }
+    void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
+    void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
+    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
     
-    Arm& addKFS() {
-        kfs_num_++;
-        return *this;
-    }
-    Arm& rmvKFS() {
-        kfs_num_--;
-        return *this;
+    // KFS数量控制类接口
+    void addKFS() { kfs_num_++; }
+    void rmvKFS() { kfs_num_--; }
+    uint8_t get_kfs_amount() { return kfs_num_; }
+    void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
+
+    // 恢复至默认姿态
+    void reset() {
+        setHeight(570.0f, 1000.0f);
+        setFlip(0.0f, 120.0f);
+        setRotate(0.0f, 3.0f, 10.0f, 20.0f);
+        setExpand(0.0f, 18.0f, 120.0f, 240.0f);
     }
 
-    Arm& place_release_start() {
-        release();
-        destroy_vaccum_start();
-        return *this;
-    }
-    Arm& place_release_stop() {
-        destroy_vaccum_stop();
-        return *this;
-    }
-
-    Arm& reset() {
-        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-        arm_rotate_.posWithSpeedControl(0.0f, 3.0f, 10.0f, 20.0f, 0.0f, 0.0f);
-        arm_expand_.posWithSpeedControl(-0.0f, 18.0f, 120.0f, 240.0f, 0.0f, 0.0f);
-        return *this;
-    }
-
-    // 获取KFS数量
-    uint8_t get_kfs_amount() {
-        return kfs_num_;
-    }
-    // 设置KFS数量
-    void set_kfs_amount(uint8_t num) {
-        kfs_num_ = num;
-    }
-
+    // 吸取KFS入储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool fetch_proceed(int8_t step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
         if (step == 1) {
             if (kfs_num_ == 0 || kfs_num_ == 1) {
                 switch (index) {
                     case 1:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-15.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 2:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(24.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(24.0f, 2.2f, 5.0f, 10.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         fetch();
                         break;
                     case 3:
-                        arm_lift_.posWithSpeedControl(B + 900.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-9.0f, 2.2f, 15.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-480.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(900.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-9.0f, 2.2f, 15.0f, 10.0f);
+                        setExpand(480.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 4:
-                        arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-40.0f, 2.4f, 10.0f, 15.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-200.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(920.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-40.0f, 2.4f, 10.0f, 15.0f);
+                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 5:
-                        arm_lift_.posWithSpeedControl(B + 940.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-87.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.4f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(940.0f, 1000.0f);
+                        setFlip(-87.0f, 120.0f);
+                        setRotate(-90.0f, 2.4f, 15.0f, 30.0f);
+                        setExpand(370.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 6:
-                        arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-168.0f, 2.3f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-524.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(1080.0f, 1000.0f);
+                        setFlip(-88.0f, 120.0f);
+                        setRotate(-168.0f, 2.3f, 15.0f, 30.0f);
+                        setExpand(524.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 7:
                         release();
@@ -168,22 +131,22 @@ public:
                         destroy_vaccum_stop();
                         break;
                     case 9:
-                        arm_lift_.posWithSpeedControl(B + 820.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-200.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(820.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 10:
-                        arm_lift_.posWithSpeedControl(B + 660.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1000.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(660.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1000.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 11:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(0.0f, 2.4f, 20.0f, 40.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-800.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(0.0f, 2.4f, 20.0f, 40.0f);
+                        setExpand(800.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 12:
                         reset();
@@ -194,41 +157,41 @@ public:
             } else if (kfs_num_ == 2) {
                 switch (index) {
                     case 1:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-15.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 2:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(24.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(24.0f, 2.2f, 5.0f, 10.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         fetch();
                         break;
                     case 3:
-                        arm_lift_.posWithSpeedControl(B + 600.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-9.0f, 2.7f, 15.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-880.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(600.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-9.0f, 2.7f, 15.0f, 10.0f);
+                        setExpand(880.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 4:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-40.0f, 2.6f, 16.0f, 15.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-760.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-40.0f, 2.6f, 16.0f, 15.0f);
+                        setExpand(760.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 5:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-85.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-720.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-85.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(720.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 6:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-85.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-280.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-85.0f, 2.5f, 15.0f, 30.0f);
+                        setExpand(280.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     default:
                         return true;
@@ -238,41 +201,41 @@ public:
             if (kfs_num_ == 0 || kfs_num_ == 1) {
                 switch (index) {
                     case 1:
-                        arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-15.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(630.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 2:
-                        arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(10.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(630.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(10.0f, 2.2f, 5.0f, 10.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         fetch();
                         break;
                     case 3:
-                        arm_lift_.posWithSpeedControl(B + 900.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-12.0f, 2.2f, 15.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-480.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(900.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-12.0f, 2.2f, 15.0f, 10.0f);
+                        setExpand(480.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 4:
-                        arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-40.0f, 2.4f, 10.0f, 15.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-200.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(920.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-40.0f, 2.4f, 10.0f, 15.0f);
+                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 5:
-                        arm_lift_.posWithSpeedControl(B + 940.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-87.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.4f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(940.0f, 1000.0f);
+                        setFlip(-87.0f, 120.0f);
+                        setRotate(-90.0f, 2.4f, 15.0f, 30.0f);
+                        setExpand(370.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 6:
-                        arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-168.0f, 2.3f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-524.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(1080.0f, 1000.0f);
+                        setFlip(-88.0f, 120.0f);
+                        setRotate(-168.0f, 2.3f, 15.0f, 30.0f);
+                        setExpand(524.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 7:
                         release();
@@ -282,22 +245,22 @@ public:
                         destroy_vaccum_stop();
                         break;
                     case 9:
-                        arm_lift_.posWithSpeedControl(B + 820.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-200.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(820.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 10:
-                        arm_lift_.posWithSpeedControl(B + 660.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1000.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(660.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1000.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 11:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(0.0f, 2.4f, 20.0f, 40.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-800.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(0.0f, 2.4f, 20.0f, 40.0f);
+                        setExpand(800.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 12:
                         reset();
@@ -308,41 +271,41 @@ public:
             } else if (kfs_num_ == 2) {
                 switch (index) {
                     case 1:
-                        arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-15.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(630.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 2:
-                        arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(10.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(630.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(10.0f, 2.2f, 5.0f, 10.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         fetch();
                         break;
                     case 3:
-                        arm_lift_.posWithSpeedControl(B + 630.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-12.0f, 2.7f, 15.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-840.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(630.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-12.0f, 2.7f, 15.0f, 10.0f);
+                        setExpand(840.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 4:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-40.0f, 2.6f, 16.0f, 15.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-760.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-40.0f, 2.6f, 16.0f, 15.0f);
+                        setExpand(760.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 5:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-85.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-720.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-85.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(720.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 6:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-85.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-280.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-85.0f, 2.5f, 15.0f, 30.0f);
+                        setExpand(280.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     default:
                         return true;
@@ -352,41 +315,41 @@ public:
             if (kfs_num_ == 0 || kfs_num_ == 1) {
                 switch (index) {
                     case 1:
-                        arm_lift_.posWithSpeedControl(B + 0.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(60.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(10.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(0.0f, 1000.0f);
+                        setFlip(60.0f, 120.0f);
+                        setRotate(10.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 2:
-                        arm_lift_.posWithSpeedControl(B + 0.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(60.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(40.0f, 2.2f, 5.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(0.0f, 1000.0f);
+                        setFlip(60.0f, 120.0f);
+                        setRotate(40.0f, 2.2f, 5.0f, 10.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         fetch();
                         break;
                     case 3:
-                        arm_lift_.posWithSpeedControl(B + 900.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-9.0f, 2.2f, 15.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-480.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(900.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-9.0f, 2.2f, 15.0f, 10.0f);
+                        setExpand(480.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 4:
-                        arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-40.0f, 2.4f, 10.0f, 15.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-200.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(920.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-40.0f, 2.4f, 10.0f, 15.0f);
+                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 5:
-                        arm_lift_.posWithSpeedControl(B + 940.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-87.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.4f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(940.0f, 1000.0f);
+                        setFlip(-87.0f, 120.0f);
+                        setRotate(-90.0f, 2.4f, 15.0f, 30.0f);
+                        setExpand(370.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 6:
-                        arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-168.0f, 2.3f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-524.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(1080.0f, 1000.0f);
+                        setFlip(-88.0f, 120.0f);
+                        setRotate(-168.0f, 2.3f, 15.0f, 30.0f);
+                        setExpand(524.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 7:
                         release();
@@ -396,22 +359,22 @@ public:
                         destroy_vaccum_stop();
                         break;
                     case 9:
-                        arm_lift_.posWithSpeedControl(B + 820.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-200.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(820.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 10:
-                        arm_lift_.posWithSpeedControl(B + 660.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-90.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1000.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(660.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1000.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 11:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(0.0f, 2.4f, 20.0f, 40.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-800.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(0.0f, 120.0f);
+                        setRotate(0.0f, 2.4f, 20.0f, 40.0f);
+                        setExpand(800.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 12:
                         reset();
@@ -422,41 +385,41 @@ public:
             } else if (kfs_num_ == 2) {
                 switch (index) {
                     case 1:
-                        arm_lift_.posWithSpeedControl(B + 0.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(60.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(10.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(0.0f, 1000.0f);
+                        setFlip(60.0f, 120.0f);
+                        setRotate(10.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 2:
-                        arm_lift_.posWithSpeedControl(B + 0.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(60.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(40.0f, 2.1f, 5.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-1080.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(0.0f, 1000.0f);
+                        setFlip(60.0f, 120.0f);
+                        setRotate(40.0f, 2.1f, 5.0f, 10.0f);
+                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
                         fetch();
                         break;
                     case 3:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(78.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-9.0f, 2.7f, 15.0f, 10.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-840.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(78.0f, 120.0f);
+                        setRotate(-9.0f, 2.7f, 15.0f, 10.0f);
+                        setExpand(840.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 4:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-40.0f, 2.7f, 6.0f, 15.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-760.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-40.0f, 2.7f, 6.0f, 15.0f);
+                        setExpand(760.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 5:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-85.0f, 2.7f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-720.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-85.0f, 2.7f, 15.0f, 30.0f);
+                        setExpand(720.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     case 6:
-                        arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                        arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                        arm_rotate_.posWithSpeedControl(-85.0f, 2.4f, 15.0f, 30.0f, 0.0f, 0.0f);
-                        arm_expand_.posWithSpeedControl(-280.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                        setHeight(570.0f, 1000.0f);
+                        setFlip(-80.0f, 120.0f);
+                        setRotate(-85.0f, 2.4f, 15.0f, 30.0f);
+                        setExpand(280.0f, 18.0f, 20.0f, 240.0f);
                         break;
                     default:
                         return true;
@@ -469,48 +432,47 @@ public:
         if (kfs_num_ == 1) {
             switch (index) {
                 case 1:
-                    arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-78.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-180.0f, 2.7f, 20.0f, 60.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(570.0f, 1000.0f);
+                    setFlip(-78.0f, 120.0f);
+                    setRotate(-180.0f, 2.7f, 20.0f, 60.0f);
+                    setExpand(370.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 2:
-                    arm_lift_.posWithSpeedControl(B + 0.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-78.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-180.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(0.0f, 1000.0f);
+                    setFlip(-78.0f, 120.0f);
+                    setRotate(-180.0f, 2.5f, 15.0f, 30.0f);
+                    setExpand(370.0f, 18.0f, 20.0f, 240.0f);
                     fetch();
                     break;
                 case 3:
-                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-78.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-158.0f, 3.9f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-355.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1080.0f, 1000.0f);
+                    setFlip(-78.0f, 120.0f);
+                    setRotate(-158.0f, 3.9f, 20.0f, 30.0f);
+                    setExpand(355.0f, 18.0f, 20.0f, 240.0f);
                     break;
-                // case 5: 未完待续，现在我要去玩MC了~  2026/6/8 21:02p.m.
                 case 4:
-                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-80.0f, 150.0f);
-                    arm_rotate_.posWithSpeedControl(-80.0f, 3.8f, 2.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-360.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1080.0f, 1000.0f);
+                    setFlip(-80.0f, 150.0f);
+                    setRotate(-80.0f, 3.8f, 2.0f, 30.0f);
+                    setExpand(360.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 5:
-                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-70.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-60.0f, 2.5f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1080.0f, 1000.0f);
+                    setFlip(-70.0f, 120.0f);
+                    setRotate(-60.0f, 2.5f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 6:
-                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-70.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-48.0f, 1.7f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(920.0f, 1000.0f);
+                    setFlip(-70.0f, 120.0f);
+                    setRotate(-48.0f, 1.7f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 7:
-                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(12.0f, 50.0f);
-                    arm_rotate_.posWithSpeedControl(-25.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(920.0f, 1000.0f);
+                    setFlip(12.0f, 50.0f);
+                    setRotate(-25.0f, 1.5f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 default:
                     return true;
@@ -518,48 +480,47 @@ public:
         } else if (kfs_num_ == 2) {
             switch (index) {
                 case 1:
-                    arm_lift_.posWithSpeedControl(B + 860.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(0.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-880.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(860.0f, 1000.0f);
+                    setFlip(-88.0f, 120.0f);
+                    setRotate(0.0f, 2.5f, 15.0f, 30.0f);
+                    setExpand(880.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 2:
-                    arm_lift_.posWithSpeedControl(B + 850.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-88.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-174.0f, 2.7f, 1.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-860.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(850.0f, 1000.0f);
+                    setFlip(-88.0f, 120.0f);
+                    setRotate(-174.0f, 2.7f, 1.0f, 30.0f);
+                    setExpand(860.0f, 18.0f, 20.0f, 240.0f);
                     fetch();
                     break;
                 case 3:
-                    arm_lift_.posWithSpeedControl(B + 1080.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-90.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-168.0f, 3.9f, 2.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-370.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1080.0f, 1000.0f);
+                    setFlip(-90.0f, 120.0f);
+                    setRotate(-168.0f, 3.9f, 2.0f, 30.0f);
+                    setExpand(370.0f, 18.0f, 20.0f, 240.0f);
                     break;
-                // case 5: 未完待续，现在我要去玩MC了~  2026/6/8 21:02p.m.
                 case 4:
-                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-40.0f, 150.0f);
-                    arm_rotate_.posWithSpeedControl(-80.0f, 3.9f, 2.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-360.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1020.0f, 1000.0f);
+                    setFlip(-40.0f, 150.0f);
+                    setRotate(-80.0f, 3.9f, 2.0f, 30.0f);
+                    setExpand(360.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 5:
-                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-70.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-60.0f, 2.5f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1020.0f, 1000.0f);
+                    setFlip(-70.0f, 120.0f);
+                    setRotate(-60.0f, 2.5f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 6:
-                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-70.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-48.0f, 1.7f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(920.0f, 1000.0f);
+                    setFlip(-70.0f, 120.0f);
+                    setRotate(-48.0f, 1.7f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 7:
-                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(12.0f, 50.0f);
-                    arm_rotate_.posWithSpeedControl(-25.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(920.0f, 1000.0f);
+                    setFlip(12.0f, 50.0f);
+                    setRotate(-25.0f, 1.5f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 default:
                     return true;
@@ -567,28 +528,28 @@ public:
         } else if (kfs_num_ == 3) {
             switch (index) {
                 case 1:
-                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-80.0f, 2.5f, 15.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1020.0f, 1000.0f);
+                    setFlip(-80.0f, 120.0f);
+                    setRotate(-80.0f, 2.5f, 15.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 2:
-                    arm_lift_.posWithSpeedControl(B + 1020.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-60.0f, 2.4f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(1020.0f, 1000.0f);
+                    setFlip(-80.0f, 120.0f);
+                    setRotate(-60.0f, 2.4f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 3:
-                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(-80.0f, 120.0f);
-                    arm_rotate_.posWithSpeedControl(-48.0f, 1.7f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(920.0f, 1000.0f);
+                    setFlip(-80.0f, 120.0f);
+                    setRotate(-48.0f, 1.7f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 case 4:
-                    arm_lift_.posWithSpeedControl(B + 920.0f, 1000.0f);
-                    arm_flip_.posWithSpeedControl(12.0f, 50.0f);
-                    arm_rotate_.posWithSpeedControl(-25.0f, 1.5f, 20.0f, 30.0f, 0.0f, 0.0f);
-                    arm_expand_.posWithSpeedControl(-660.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                    setHeight(920.0f, 1000.0f);
+                    setFlip(12.0f, 50.0f);
+                    setRotate(-25.0f, 1.5f, 20.0f, 30.0f);
+                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
                     break;
                 default:
                     return true;
@@ -606,10 +567,10 @@ public:
                 place_release_stop();
                 break;
             case 3:
-                arm_lift_.posWithSpeedControl(B + 570.0f, 1000.0f);
-                arm_flip_.posWithSpeedControl(0.0f, 120.0f);
-                arm_rotate_.posWithSpeedControl(0.0f, 2.1f, 20.0f, 30.0f, 0.0f, 0.0f);
-                arm_expand_.posWithSpeedControl(-900.0f, 18.0f, 20.0f, 240.0f, 0.0f, 0.0f);
+                setHeight(570.0f, 1000.0f);
+                setFlip(0.0f, 120.0f);
+                setRotate(0.0f, 2.1f, 20.0f, 30.0f);
+                setExpand(900.0f, 18.0f, 20.0f, 240.0f);
                 break;
             case 4:
                 reset();
