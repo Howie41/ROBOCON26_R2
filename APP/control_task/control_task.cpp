@@ -55,9 +55,6 @@ TypedTopicPublisher<pub_lift_cmd> lift_data_pub("lift_cmd");
 TypedTopicPublisher<pub_arm_cmd> arm_data_pub("arm_cmd");
 
 
-static bool xbox_view_last = false;
-static bool xbox_lb_last = false;
-static bool xbox_rb_last = false;
 static bool xbox_ls_last = false;
 static bool xbox_rs_last = false;
 static bool xbox_y_last_for_stair = false;
@@ -88,12 +85,6 @@ void Xbox_Data_Process() {
     chassis_cmd.omega_ = 0.0f;
   }
 }
-//处理升降控制输入并发布升降指令
-static bool xbox_y_last = false;
-static bool xbox_a_last = false;
-static TickType_t xbox_y_press_tick = 0;
-static TickType_t xbox_a_press_tick = 0;
-constexpr TickType_t kLiftTapTimeout = pdMS_TO_TICKS(300);
 
 void Lift_Data_Process() {
   if (control_xbox_cmd.btnY && !xbox_y_last) {
