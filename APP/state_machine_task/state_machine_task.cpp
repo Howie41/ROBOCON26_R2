@@ -109,16 +109,48 @@ uint8_t get_cmd_from_r1() {
     return cmd;
 }
 
+enum class test_action {
+    turn_left,
+    turn_right,
+    move_forward,
+    move_backward,
+    unknown,
+};
+
+test_action action = test_action::unknown;
+
 void stateMachineTask(void *argument) {
     for (;;) {
         switch (current_state.load()) {
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case RobotState::begin: {
+                wait_until([&]() -> bool {
+                    return (action != test_action::unknown);
+                });
+                change_state_to(RobotState::go_to_SHR);
                 break;
             }
 
             case RobotState::go_to_SHR: {
+                switch (action) {
+                    case test_action::turn_left:
+                        chassis_action::turn_left_90_deg();
+                        break;
+                    case test_action::turn_right:
+                        chassis_action::turn_right_90_deg();
+                        break;
+                    case test_action::move_forward:
+                        chassis_action::start_climb_upstairs();
+                        break;
+                    case test_action::move_backward:
+                        chassis_action::start_climb_downstairs();
+                        break;
+                    default:
+                        break;
+                }
+                action = test_action::unknown; // Reset action after handling
+                change_state_to(RobotState::begin);
                 break;
             }
 
