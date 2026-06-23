@@ -17,7 +17,7 @@ namespace nav_control {
 extern int16_t current_x;
 extern int16_t current_y;
 extern int16_t current_yaw;
-extern int16_t pc_reported_yaw;   // 上位机上报的 yaw (仅记录，实际控制用陀螺仪)
+extern int16_t pc_reported_yaw;
 extern int16_t target_x;
 extern int16_t target_y;
 extern int16_t target_yaw;
@@ -26,11 +26,9 @@ extern bool arrived;
 extern bool target_active;
 extern bool arrival_reported;
 extern bool high_mode_active;
+extern TickType_t g_last_position_update_tick;
 
-// 更新位置数据时间戳 (PcCom 收到位置上报时调用)
 void updatePositionTimestamp();
-
-// 重置所有导航 PID (收到新目标或手动切换时调用)
 void resetAllPIDs();
 
 }  // namespace nav_control
