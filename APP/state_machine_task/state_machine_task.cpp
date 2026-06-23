@@ -29,7 +29,7 @@ void wait_until(T &&condition, uint32_t delay_ms = 100U) {
   }
 }
 
-InfraredModuleGroup infrared_group{&infrared_module};
+extern InfraredModuleGroup infrared_group;
 TypedTopicSubscriber<pub_qr_code_parsed> qr_code_sub("qr_code_parsed", 1);
 
 void change_state_to(RobotState new_state) { current_state.store(new_state); }
