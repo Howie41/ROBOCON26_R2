@@ -24,21 +24,46 @@
 
 osThreadId_t Arm_TaskHandle;
 
+
 static TypedTopicSubscriber<pub_arm_cmd> arm_cmd_sub("arm_cmd", 8);
 static pub_arm_cmd arm_cmd{};
 
+extern Arm arm;  // 取矿机构实例
 
-extern Arm arm;
+static float time_rec = 0.0f;  // 用于记录绝对时间
 
-static float time_rec = 0.0f;
-
-static float now_t = 0.0f;
-static float last_t = 0.0f;
+static float now_t = 0.0f;  // 当前相对时刻记录
+static float last_t = 0.0f;  // 上一次相对时刻记录
 
 static uint8_t flag = 0;  // 当前功能状态值
 static uint8_t test_flag = 0;  // 上位机进行速度规划调试用时的flag
 
-void fetch_step(int8_t step) {
+
+namespace arm_action {
+
+/**
+ * @brief 吸取并放入对应层高的kfs，自动处理存入kfs的数量
+ * @note 伸出、吸取、抬起、伸入储存区、释放、恢复默认、kfs_amount+1
+ * @param 参数接收: 1, 2, -1的输入
+ */
+void load_kfs(int8_t step) { fetch_step(step); }
+
+/**
+ * @brief 取出kfs，自动识别当前kfs数量，从对应的高度取出(取最外层)
+ * @note 抬起、伸入储存区、吸取、抬起、伸出、kfs_amount-1
+ * @param -1:自动识别高度，1,2,3:指定高度
+ */
+void unload_kfs(int8_t level) { place_kfs(level); }
+
+/**
+ * @brief 承接unload_kfs，释放kfs并恢复默认动作
+ */
+void release_kfs() { place_release(); }
+
+}
+
+
+void fetch_step(int8_t step) { 
     if (arm.kfs_num_ == 3) return;
     time_rec = DWT_GetTimeline_s();
     now_t = 0.0f;
@@ -57,13 +82,25 @@ void fetch_step(int8_t step) {
     }
 }
 
-void place_kfs() {
+void place_kfs(int8_t kfs_layer = -1) {
     if (arm.kfs_num_ == 0) return;
     time_rec = DWT_GetTimeline_s();
     now_t = 0.0f;
     last_t = 0.0f;
-
-    switch (arm.kfs_num_) {
+    switch (kfs_layer) {
+        case -1:
+            switch (arm.kfs_num_) {
+                case 1:
+                    arm.is_placing_kfs_L_ = true;
+                    break;
+                case 2:
+                    arm.is_placing_kfs_M_ = true;
+                    break;
+                case 3:
+                    arm.is_placing_kfs_H_ = true;
+                    break;
+            }
+            break;
         case 1:
             arm.is_placing_kfs_L_ = true;
             break;
@@ -83,8 +120,6 @@ void place_release() {
 
     arm.is_place_releasing_ = true;
 }
-
-
 
 void armTask(void *argument) {
 
@@ -170,7 +205,9 @@ void armTask(void *argument) {
                 else if (now_t >= 7.5f && last_t < 7.5f) { arm.is_fecthing_step_L_ = false; arm.addKFS(); }
             }
             last_t = now_t;
-        } else if (arm.is_placing_kfs_L_) {  // 放置最底下的KFS进第二层
+        }
+        
+        else if (arm.is_placing_kfs_L_) {  // 放置最底下的KFS进第二层
             now_t = DWT_GetTimeline_s() - time_rec;
             if (now_t >= 0.5f && last_t < 0.5f) { arm.place_proceed(1); }
             if (now_t >= 2.0f && last_t < 2.0f) { arm.place_proceed(2); }
@@ -200,7 +237,9 @@ void armTask(void *argument) {
             if (now_t >= 3.5f && last_t < 3.5f) { arm.place_proceed(4); }
             else if (now_t >= 4.5f && last_t < 4.5f) { arm.is_placing_kfs_H_ = false; arm.rmvKFS(); }
             last_t = now_t;
-        } else if (arm.is_place_releasing_) {  // 释放KFS，回归默认姿态
+        }
+        
+        else if (arm.is_place_releasing_) {  // 释放KFS，回归默认姿态
             now_t = DWT_GetTimeline_s() - time_rec;
             if (now_t >= 0.5f && last_t < 0.5f) { arm.place_release_proceed(1); }
             if (now_t >= 1.5f && last_t < 1.5f) { arm.place_release_proceed(2); }
@@ -242,25 +281,4 @@ void armTask(void *argument) {
         osDelay(1);
     }
 }
-
-// uint8_t flag = 1;
-// void armTask(void *argument) {
-    
-//     arm.reset();
-
-//   for (;;) {
-
-//     if (arm_cmd_sub.TryGet(&arm_cmd)) {
-//         if (arm_cmd.update) {
-//             arm.fetch_proceed(1, flag);
-//             flag++;
-//         }
-//         if (arm_cmd.fetch) {
-//             flag = 1;
-//         }
-//     }
-
-//     osDelay(1);
-//   }
-// }
 

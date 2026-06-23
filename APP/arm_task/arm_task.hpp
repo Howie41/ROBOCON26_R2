@@ -20,12 +20,22 @@
 #include <stdio.h>
 
 
-#define B 66.0f // 高度补偿
+#define B 66.0f // 预高度补偿
+
+void fetch_step(int8_t step);
+void place_kfs(int8_t kfs_layer);
+void place_release();
+
+namespace arm_action {
+    void load_kfs(int8_t step);
+    void unload_kfs(int8_t level);
+    void release_kfs();
+}
 
 class Arm {
 
 public:
-    Arm(DM43xxMotor &arm_lift, MotorBase &arm_rotate, MotorBase &arm_expand, DM43xxMotor &arm_flip) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip) {}
+    Arm(DM43xxMotor &arm_lift, MotorBase &arm_rotate, MotorBase &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
     ~Arm() {}
 
     Arm& fetch() {
@@ -99,6 +109,16 @@ public:
         arm_expand_.posWithSpeedControl(-0.0f, 18.0f, 120.0f, 240.0f, 0.0f, 0.0f);
         return *this;
     }
+
+    // 获取KFS数量
+    uint8_t get_kfs_amount() {
+        return kfs_num_;
+    }
+    // 设置KFS数量
+    void set_kfs_amount(uint8_t num) {
+        kfs_num_ = num;
+    }
+
     bool fetch_proceed(int8_t step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
         if (step == 1) {
             if (kfs_num_ == 0 || kfs_num_ == 1) {
