@@ -182,7 +182,6 @@ InfraredModule infrared_module_uart4(uart4_port);
 InfraredModule infrared_module_uart9(uart9_port);
 InfraredModuleGroup infrared_group{&infrared_module_uart6, &infrared_module_uart5};
 
-InfraredModule infrared_module(uart6_port);
 #if LASER_MEASURE_ENABLE
 LaserMeasure laser1(uart7_port, 0x50);
 LaserMeasure laser2(uart8_port, 0x50);
@@ -358,7 +357,6 @@ void onUart1RxCb(const uint8_t *data, size_t len, void *user) {
 // 红外模块回调
 void onUart6RxCb(const uint8_t *data, size_t len, void *user) {
   (void)user;
-  infrared_module.UartPortRxCbHandler(data, len);
   infrared_module_uart6.UartPortRxCbHandler(data, len);
 }
 void onUart5RxCb(const uint8_t *data, size_t len, void *user) {
