@@ -79,7 +79,7 @@ DM43xxMotor arm4340_motor(&fdcan2_bus, 0x302, 0, 0x02, 0, // 抬升
 
 
 // 取矿机构
-Arm arm(arm4340_motor, arm3508_motor, arm2006_motor, arm4310_motor);
+// Arm arm(arm4340_motor, arm3508_motor, arm2006_motor, arm4310_motor);
 
 
 //尾部的电机
@@ -196,7 +196,7 @@ ROSProtocol ros_protocol(nullptr, &UsbPort::Instance());
 // 上下位机通信
 PcCom pc_com(UsbPort::Instance());
 // Motor 速度规划相关
-MotorPlanningSystem motor_planning_system;
+// MotorPlanningSystem motor_planning_system;
 
 
 /** @brief 通信系统初始化函数，负责初始化 CAN 设备、串口设备、协议解析器等
@@ -289,8 +289,8 @@ uint8_t comServiceInit() {
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
 
     // Motor速度规划系统注册电机
-    motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
-    motor_planning_system.registerMotor(arm2006_motor);
+    // motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
+    // motor_planning_system.registerMotor(arm2006_motor);
 
 
     return 0;

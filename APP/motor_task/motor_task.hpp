@@ -25,6 +25,7 @@ struct MotorController {
     PID_t current_pid;
 
     
+
 };
 
 
@@ -35,9 +36,7 @@ class MotorControllerSystem {
 
 
 
-
-
-
+void motorTask(void *argument);
 
 /* 重构前版本： */
 

@@ -105,7 +105,7 @@ void osTaskInit(void) {
   CAN3_Send_TaskHandle = osThreadNew(can3SendTask, NULL, &CAN3_SendTaskHandle_attributes);
   Debug_TaskHandle = osThreadNew(debugTask, NULL, &DebugTaskHandle_attributes);
   Motor_TaskHandle = osThreadNew(motorTask, NULL, &motorTaskHandle_attributes);
-  Arm_TaskHandle = osThreadNew(armTask, NULL, &armTaskHandle_attributes);
+//   Arm_TaskHandle = osThreadNew(armTask, NULL, &armTaskHandle_attributes);
   ChassisTaskHandle = osThreadNew(chassisTask, NULL, &ChassisTaskHandle_attributes);
   ControlTaskHandle = osThreadNew(controlTask, NULL, &ControlTaskHandle_attributes);
   uart2ProcessTaskHandle = osThreadNew(uart2RxProcessTask, NULL, &Uart2ProcessTaskHandle_attributes);
