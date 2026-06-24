@@ -63,7 +63,7 @@ void TailClawController::Init(C610Motor& move_motor, C620Motor& roll_motor)
     move_motor_ = &move_motor;
     roll_motor_ = &roll_motor;
     init_pid();
-    ResetMatchState();
+    ResetMatchState(); 
 }
 
 void TailClawController::init_pid()

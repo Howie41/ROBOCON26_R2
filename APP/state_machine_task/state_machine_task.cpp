@@ -17,6 +17,8 @@
 #include "topics.hpp"
 #include "waypoint_navigator.hpp"
 #include "tail_claw_task.hpp"
+#include "chassis_task.h"
+void state_machine();
 osThreadId_t StateMachineTaskHandle;
 
 static std::atomic<RobotState> current_state{RobotState::begin};
@@ -149,8 +151,10 @@ enum class test_action {
 
 test_action action = test_action::unknown;
 
+int start=0;
 void stateMachineTask(void *argument) {
-     TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
+    state_machine();
+    TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
     pub_Xbox_Data control_xbox_cmd{};
     for (;;) {
         switch (current_state.load()) {
@@ -326,7 +330,7 @@ void stateMachineTask(void *argument) {
     }
 }
 
-void  state_machine()
+void state_machine()
 {
     for (;;) {
         switch (current_state.load()) {
@@ -356,11 +360,14 @@ void  state_machine()
                 {
                     //按下View键进入下一状态
                     //开始进行自动
-                    tail_claw_set_roll_target(-56.5);
+                    //tail_claw_set_roll_target(-56.5);
                     //tail_claw_setAirPump(true);      //气泵的开关
                     tail_claw_set_weapon_claw(true);     //闭合夹爪，夹紧武器头，
-                    move_to_pos(-500, 15, 0,5000);
-                    tail_claw_set_roll_target(-59.5);
+                    //原点
+                    //move_to_pos(-110, 210, 0,5000);
+                    //30，210，
+                    move_to_pos(30, 210, 0,5000);
+                    //tail_claw_set_roll_target(-59.5);
                     change_state_to(RobotState::go_to_SHR);
                     
                 }
@@ -370,7 +377,12 @@ void  state_machine()
             case RobotState::go_to_SHR: {
                 //发个信号，唤醒通知tail_claw_task去对准武器头
                 //move_to_pos(-286, -840, 90,5000);
-                move_to_pos(-266, -860, 90,5000);
+                //move_to_pos(-266, -860, 90,5000);
+                //第一个点位
+                move_to_pos(430, -370, 90,5000);
+                tail_claw_set_roll_target(-59.5);
+                //第二个点位
+                //move_to_pos(430, -420, 90,5000);
                 //tail_claw_setAirPump(false);
                 tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
                 //发消息给上位机，他要发消息给我了
@@ -437,7 +449,7 @@ void  state_machine()
                     }, 3000U, 10U);
                     //change_state_to(RobotState::stop);
 
-                    change_state_to(RobotState::match_rod);
+                    change_state_to(RobotState::stop);
                     break;
             }
 
@@ -508,6 +520,7 @@ void  state_machine()
                 break;
             }
         }
-    }    
+    }
+    osDelay(1);
 }
 
