@@ -75,9 +75,9 @@ constexpr float LIFT_RISE_SPEED    = 125.0f;   // 自动上升速度 (3508 RPM)
 constexpr float LIFT_FALL_SPEED    = 100.0f;   // 自动下降速度 (可以和上升不同)
 constexpr float LIFT_POS_TOLERANCE =  2.0f;   // 位置到达判定容差 (度)
 
-constexpr float LIFT_SPEED_RAMP = 12000.0f; // 速度斜坡 (RPM/s), 出力爬升速率
+constexpr float LIFT_SPEED_RAMP = 10000.0f; // 速度斜坡 (RPM/s), 出力爬升速率
 
-constexpr float LIFT_LOW_POS = -50.0f;
+constexpr float LIFT_LOW_POS = -70.0f;
 constexpr float LIFT_HIGH_POS = 470.0f;
 
 constexpr float LIFT_2006_MOTOR1_DIR = 1.0f;
@@ -212,7 +212,7 @@ constexpr PhasePIDParams POS_PID_PARAMS[] = {
     { 3.5f, 0.03f, 0.0f,  60.0f },  // GENTLE_UP: 无负载, 小Kp+轨迹前馈
     { 3.0f, 0.02f, 0.0f,  50.0f },  // GENTLE_DOWN: 无负载, 防触地冲击
     {12.0f, 0.25f, 0.0f, 250.0f },  // CLIMBING_UP: 重载, 大Kp×满误差→瞬间饱和
-    { 8.0f, 0.12f, 0.0f, 260.0f },  // DESCENDING: 快速收腿, MaxOut↑ Ki↑
+    { 7.0f, 0.06f, 0.0f, 260.0f },  // DESCENDING: 快速收腿, MaxOut↑ Ki↑
 };
 
 // ============================================================================
@@ -267,8 +267,8 @@ PID_t lift_3508_sync_pid = {
 
 // Phase 2: 高位模式手动yaw锁角PID
 PID_t high_yaw_lock_pid = {
-    .Kp = 15.0f, .Ki = 0.05f, .Kd = 0.0f, .MaxOut = 300.0f,
-    .IntegralLimit = 150.0f, .DeadBand = 2.0f, .Improve = Integral_Limit,
+    .Kp = 15.0f, .Ki = 0.05f, .Kd = 0.0f, .MaxOut = 400.0f,
+    .IntegralLimit = 150.0f, .DeadBand = 0.3f, .Improve = Integral_Limit,
 };
 static float high_yaw_lock_ref = 0.0f;
 static bool high_was_active = false;
@@ -528,10 +528,16 @@ void liftTask(void *argument) {
         float high_forward = 0.0f;
         float high_omega = 0.0f;
 
-        if (high_nav_cmd.active &&
-            (nav_control::auto_enabled || high_nav_cmd.allow_without_auto)) {
+        const bool high_nav_active =
+            high_nav_cmd.active &&
+            (nav_control::auto_enabled || high_nav_cmd.allow_without_auto);
+
+        if (high_nav_active) {
             high_forward = -high_nav_cmd.forward_speed;
-            high_omega = high_nav_cmd.omega;
+            const float yaw_error =
+                normalizeDeg(static_cast<float>(nav_control::target_yaw) -
+                             g_chassis_yaw_deg);
+            high_omega = PID_Calculate(&high_yaw_lock_pid, 0.0f, yaw_error);
         } else if (nav_control::high_mode_active) {
             high_forward = lift_cmd.lift_2006_input * 500.0f;
             const float yaw_error =
