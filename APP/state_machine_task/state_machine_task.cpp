@@ -96,6 +96,8 @@ public:
                     default:
                         break;
                 }
+
+                break;
             }
 
             case robot_state::execute_chassis_action: {
