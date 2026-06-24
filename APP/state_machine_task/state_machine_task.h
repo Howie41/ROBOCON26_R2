@@ -8,7 +8,6 @@
 #pragma once
 
 #include "cmsis_os2.h"
-
 extern osThreadId_t StateMachineTaskHandle;
 
 void stateMachineTask(void *argument);
@@ -20,33 +19,33 @@ void stateMachineTask(void *argument);
 /** ============================= */
 
 #ifdef __cplusplus
+// SpearheadRack   SHR 端头架
+// StaffRack       SR 长杆架
 
-enum class RobotState : uint8_t {
+enum class RobotState: uint8_t {
 #ifdef MATCH_CWTY
-    begin = 0,
-    go_to_SHR,
-    go_to_stair_front,
-    aim_at_weapon,
-    catch_weapon,
-    rotate_weapon_claw,
-    wait_for_cmd,
-    go_to_MF,
-    test_stair_up,
-    test_stair_down,
-    turn_left_90,
-    turn_right_90,
-    go_to_R2_EXIT,
-    stop
+    /** ========== 崇武探幽 单项赛 ========== */
+    // 武馆
+    begin = 0,            // 启动
+    go_to_SHR,            // 前往端头架
+    aim_at_weapon,        // 夹爪对准对应武器头
+    catch_weapon,         // 夹爪夹取武器
+    rotate_weapon_claw,   // 夹爪反转
+    wait_for_cmd,         // 等待R1指令 决定继续夹取or前往梅林
+    // 梅林
+    go_to_MF,             // 前往梅林
+    // TODO 进入梅林后的状态... 
+    go_to_R2_EXIT,        // 前往R2出口
+    stop                  // 停止
 
 #elif MATCH_JGCB
-    begin = 0,
+    /** ========== 九宫藏宝 单项赛 ========== */
+    
+    begin = 0,            // 启动
+    // TODO ...
+    
 #endif
 };
-
-void change_state_to(RobotState new_state);
-RobotState get_current_state();
-bool state_machine_idle();
-
 #endif // __cplusplus
 
 #if !defined(MATCH_CWTY) && !defined(MATCH_JGCB)
