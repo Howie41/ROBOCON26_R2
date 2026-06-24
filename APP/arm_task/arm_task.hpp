@@ -43,8 +43,6 @@ public:
     // KFS数量控制类接口
     void addKFS() { kfs_num_++; }
     void rmvKFS() { kfs_num_--; }
-    uint8_t get_kfs_amount() { return kfs_num_; }
-    void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
 
     // 气泵控制类行为
     void fetch() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET); }
@@ -108,6 +106,8 @@ public:
     }
 
     // 状态属性的getter与setter
+    uint8_t get_kfs_amount() { return kfs_num_; }
+    void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
     bool get_is_fetching_step_L() { return is_fetching_step_L_; }
     void set_is_fetching_step_L(bool is_fetching_step_L) { is_fetching_step_L_ = is_fetching_step_L; }
     bool get_is_fetching_step_M() { return is_fetching_step_M_; }
