@@ -75,6 +75,16 @@ typedef struct{
  bool request_low;   //按一下A 请求降低到低位
 } pub_lift_cmd;
 
+typedef struct{
+    bool update;
+    bool fetch;
+} pub_arm_cmd;
+
+typedef struct {
+  uint8_t address1;
+  uint8_t address2;
+  uint8_t data;
+} pub_infrared_msg;
 
 typedef struct {
   float forward_speed;  // 前进速度 (RPM)，两轮同向
