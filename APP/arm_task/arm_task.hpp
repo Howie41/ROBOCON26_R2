@@ -63,19 +63,19 @@ public:
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
     bool set_pose(arm_pose pose) {
-        if (!(pose.special_operations & 0b00000001)) {
+        if (!(pose.special_operations & SKIP_MOTOR_CONTROL_)) {
             setHeight(pose.h.pos, pose.h.speed);
             setFlip(pose.f.pos, pose.f.speed);
             setRotate(pose.r.pos, pose.r.speed, pose.r.ip, pose.r.ep);
             setExpand(pose.e.pos, pose.e.speed, pose.e.ip, pose.e.ep);
         }
-        if (pose.special_operations & 0b00000010) reset();
-        if (pose.special_operations & 0b00000100) fetch();
-        if (pose.special_operations & 0b00001000) release();
-        if (pose.special_operations & 0b00010000) destroy_vaccum_start();
-        if (pose.special_operations & 0b00100000) destroy_vaccum_stop();
-        if (pose.special_operations & 0b01000000) place_release_start();
-        if (pose.special_operations & 0b10000000) place_release_stop();
+        if (pose.special_operations & RESET_) reset();
+        if (pose.special_operations & FETCH_) fetch();
+        if (pose.special_operations & RELEASE_) release();
+        if (pose.special_operations & DESTROY_VACCUM_START_) destroy_vaccum_start();
+        if (pose.special_operations & DESTROY_VACCUM_STOP_) destroy_vaccum_stop();
+        if (pose.special_operations & PLACE_RELEASE_START_) place_release_start();
+        if (pose.special_operations & PLACE_RELEASE_STOP_) place_release_stop();
         return pose.is_end;
     }
 
