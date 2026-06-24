@@ -18,6 +18,7 @@
 #include <cmath>
 #include <stdint.h>
 #include <stdio.h>
+#include "arm_actions_config.hpp"
 
 
 #define B 66.0f // 预高度补偿
@@ -39,24 +40,19 @@ public:
     Arm(DM43xxMotor &arm_lift, MotorBase &arm_rotate, MotorBase &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
     ~Arm() {}
 
-    // 气泵控制类行为
-    void fetch() {
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET);
-    }
-    void release() {
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET);
-    }
-    void destroy_vaccum_start() {
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_SET);
-    }
-    void destroy_vaccum_stop() {
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_RESET);
-    }
+    // KFS数量控制类接口
+    void addKFS() { kfs_num_++; }
+    void rmvKFS() { kfs_num_--; }
+    uint8_t get_kfs_amount() { return kfs_num_; }
+    void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
 
+    // 气泵控制类行为
+    void fetch() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET); }
+    void release() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET); }
+    void destroy_vaccum_start() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_SET); }
+    void destroy_vaccum_stop() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_RESET); }
+    // 恢复至默认姿态
+    void reset() { set_pose(arm_actions_config::reset); }
     // 气泵控制类接口
     void place_release_start() { release(); destroy_vaccum_start(); }
     void place_release_stop() { destroy_vaccum_stop(); }
@@ -67,520 +63,67 @@ public:
     void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
     
-    // KFS数量控制类接口
-    void addKFS() { kfs_num_++; }
-    void rmvKFS() { kfs_num_--; }
-    uint8_t get_kfs_amount() { return kfs_num_; }
-    void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
-
-    // 恢复至默认姿态
-    void reset() {
-        setHeight(570.0f, 1000.0f);
-        setFlip(0.0f, 120.0f);
-        setRotate(0.0f, 3.0f, 10.0f, 20.0f);
-        setExpand(0.0f, 18.0f, 120.0f, 240.0f);
+    // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
+    bool set_pose(arm_pose pose) {
+        if (!(pose.special_operations & 0b00000001)) {
+            setHeight(pose.h.pos, pose.h.speed);
+            setFlip(pose.f.pos, pose.f.speed);
+            setRotate(pose.r.pos, pose.r.speed, pose.r.ip, pose.r.ep);
+            setExpand(pose.e.pos, pose.e.speed, pose.e.ip, pose.e.ep);
+        }
+        if (pose.special_operations & 0b00000010) reset();
+        if (pose.special_operations & 0b00000100) fetch();
+        if (pose.special_operations & 0b00001000) release();
+        if (pose.special_operations & 0b00010000) destroy_vaccum_start();
+        if (pose.special_operations & 0b00100000) destroy_vaccum_stop();
+        if (pose.special_operations & 0b01000000) place_release_start();
+        if (pose.special_operations & 0b10000000) place_release_stop();
+        return pose.is_end;
     }
 
     // 吸取KFS入储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool fetch_proceed(int8_t step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
         if (step == 1) {
-            if (kfs_num_ == 0 || kfs_num_ == 1) {
-                switch (index) {
-                    case 1:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 2:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(24.0f, 2.2f, 5.0f, 10.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        fetch();
-                        break;
-                    case 3:
-                        setHeight(900.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-9.0f, 2.2f, 15.0f, 10.0f);
-                        setExpand(480.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 4:
-                        setHeight(920.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-40.0f, 2.4f, 10.0f, 15.0f);
-                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 5:
-                        setHeight(940.0f, 1000.0f);
-                        setFlip(-87.0f, 120.0f);
-                        setRotate(-90.0f, 2.4f, 15.0f, 30.0f);
-                        setExpand(370.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 6:
-                        setHeight(1080.0f, 1000.0f);
-                        setFlip(-88.0f, 120.0f);
-                        setRotate(-168.0f, 2.3f, 15.0f, 30.0f);
-                        setExpand(524.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 7:
-                        release();
-                        destroy_vaccum_start();
-                        break;
-                    case 8:
-                        destroy_vaccum_stop();
-                        break;
-                    case 9:
-                        setHeight(820.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 10:
-                        setHeight(660.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1000.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 11:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(0.0f, 2.4f, 20.0f, 40.0f);
-                        setExpand(800.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 12:
-                        reset();
-                        break;
-                    default:
-                        return true;
-                }
-            } else if (kfs_num_ == 2) {
-                switch (index) {
-                    case 1:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 2:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(24.0f, 2.2f, 5.0f, 10.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        fetch();
-                        break;
-                    case 3:
-                        setHeight(600.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-9.0f, 2.7f, 15.0f, 10.0f);
-                        setExpand(880.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 4:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-40.0f, 2.6f, 16.0f, 15.0f);
-                        setExpand(760.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 5:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-85.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(720.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 6:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-85.0f, 2.5f, 15.0f, 30.0f);
-                        setExpand(280.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    default:
-                        return true;
-                }
-            }
+            if (kfs_num_ == 0 || kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_0_1[index]);
+            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_2[index]);
         } else if (step == 2) {
-            if (kfs_num_ == 0 || kfs_num_ == 1) {
-                switch (index) {
-                    case 1:
-                        setHeight(630.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 2:
-                        setHeight(630.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(10.0f, 2.2f, 5.0f, 10.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        fetch();
-                        break;
-                    case 3:
-                        setHeight(900.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-12.0f, 2.2f, 15.0f, 10.0f);
-                        setExpand(480.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 4:
-                        setHeight(920.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-40.0f, 2.4f, 10.0f, 15.0f);
-                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 5:
-                        setHeight(940.0f, 1000.0f);
-                        setFlip(-87.0f, 120.0f);
-                        setRotate(-90.0f, 2.4f, 15.0f, 30.0f);
-                        setExpand(370.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 6:
-                        setHeight(1080.0f, 1000.0f);
-                        setFlip(-88.0f, 120.0f);
-                        setRotate(-168.0f, 2.3f, 15.0f, 30.0f);
-                        setExpand(524.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 7:
-                        release();
-                        destroy_vaccum_start();
-                        break;
-                    case 8:
-                        destroy_vaccum_stop();
-                        break;
-                    case 9:
-                        setHeight(820.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 10:
-                        setHeight(660.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1000.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 11:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(0.0f, 2.4f, 20.0f, 40.0f);
-                        setExpand(800.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 12:
-                        reset();
-                        break;
-                    default:
-                        return true;
-                }
-            } else if (kfs_num_ == 2) {
-                switch (index) {
-                    case 1:
-                        setHeight(630.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-15.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 2:
-                        setHeight(630.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(10.0f, 2.2f, 5.0f, 10.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        fetch();
-                        break;
-                    case 3:
-                        setHeight(630.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-12.0f, 2.7f, 15.0f, 10.0f);
-                        setExpand(840.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 4:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-40.0f, 2.6f, 16.0f, 15.0f);
-                        setExpand(760.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 5:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-85.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(720.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 6:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-85.0f, 2.5f, 15.0f, 30.0f);
-                        setExpand(280.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    default:
-                        return true;
-                }
-            }
+            if (kfs_num_ == 0 || kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_0_1[index]);
+            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_2[index]);
         } else if (step == -1) {
-            if (kfs_num_ == 0 || kfs_num_ == 1) {
-                switch (index) {
-                    case 1:
-                        setHeight(0.0f, 1000.0f);
-                        setFlip(60.0f, 120.0f);
-                        setRotate(10.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 2:
-                        setHeight(0.0f, 1000.0f);
-                        setFlip(60.0f, 120.0f);
-                        setRotate(40.0f, 2.2f, 5.0f, 10.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        fetch();
-                        break;
-                    case 3:
-                        setHeight(900.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-9.0f, 2.2f, 15.0f, 10.0f);
-                        setExpand(480.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 4:
-                        setHeight(920.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-40.0f, 2.4f, 10.0f, 15.0f);
-                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 5:
-                        setHeight(940.0f, 1000.0f);
-                        setFlip(-87.0f, 120.0f);
-                        setRotate(-90.0f, 2.4f, 15.0f, 30.0f);
-                        setExpand(370.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 6:
-                        setHeight(1080.0f, 1000.0f);
-                        setFlip(-88.0f, 120.0f);
-                        setRotate(-168.0f, 2.3f, 15.0f, 30.0f);
-                        setExpand(524.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 7:
-                        release();
-                        destroy_vaccum_start();
-                        break;
-                    case 8:
-                        destroy_vaccum_stop();
-                        break;
-                    case 9:
-                        setHeight(820.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(200.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 10:
-                        setHeight(660.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(-90.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1000.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 11:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(0.0f, 120.0f);
-                        setRotate(0.0f, 2.4f, 20.0f, 40.0f);
-                        setExpand(800.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 12:
-                        reset();
-                        break;
-                    default:
-                        break;
-                }
-            } else if (kfs_num_ == 2) {
-                switch (index) {
-                    case 1:
-                        setHeight(0.0f, 1000.0f);
-                        setFlip(60.0f, 120.0f);
-                        setRotate(10.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 2:
-                        setHeight(0.0f, 1000.0f);
-                        setFlip(60.0f, 120.0f);
-                        setRotate(40.0f, 2.1f, 5.0f, 10.0f);
-                        setExpand(1080.0f, 18.0f, 20.0f, 240.0f);
-                        fetch();
-                        break;
-                    case 3:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(78.0f, 120.0f);
-                        setRotate(-9.0f, 2.7f, 15.0f, 10.0f);
-                        setExpand(840.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 4:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-40.0f, 2.7f, 6.0f, 15.0f);
-                        setExpand(760.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 5:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-85.0f, 2.7f, 15.0f, 30.0f);
-                        setExpand(720.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    case 6:
-                        setHeight(570.0f, 1000.0f);
-                        setFlip(-80.0f, 120.0f);
-                        setRotate(-85.0f, 2.4f, 15.0f, 30.0f);
-                        setExpand(280.0f, 18.0f, 20.0f, 240.0f);
-                        break;
-                    default:
-                        return true;
-                }
-            }
+            if (kfs_num_ == 0 || kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_0_1[index]);
+            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_2[index]);
         }
         return false;
     }
-    bool place_proceed(uint8_t index) {
-        if (kfs_num_ == 1) {
-            switch (index) {
-                case 1:
-                    setHeight(570.0f, 1000.0f);
-                    setFlip(-78.0f, 120.0f);
-                    setRotate(-180.0f, 2.7f, 20.0f, 60.0f);
-                    setExpand(370.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 2:
-                    setHeight(0.0f, 1000.0f);
-                    setFlip(-78.0f, 120.0f);
-                    setRotate(-180.0f, 2.5f, 15.0f, 30.0f);
-                    setExpand(370.0f, 18.0f, 20.0f, 240.0f);
-                    fetch();
-                    break;
-                case 3:
-                    setHeight(1080.0f, 1000.0f);
-                    setFlip(-78.0f, 120.0f);
-                    setRotate(-158.0f, 3.9f, 20.0f, 30.0f);
-                    setExpand(355.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 4:
-                    setHeight(1080.0f, 1000.0f);
-                    setFlip(-80.0f, 150.0f);
-                    setRotate(-80.0f, 3.8f, 2.0f, 30.0f);
-                    setExpand(360.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 5:
-                    setHeight(1080.0f, 1000.0f);
-                    setFlip(-70.0f, 120.0f);
-                    setRotate(-60.0f, 2.5f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 6:
-                    setHeight(920.0f, 1000.0f);
-                    setFlip(-70.0f, 120.0f);
-                    setRotate(-48.0f, 1.7f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 7:
-                    setHeight(920.0f, 1000.0f);
-                    setFlip(12.0f, 50.0f);
-                    setRotate(-25.0f, 1.5f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                default:
-                    return true;
-            }
-        } else if (kfs_num_ == 2) {
-            switch (index) {
-                case 1:
-                    setHeight(860.0f, 1000.0f);
-                    setFlip(-88.0f, 120.0f);
-                    setRotate(0.0f, 2.5f, 15.0f, 30.0f);
-                    setExpand(880.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 2:
-                    setHeight(850.0f, 1000.0f);
-                    setFlip(-88.0f, 120.0f);
-                    setRotate(-174.0f, 2.7f, 1.0f, 30.0f);
-                    setExpand(860.0f, 18.0f, 20.0f, 240.0f);
-                    fetch();
-                    break;
-                case 3:
-                    setHeight(1080.0f, 1000.0f);
-                    setFlip(-90.0f, 120.0f);
-                    setRotate(-168.0f, 3.9f, 2.0f, 30.0f);
-                    setExpand(370.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 4:
-                    setHeight(1020.0f, 1000.0f);
-                    setFlip(-40.0f, 150.0f);
-                    setRotate(-80.0f, 3.9f, 2.0f, 30.0f);
-                    setExpand(360.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 5:
-                    setHeight(1020.0f, 1000.0f);
-                    setFlip(-70.0f, 120.0f);
-                    setRotate(-60.0f, 2.5f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 6:
-                    setHeight(920.0f, 1000.0f);
-                    setFlip(-70.0f, 120.0f);
-                    setRotate(-48.0f, 1.7f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 7:
-                    setHeight(920.0f, 1000.0f);
-                    setFlip(12.0f, 50.0f);
-                    setRotate(-25.0f, 1.5f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                default:
-                    return true;
-            }
-        } else if (kfs_num_ == 3) {
-            switch (index) {
-                case 1:
-                    setHeight(1020.0f, 1000.0f);
-                    setFlip(-80.0f, 120.0f);
-                    setRotate(-80.0f, 2.5f, 15.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 2:
-                    setHeight(1020.0f, 1000.0f);
-                    setFlip(-80.0f, 120.0f);
-                    setRotate(-60.0f, 2.4f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 3:
-                    setHeight(920.0f, 1000.0f);
-                    setFlip(-80.0f, 120.0f);
-                    setRotate(-48.0f, 1.7f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                case 4:
-                    setHeight(920.0f, 1000.0f);
-                    setFlip(12.0f, 50.0f);
-                    setRotate(-25.0f, 1.5f, 20.0f, 30.0f);
-                    setExpand(660.0f, 18.0f, 20.0f, 240.0f);
-                    break;
-                default:
-                    return true;
-            }
-        }
+    // 取出KFS出储存的具体原子动作序列（包含姿态点位，不包含时间序列）
+    bool place_proceed(uint8_t index) {  // 此函数不会减少kfs_num_，需要在外部结束动作链后主动减少kfs_num_
+        if (kfs_num_ == 1) return set_pose(arm_actions_config::place_proceed::kfs_1[index]);
+        else if (kfs_num_ == 2) return set_pose(arm_actions_config::place_proceed::kfs_2[index]);
+        else if (kfs_num_ == 3) return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
         return false;
     }
-
+    // 释放取出的KFS，并reset
     bool place_release_proceed(uint8_t index) {
-        switch (index) {
-            case 1:
-                place_release_start();
-                break;
-            case 2:
-                place_release_stop();
-                break;
-            case 3:
-                setHeight(570.0f, 1000.0f);
-                setFlip(0.0f, 120.0f);
-                setRotate(0.0f, 2.1f, 20.0f, 30.0f);
-                setExpand(900.0f, 18.0f, 20.0f, 240.0f);
-                break;
-            case 4:
-                reset();
-                break;
-            default:
-                return true;
-        }
-        return false;
+        return set_pose(arm_actions_config::place_release_proceed[index]);
     }
 
+    // 状态属性的getter与setter
+    bool get_is_fetching_step_L() { return is_fetching_step_L_; }
+    void set_is_fetching_step_L(bool is_fetching_step_L) { is_fetching_step_L_ = is_fetching_step_L; }
+    bool get_is_fetching_step_M() { return is_fetching_step_M_; }
+    void set_is_fetching_step_M(bool is_fetching_step_M) { is_fetching_step_M_ = is_fetching_step_M; }
+    bool get_is_fetching_step_H() { return is_fetching_step_H_; }
+    void set_is_fetching_step_H(bool is_fetching_step_H) { is_fetching_step_H_ = is_fetching_step_H; }
+    bool get_is_placing_kfs_L() { return is_placing_kfs_L_; }
+    void set_is_placing_kfs_L(bool is_placing_kfs_L) { is_placing_kfs_L_ = is_placing_kfs_L; }
+    bool get_is_placing_kfs_M() { return is_placing_kfs_M_; }
+    void set_is_placing_kfs_M(bool is_placing_kfs_M) { is_placing_kfs_M_ = is_placing_kfs_M; }
+    bool get_is_placing_kfs_H() { return is_placing_kfs_H_; }
+    void set_is_placing_kfs_H(bool is_placing_kfs_H) { is_placing_kfs_H_ = is_placing_kfs_H; }
+    bool get_is_place_releasing() { return is_place_releasing_; }
+    void set_is_place_releasing(bool is_place_releasing) { is_place_releasing_ = is_place_releasing; }
+    
+private:
     DM43xxMotor &arm_lift_;
     MotorBase &arm_rotate_;
     MotorBase &arm_expand_;
@@ -588,9 +131,9 @@ public:
 
     uint8_t kfs_num_{0};
 
-    bool is_fecthing_step_L_{false};
-    bool is_fecthing_step_M_{false};
-    bool is_fecthing_step_H_{false};
+    bool is_fetching_step_L_{false};
+    bool is_fetching_step_M_{false};
+    bool is_fetching_step_H_{false};
 
     bool is_placing_kfs_L_{false};
     bool is_placing_kfs_M_{false};
