@@ -47,38 +47,18 @@ public:
             }
 
             case robot_state::go_to_SHR: {
-                move_to_pos(wp_corridor, 0);
-                change_state_to(robot_state::aim_at_weapon);
                 break;
             }
 
             case robot_state::aim_at_weapon: {
-                move_to_pos(wp_before_uphill, 0);
-                change_state_to(robot_state::catch_weapon);
                 break;
             }
 
             case robot_state::catch_weapon: {
-                move_to_pos(wp_after_uphill, 0);
-                change_state_to(robot_state::rotate_weapon_claw);
                 break;
             }
 
             case robot_state::rotate_weapon_claw: {
-                move_to_pos(wp_before_rotate, 0);
-                change_state_to(robot_state::wait_for_cmd);
-                break;
-            }
-
-            case robot_state::wait_for_cmd: {
-                move_to_pos(wp_after_rotate, 0);
-                change_state_to(robot_state::test1);
-                break;
-            }
-
-            case robot_state::test1: {
-                move_to_pos(wp_grid, 0);
-                change_state_to(robot_state::begin);
                 break;
             }
 
@@ -160,9 +140,7 @@ private:
         catch_weapon,         // 夹爪夹取武器
         rotate_weapon_claw,   // 夹爪反转
         wait_for_cmd,         // 等待R1指令 决定继续夹取or前往梅林
-        test1,
-        test2,
-        test3,
+
         // 梅林
         go_to_MF_entrance,     // 前往梅林入口
         request_for_path_cmd,  // 请求路径规划命令
