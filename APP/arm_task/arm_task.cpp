@@ -89,17 +89,7 @@ void place_kfs(int8_t kfs_layer = -1) {
     last_t = 0.0f;
     switch (kfs_layer) {
         case -1:
-            switch (arm.get_kfs_amount()) {
-                case 1:
-                    arm.set_is_placing_kfs_L(true);
-                    break;
-                case 2:
-                    arm.set_is_placing_kfs_M(true);
-                    break;
-                case 3:
-                    arm.set_is_placing_kfs_H(true);
-                    break;
-            }
+            place_kfs(arm.get_kfs_amount());
             break;
         case 1:
             arm.set_is_placing_kfs_L(true);

@@ -21,8 +21,6 @@
 #include "arm_actions_config.hpp"
 
 
-#define B 66.0f // 预高度补偿
-
 void fetch_step(int8_t step);
 void place_kfs(int8_t kfs_layer);
 void place_release();
@@ -40,23 +38,8 @@ public:
     Arm(DM43xxMotor &arm_lift, MotorBase &arm_rotate, MotorBase &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
     ~Arm() {}
 
-    // KFS数量控制类接口
-    void addKFS() { kfs_num_++; }
-    void rmvKFS() { kfs_num_--; }
-
-    // 气泵控制类行为
-    void fetch() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET); }
-    void release() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET); }
-    void destroy_vaccum_start() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_SET); }
-    void destroy_vaccum_stop() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_RESET); }
-    // 恢复至默认姿态
-    void reset() { set_pose(arm_actions_config::reset); }
-    // 气泵控制类接口
-    void place_release_start() { release(); destroy_vaccum_start(); }
-    void place_release_stop() { destroy_vaccum_stop(); }
-
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(B + pos_deg, speed_deg); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(66.0f + pos_deg, speed_deg); }
     void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
@@ -104,6 +87,21 @@ public:
     bool place_release_proceed(uint8_t index) {
         return set_pose(arm_actions_config::place_release_proceed[index]);
     }
+
+    // KFS数量控制类接口
+    void addKFS() { kfs_num_++; }
+    void rmvKFS() { kfs_num_--; }
+
+    // 气泵控制类行为
+    void fetch() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET); }
+    void release() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET); }
+    void destroy_vaccum_start() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_SET); }
+    void destroy_vaccum_stop() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_RESET); }
+    // 恢复至默认姿态
+    void reset() { set_pose(arm_actions_config::reset); }
+    // 气泵控制类接口
+    void place_release_start() { release(); destroy_vaccum_start(); }
+    void place_release_stop() { destroy_vaccum_stop(); }
 
     // 状态属性的getter与setter
     uint8_t get_kfs_amount() { return kfs_num_; }
