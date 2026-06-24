@@ -38,7 +38,7 @@ PID_t pid_yaw = {
     .Kd = 0.001f,
     .MaxOut = 2.0f,
     .IntegralLimit = 0.35f,
-    .DeadBand = 0.3f,
+    .DeadBand = 0.2f,
     .Improve = Integral_Limit,
 };
 
@@ -55,12 +55,12 @@ PID_t pid_high_distance = {
 
 // Phase 2: 高位2006导航 — yaw锁角PID (输出2006 RPM)
 PID_t pid_high_yaw = {
-    .Kp = 1.0f,
+    .Kp = 2.0f,
     .Ki = 0.02f,
     .Kd = 0.0f,
     .MaxOut = 300.0f,
     .IntegralLimit = 150.0f,
-    .DeadBand = 0.5f,
+    .DeadBand = 0.3f,
     .Improve = Integral_Limit,
 };
 

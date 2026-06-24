@@ -20,7 +20,7 @@ std::atomic<uint8_t> g_stair_waypoint_level{0};
 std::atomic<bool> g_stair_waypoint_armed{false};
 
 TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
-constexpr float kDescendLaserSeekSpeedRpm = -100.0f;
+constexpr float kDescendLaserSeekSpeedRpm = -50.0f;
 constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.2f;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
@@ -30,7 +30,7 @@ constexpr int16_t kDescendRetreatToLowerMm = 950;
 constexpr float kPassDistanceMm = 200.0f;
 constexpr uint32_t kPassHoldMs = 1000U;
 constexpr TickType_t kPassFreshWindowTicks = pdMS_TO_TICKS(200);
-constexpr uint32_t kPosePollDelayMs = 10U;
+constexpr uint32_t kPosePollDelayMs = 5U;
 
 template <typename T>
 void wait_until(T &&condition, uint32_t delay_ms = 100U) {
@@ -356,7 +356,7 @@ void stairWaypointRunUp() {
   g_stair_waypoint_step.store(21);
   stop_auto_nav();
   if (!climb_high_triggered_early) {
-    publishManualChassisCmd(0.12f, 0.0f, 0.0f);
+    publishManualChassisCmd(0.18f, 0.0f, 0.0f);
     wait_until([]() {
       stairAssistUpdate();
       return stairAssistSuggestClimbUp();

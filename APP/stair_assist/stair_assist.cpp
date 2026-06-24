@@ -25,13 +25,13 @@ constexpr int32_t kLaser1EdgeMinMm = 800;
 // Laser3 is another front-facing stair laser. It uses the same state logic as
 // laser1, but keeps its own thresholds so field tuning does not affect laser1.
 constexpr int32_t kLaser3NearMinMm = 400;
-constexpr int32_t kLaser3NearMaxMm = 500;
+constexpr int32_t kLaser3NearMaxMm = 470;
 constexpr int32_t kLaser3EdgeMinMm = 800;
 
 constexpr int32_t kLaser2ClimbHighMinMm = 210;
 constexpr int32_t kLaser2ClimbHighMaxMm = 240;
-constexpr int32_t kLaser2DescendLowerMinMm = 300;
-constexpr int32_t kLaser2DescendLowerMaxMm = 400;
+constexpr int32_t kLaser2DescendLowerMinMm = 280;
+constexpr int32_t kLaser2DescendLowerMaxMm = 500;
 
 // Laser2 is mounted on the front leg and uses the user's current estimates:
 // ground ~600 mm, high suspended ~1000 mm, step contact ~300 mm.
