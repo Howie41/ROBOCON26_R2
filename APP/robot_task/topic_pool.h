@@ -75,11 +75,22 @@ typedef struct{
  bool request_low;   //按一下A 请求降低到低位
 } pub_lift_cmd;
 
+typedef struct{
+    bool update;
+    bool fetch;
+} pub_arm_cmd;
+
+typedef struct {
+  uint8_t address1;
+  uint8_t address2;
+  uint8_t data;
+} pub_infrared_msg;
 
 typedef struct {
   float forward_speed;  // 前进速度 (RPM)，两轮同向
   float omega;          // 差速旋转 (RPM)，正值=左轮加速右轮减速
   bool active;          // true=2006自动导航激活
+  bool allow_without_auto;
   bool request_lower;   // 到达目标后请求降回低位
 } pub_high_nav_cmd;
 

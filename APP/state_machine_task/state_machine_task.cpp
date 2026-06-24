@@ -139,7 +139,16 @@ uint8_t get_cmd_from_r1() {
     return cmd;
 }
 
-int start=0;
+enum class test_action {
+    turn_left,
+    turn_right,
+    move_forward,
+    move_backward,
+    unknown,
+};
+
+test_action action = test_action::unknown;
+
 void stateMachineTask(void *argument) {
      TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
     pub_Xbox_Data control_xbox_cmd{};
@@ -148,60 +157,32 @@ void stateMachineTask(void *argument) {
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case RobotState::begin: {
-                if(start==2)
-                {
-                    clean_previous_cmd();
-                    wait_until([&]() -> bool {
-                    switch (get_cmd_from_r1()) {
-                        /*case 0x1A: // 夹取新的武器头
-                            change_state_to(RobotState::go_to_SHR);
-                            return true;
-                        case 0x1B: // 进入梅林
-                            change_state_to(RobotState::go_to_MF);
-                            return true;*/
-                            case 0x0A:
-                                tail_claw_set_weapon_claw(true);
-                                tail_claw_set_roll_target(-56.5);
-                                return true;
-                        default:
-                            return false;
-                    }
+                wait_until([&]() -> bool {
+                    return (action != test_action::unknown);
                 });
-                }
-                if(start==1) 
-                {
-
-                    const bool view_rising_edge =
-                    consume_state_machine_view(control_xbox_cmd.btnView);
-                    control_xbox_cmd.btnView = view_rising_edge;
-                    if (view_rising_edge) {
-                        tail_claw_set_mode(TailClawMode::Hold);//锁定当前的位置
-                    }
-                    if (start==1) {//按下View键进入下一状态
-                        //开始进行自动
-                        tail_claw_set_roll_target(-56.5);
-                        //tail_claw_setAirPump(true);      //气泵的开关
-                        tail_claw_set_weapon_claw(true);     //闭合夹爪，夹紧武器头，
-                        move_to_pos(-500, 15, 0,5000);
-                        tail_claw_set_roll_target(-59.5);
-                        change_state_to(RobotState::go_to_SHR);
-                    }
-                }
+                change_state_to(RobotState::go_to_SHR);
                 break;
             }
 
             case RobotState::go_to_SHR: {
-                //发个信号，唤醒通知tail_claw_task去对准武器头
-                //move_to_pos(-286, -840, 90,5000);
-                move_to_pos(-266, -860, 90,5000);
-                //tail_claw_setAirPump(false);
-                tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
-                //发消息给上位机，他要发消息给我了
-                tail_claw_msg msg{0}; 
-                msg.distance = 1;
-                tail_claw_weapon_event_pub.Publish(msg);
-                // tail_claw_task会根据距离数据调整位置
-                change_state_to(RobotState::aim_at_weapon);
+                switch (action) {
+                    case test_action::turn_left:
+                        chassis_action::turn_left_90_deg();
+                        break;
+                    case test_action::turn_right:
+                        chassis_action::turn_right_90_deg();
+                        break;
+                    case test_action::move_forward:
+                        chassis_action::start_climb_upstairs();
+                        break;
+                    case test_action::move_backward:
+                        chassis_action::start_climb_downstairs();
+                        break;
+                    default:
+                        break;
+                }
+                action = test_action::unknown; // Reset action after handling
+                change_state_to(RobotState::begin);
                 break;
             }
 

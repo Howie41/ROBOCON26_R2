@@ -14,7 +14,6 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 #include "Motor.hpp"
 #include "pid_controller.h"
 
@@ -37,7 +36,7 @@ public:
     /** @brief 注册电机到规划系统
      *  @param motor 电机对象，必须继承自MotorBase并实现相关接口。
      */
-    void registerMotor(MotorBase &motor) {
+    MotorPlanningUnit *registerMotor(MotorBase &motor) {
         motor_planning_units_[motor_count_] = new MotorPlanningUnit{
             .motor = &motor,
             .pos_pid = {
@@ -45,14 +44,14 @@ public:
                 .Ki = 0.0f,
                 .Kd = 2.5f,
                 .MaxOut = 60.0f,
-                .DeadBand = 0.1f
+                .DeadBand = 0.01f
             },
             .speed_pid = {
-                .Kp = 2000.0f,
-                .Ki = 0.06f,
+                .Kp = 2200.0f,
+                .Ki = 600.0f,
                 .Kd = 1.8f,
                 .MaxOut = 12000.0f,
-                .DeadBand = 0.5f
+                .DeadBand = 0.1f
             }
         };
 
@@ -60,8 +59,8 @@ public:
         PID_Init(&motor_planning_units_[motor_count_]->speed_pid);
         
         motor_count_++;
+        return motor_planning_units_[motor_count_ - 1];
     }
-
     /** @brief 更新电机规划
      *  @note 该函数在motorTask中周期调用，用于实时更新电机命令。
      */
