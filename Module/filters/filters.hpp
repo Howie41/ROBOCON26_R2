@@ -65,7 +65,7 @@ public:
         if (count == WINDOW_SIZE) sum -= buffer[index];
         else count++;
         buffer[index] = x;
-        sum += x;// / alpha;
+        sum += x;
         index++;
         if (index >= WINDOW_SIZE) index = 0;
         return sum / (float)count;
