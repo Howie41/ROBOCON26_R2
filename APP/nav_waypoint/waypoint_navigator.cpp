@@ -23,6 +23,8 @@ TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
 constexpr float kDescendLaserSeekSpeedRpm = -50.0f;
 constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.2f;
+constexpr int16_t kR1ClimbYawDeg = -90;
+constexpr int16_t kR1PostLowAdvanceMm = 0;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
 constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
@@ -147,6 +149,11 @@ field::StairPose advancePoseByHeading(int16_t x, int16_t y, int16_t advance_mm) 
   }
 
   return field::StairPose{x, y, headingYawDeg()};
+}
+
+field::StairPose advancePoseNegY(int16_t x, int16_t y, int16_t advance_mm) {
+  return field::StairPose{x, static_cast<int16_t>(y - advance_mm),
+                          kR1ClimbYawDeg};
 }
 
 field::StairPose stairStandbyPoseForLevel(uint8_t level) {
@@ -422,6 +429,72 @@ void stairWaypointRunUp() {
     g_stair_waypoint_level.store(next_level);
   }
   g_stair_waypoint_armed.store(true);
+  g_stair_waypoint_step.store(0);
+  stop_auto_nav();
+}
+
+void stairWaypointRunUpR1() {
+  stairAssistSetMode(StairAssistMode::ClimbUp);
+  stairAssistSetAutoLowerEnabled(true);
+  stairAssistSetEnabled(true);
+
+  g_stair_waypoint_step.store(31);
+  stop_auto_nav();
+  wait_until([]() {
+    stairAssistUpdate();
+    return stairAssistSuggestClimbUp();
+  }, 10U);
+
+  const int16_t trigger_x = nav_control::current_x;
+  const int16_t trigger_y = nav_control::current_y;
+  const field::StairPose high_drive_pose =
+      advancePoseNegY(trigger_x, trigger_y, kClimbAdvanceToLowerMm);
+
+  g_stair_waypoint_step.store(32);
+  stop_auto_nav();
+  liftRequestHigh();
+  wait_until([]() { return nav_control::high_mode_active; }, 10U);
+
+  g_stair_waypoint_step.store(33);
+  const bool climb_lower_triggered_early =
+      move_to_pose_until_trigger(high_drive_pose, true, []() {
+        return stairAssistShouldLowerAfterClimbAdvance();
+      });
+
+  g_stair_waypoint_step.store(34);
+  stop_auto_nav();
+  if (!climb_lower_triggered_early) {
+    pub_high_nav_cmd crawl_cmd{};
+    crawl_cmd.active = true;
+    crawl_cmd.allow_without_auto = true;
+    crawl_cmd.forward_speed = kClimbLaserSeekSpeedRpm;
+    crawl_cmd.omega = 0.0f;
+    stair_high_nav_pub.Publish(crawl_cmd);
+    wait_until([]() {
+      stairAssistUpdate();
+      return stairAssistShouldLowerAfterClimbAdvance();
+    }, 10U);
+    pub_high_nav_cmd stop_cmd{};
+    stop_cmd.active = false;
+    stop_cmd.allow_without_auto = false;
+    stop_cmd.forward_speed = 0.0f;
+    stop_cmd.omega = 0.0f;
+    stair_high_nav_pub.Publish(stop_cmd);
+  }
+
+  liftRequestLow();
+  wait_until([]() { return !nav_control::high_mode_active; }, 10U);
+  stairAssistSetEnabled(false);
+  stairAssistSetAutoLowerEnabled(false);
+
+  g_stair_waypoint_step.store(35);
+  if (kR1PostLowAdvanceMm > 0) {
+    const field::StairPose post_low_pose =
+        advancePoseNegY(nav_control::current_x, nav_control::current_y,
+                        kR1PostLowAdvanceMm);
+    move_to_pose(post_low_pose, true);
+  }
+
   g_stair_waypoint_step.store(0);
   stop_auto_nav();
 }
