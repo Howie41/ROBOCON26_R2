@@ -20,6 +20,8 @@
 #pragma once
 
 #include "Canbus.hpp"
+#include "SoftwareWatchdog.hpp"
+#include "Watchdog.hpp"
 #include <cmath>
 #include <stdint.h>
 #include <stdio.h>
@@ -28,8 +30,6 @@
 #define DEGREE_2_RAD 0.01745329252f    // pi/180  角度转化成弧度
 #define RPM_2_ANGLE_PER_SEC 6.0f       // 360/60,转每分钟 转化 度每秒
 #define RPM_2_RAD_PER_SEC 0.104719755f // ×2pi/60sec,转每分钟 转化 弧度每秒
-
-class C610Motor;
 
 class MotorBase {
 public:
@@ -41,11 +41,14 @@ public:
      * @param cmd 目标命令值。
      */
     void setMotorCmd(float cmd) {
-        if (cmd > max_cmd_)
-            cmd = max_cmd_;
-        if (cmd < -max_cmd_)
-            cmd = -max_cmd_;
-        cmd_ = cmd;
+        if (offline_wd_.state() == WatchdogState::TRIGGERED) {
+            // 电机offline
+            cmd_ = 0;
+        } else {
+            if (cmd > max_cmd_) cmd = max_cmd_;
+            if (cmd < -max_cmd_) cmd = -max_cmd_;
+            cmd_ = cmd;
+        }
     }
 
     /**
@@ -114,6 +117,16 @@ public:
      */
     float getRawCurrentTorque(void) const { return raw_torque_; }
 
+
+      // offline 检测
+  void setOfflineDeadline(const uint32_t offline_deadline) {
+    offline_wd_.setTimeout(offline_deadline);
+  }
+  void setOfflineDebounce(const uint32_t offline_debounce) {
+    offline_wd_.setDebounce(offline_debounce);
+  }
+
+
     /** @brief 一个纯函数，用于表示vx图象的缓冲区曲线（二次曲线拟合结果，已归一化）
      *  @param x 0~1
      *  @return y 0~1
@@ -134,19 +147,28 @@ public:
         if (fabsf(pos - tar_sum_pos_) < 0.1f) {
             return;
         }
-        tar_sum_pos_ = pos;
-        max_speed_ = speed;
-        ini_buffer_pos_ = ini_buffer_pos;
-        end_buffer_pos_ = end_buffer_pos;
-        ini_speed_ = ini_speed < 0.6f ? (ini_speed == 0.0 ? (getCurrentSpeed() < 0.6f ? 0.6f : getCurrentSpeed()) : 0.6f) : ini_speed;
-        end_speed_ = end_speed;
-
-        ini_buffer_rate_ = fabsf(ini_buffer_pos_ / (tar_sum_pos_ - ini_sum_pos_));
-        end_buffer_rate_ = fabsf(end_buffer_pos_ / (tar_sum_pos_ - ini_sum_pos_));
-        pos_process_ = 0.0f;
         if (is_finished_) {
             ini_sum_pos_ = getCurrentSumPos();
         }
+        tar_sum_pos_ = pos;
+        max_speed_ = speed;
+        if (ini_buffer_pos < 1.0f) {
+            ini_buffer_pos_ = ini_buffer_pos * (tar_sum_pos_ - ini_sum_pos_);
+            ini_buffer_rate_ = ini_buffer_pos;
+        } else {
+            ini_buffer_pos_ = ini_buffer_pos;
+            ini_buffer_rate_ = fabsf(ini_buffer_pos_ / (tar_sum_pos_ - ini_sum_pos_));
+        }
+        if (end_buffer_pos < 1.0f) {
+            end_buffer_pos_ = end_buffer_pos * (tar_sum_pos_ - ini_sum_pos_);
+            end_buffer_rate_ = end_buffer_pos;
+        } else {
+            end_buffer_pos_ = end_buffer_pos;
+            end_buffer_rate_ = fabsf(end_buffer_pos_ / (tar_sum_pos_ - ini_sum_pos_));
+        }
+        ini_speed_ = ini_speed < 0.6f ? (ini_speed == 0.0 ? (getCurrentSpeed() < 0.6f ? 0.6f : getCurrentSpeed()) : 0.6f) : ini_speed;
+        end_speed_ = end_speed;
+        pos_process_ = 0.0f;
     };
 
     /** @brief 更新速度进程
@@ -156,10 +178,10 @@ public:
     float updateSpeedProcess() {
         is_finished_ = getIsFinished();
         pos_process_ = (getCurrentSumPos() - ini_sum_pos_) / (tar_sum_pos_ - ini_sum_pos_);
-        if (pos_process_ < ini_buffer_rate_) {  // 加速阶段：速度从ini_speed_平滑过渡到max_speed_
-            v_ = ini_speed_ + (max_speed_ - ini_speed_) * f_vx_buffer(pos_process_ / ini_buffer_rate_);
-        } else if (pos_process_ > 1.0f - end_buffer_rate_) {  // 减速阶段：速度从max_speed_平滑过渡到end_speed_
+        if (pos_process_ > 1.0f - end_buffer_rate_) {  // 减速阶段：速度从max_speed_平滑过渡到end_speed_
             v_ = end_speed_ + (max_speed_ - end_speed_) * f_vx_buffer((1.0f - pos_process_) / end_buffer_rate_);
+        } else if (pos_process_ < ini_buffer_rate_) {  // 加速阶段：速度从ini_speed_平滑过渡到max_speed_
+            v_ = ini_speed_ + (max_speed_ - ini_speed_) * f_vx_buffer(pos_process_ / ini_buffer_rate_);
         } else {  // 匀速阶段：保持在max_speed_
             v_ = max_speed_;
         }
@@ -207,6 +229,16 @@ public:
     float v_{0.0f};
 
     bool is_finished_{true};
+
+      // off-line check
+  // ,电机类只知道自己绑定了一个看门狗，但是不知道绑定了什么行为，绑定什么行为是应用层决定的
+    SoftwareWatchdog<DWTMsSource> offline_wd_ {
+        50,
+        {},
+        WatchdogMode::AUTO_REARM, // 数据恢复自动清除
+        2
+    };
+
 };
 
 enum DJIMotorCanGroup {
@@ -249,9 +281,12 @@ public:
      * @param reduction_ratio 输出端减速比。
      * @param max_cmd 允许的最大命令值。
      */
-    void init(float reduction_ratio = 36, float max_cmd = 10000.f) {
+void init(float reduction_ratio = 36, float max_cmd = 10000.f,
+            uint32_t offline_deadline = 50, uint32_t offline_debounce = 2) {
         setMotorReduction(reduction_ratio);
         setMaxCmd(max_cmd);
+        setOfflineDeadline(offline_deadline);
+        setOfflineDebounce(offline_debounce);
     }
 
     /**
@@ -262,6 +297,11 @@ public:
     void onRx(const uint8_t data[8], uint8_t len) override {
         if (len < 8)
             return;
+
+    if (offline_wd_.isIdle()) {
+      offline_wd_.arm();
+    }
+    offline_wd_.feed();
 
         // byte 0-1: 编码器(单圈位置 0-8191)
         encoder_ = (uint16_t)(data[0] << 8 | data[1]);
@@ -337,7 +377,7 @@ private:
     float encoder_angle_ratio_ = 8192.0f / 360.0f;
 
     // 电流转力矩
-    float current_to_torque_{0.0f}; // M3508: 0.2 Nm/A
+    float current_to_torque_{0.2f}; // M3508: 0.2 Nm/A
 };
 
 class C620Motor : public CanDevice, public MotorBase {
@@ -359,9 +399,12 @@ public:
      * @param reduction_ratio 输出端减速比。
      * @param max_cmd 允许的最大命令值。
      */
-    void init(float reduction_ratio = 19, float max_cmd = 20000.0f) {
+    void init(float reduction_ratio = 19, float max_cmd = 20000.0f,
+            uint32_t offline_deadline = 50, uint32_t offline_debounce = 2) {
         setMotorReduction(reduction_ratio);
         setMaxCmd(max_cmd);
+        setOfflineDeadline(offline_deadline);
+        setOfflineDebounce(offline_debounce);
     }
 
     /**
@@ -372,7 +415,10 @@ public:
     void onRx(const uint8_t data[8], uint8_t len) override {
         if (len < 8)
             return;
-
+        if (offline_wd_.isIdle()) {
+            offline_wd_.arm();
+        }
+        offline_wd_.feed();
         // byte 0-1: 编码器(单圈位置 0-8191)
         encoder_ = (uint16_t)(data[0] << 8 | data[1]);
         if (is_encoder_init) {
@@ -444,7 +490,7 @@ private:
     float encoder_angle_ratio_ = 8192.0f / 360.0f;
 
     // 电流转力矩
-    float current_to_torque_{0.0f}; // M2006: 0.2 Nm/A
+    float current_to_torque_{0.2f}; // M2006: 0.2 Nm/A
 };
 
 class GM6020Motor : public CanDevice, public MotorBase {
@@ -512,6 +558,7 @@ public:
         setMaxCmd(max_cmd);
         ctrl_mode_ = mode;
         dmMotorEnable();
+        posWithSpeedControl(0.0f, 100.0f);
     }
 
     /**

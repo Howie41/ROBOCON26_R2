@@ -281,7 +281,7 @@ void NavControlTask(void *argument) {
       if (nav_control::high_mode_active) {
         const float error_x = static_cast<float>(nav_control::target_x - nav_control::current_x);
         const float error_y = static_cast<float>(nav_control::target_y - nav_control::current_y);
-        const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
+        // const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
 
         // 用现有车身坐标转换，得到目标在车体坐标系中的方向
         const float yaw_rad =

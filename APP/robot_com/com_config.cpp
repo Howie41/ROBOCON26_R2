@@ -27,6 +27,7 @@
 #include "Motor.hpp"
 #include "ROSCom.hpp"
 #include "UartPort.hpp"
+#include "arm_task.hpp"
 #include "UsbPort.hpp"
 #include "XboxRemote.hpp"
 #include "NavProtocol.hpp"
@@ -67,6 +68,7 @@ C620Motor chassis_motor2(&fdcan3_bus, 0x202, 0, 0x200, 0);
 C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
 
+
 // 取矿电机
 C610Motor arm2006_motor(&fdcan2_bus, 0x203, 0, 0x200, 0);  // 伸缩
 C620Motor arm3508_motor(&fdcan2_bus, 0x204, 0, 0x200, 0);  // 旋转
@@ -75,7 +77,12 @@ DM43xxMotor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,  // 翻转
 DM43xxMotor arm4340_motor(&fdcan2_bus, 0x302, 0, 0x02, 0, // 抬升
                          DM43xxMotor::PosWithSpeed, true);
 
-// 尾部电机
+
+// 取矿机构
+Arm arm(arm4340_motor, arm3508_motor, arm2006_motor, arm4310_motor);
+
+
+//尾部的电机
 C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
 C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
 
@@ -227,7 +234,7 @@ uint8_t comServiceInit() {
     chassis_motor4.init();
 
   arm2006_motor.init();
-  arm3508_motor.init(100, 20000.0f);  // 减速比 P100
+  arm3508_motor.init(142.0f, 20000.0f);  // 减速比 P100
   arm4310_motor.init();
   arm4340_motor.init();
 
@@ -293,8 +300,8 @@ uint8_t comServiceInit() {
     ros_protocol.init();
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
 
-    // Motor 速度规划系统注册电机
-    motor_planning_system.registerMotor(arm3508_motor);
+    // Motor速度规划系统注册电机
+    motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
     motor_planning_system.registerMotor(arm2006_motor);
 
 
@@ -444,7 +451,7 @@ void can3SendTask(void *argument) {
     int16_t commands[4] = {0};
     commands[0] = static_cast<int16_t>(chassis_motor1.cmdTrans()); // 0x201
     commands[1] = static_cast<int16_t>(chassis_motor2.cmdTrans()); // 0x202
-    commands[2] = static_cast<int16_t>(chassis_motor3.cmdTrans()); // 0x203   
+    commands[2] = static_cast<int16_t>(chassis_motor3.cmdTrans()); // 0x203  
     commands[3] = static_cast<int16_t>(chassis_motor4.cmdTrans()); // 0x204
     packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
     // arm3508_motor.manager_->addCanMsg(pack);
