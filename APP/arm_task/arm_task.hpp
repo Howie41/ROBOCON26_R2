@@ -39,7 +39,7 @@ public:
     ~Arm() {}
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(66.0f + pos_deg, speed_deg); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(170.0f + pos_deg, speed_deg); }
     void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
@@ -65,14 +65,21 @@ public:
     // 吸取KFS入储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool fetch_proceed(int8_t step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
         if (step == 1) {
-            if (kfs_num_ == 0 || kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_0_1[index]);
+            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_0[index]);
+            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_1[index]);
             else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_2[index]);
         } else if (step == 2) {
-            if (kfs_num_ == 0 || kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_0_1[index]);
+            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_0[index]);
+            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_1[index]);
             else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_2[index]);
         } else if (step == -1) {
-            if (kfs_num_ == 0 || kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_0_1[index]);
+            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_0[index]);
+            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_1[index]);
             else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_2[index]);
+        } else if (step == 0) {
+            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_P::kfs_0[index]);
+            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_P::kfs_1[index]);
+            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_P::kfs_2[index]);
         }
         return false;
     }
@@ -108,6 +115,8 @@ public:
     void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
     bool get_is_fetching_step_L() { return is_fetching_step_L_; }
     void set_is_fetching_step_L(bool is_fetching_step_L) { is_fetching_step_L_ = is_fetching_step_L; }
+    bool get_is_fetching_step_P() { return is_fetching_step_P_; }
+    void set_is_fetching_step_P(bool is_fetching_step_P) { is_fetching_step_P_ = is_fetching_step_P; }
     bool get_is_fetching_step_M() { return is_fetching_step_M_; }
     void set_is_fetching_step_M(bool is_fetching_step_M) { is_fetching_step_M_ = is_fetching_step_M; }
     bool get_is_fetching_step_H() { return is_fetching_step_H_; }
@@ -130,6 +139,7 @@ private:
     uint8_t kfs_num_{0};
 
     bool is_fetching_step_L_{false};
+    bool is_fetching_step_P_{false};
     bool is_fetching_step_M_{false};
     bool is_fetching_step_H_{false};
 

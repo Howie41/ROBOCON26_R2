@@ -377,7 +377,7 @@ private:
     float encoder_angle_ratio_ = 8192.0f / 360.0f;
 
     // 电流转力矩
-    float current_to_torque_{0.0f}; // M3508: 0.2 Nm/A
+    float current_to_torque_{0.2f}; // M3508: 0.2 Nm/A
 };
 
 class C620Motor : public CanDevice, public MotorBase {
@@ -490,7 +490,7 @@ private:
     float encoder_angle_ratio_ = 8192.0f / 360.0f;
 
     // 电流转力矩
-    float current_to_torque_{0.0f}; // M2006: 0.2 Nm/A
+    float current_to_torque_{0.2f}; // M2006: 0.2 Nm/A
 };
 
 class GM6020Motor : public CanDevice, public MotorBase {
