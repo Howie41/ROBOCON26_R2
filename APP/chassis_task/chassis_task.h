@@ -27,6 +27,7 @@ namespace chassis_action {
 void turn_left_90_deg();
 void turn_right_90_deg();
 void start_climb_upstairs();
+void start_climb_R1();
 void start_climb_downstairs();
 bool is_chassis_idle();
 
