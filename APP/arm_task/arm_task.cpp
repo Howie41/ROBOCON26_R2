@@ -30,13 +30,10 @@ static pub_arm_cmd arm_cmd{};
 
 extern Arm arm;  // 取矿机构实例
 
-static float time_rec = 0.0f;  // 用于记录绝对时间
+static uint8_t index = 0;  // 用于记录动作索引
 
 static float now_t = 0.0f;  // 当前相对时刻记录
 static float last_t = 0.0f;  // 上一次相对时刻记录
-
-static uint8_t flag = 0;  // 当前功能状态值
-static uint8_t test_flag = 0;  // 上位机进行速度规划调试用时的flag
 
 
 namespace arm_action {
@@ -63,14 +60,9 @@ void release_kfs() { place_release(); }
 }
 
 
-void reset_timeline() {}
-
 void fetch_step(int8_t step) { 
     if (arm.get_kfs_amount() == 3) return;
-    time_rec = DWT_GetTimeline_s();
-    now_t = 0.0f;
-    last_t = 0.0f;
-
+    reset_timeline();
     switch (step) {
         case 1: { arm.set_is_fetching_step_M(true); break; }
         case 2: { arm.set_is_fetching_step_H(true); break; }
@@ -81,10 +73,7 @@ void fetch_step(int8_t step) {
 
 void place_kfs(int8_t kfs_layer = -1) {
     if (arm.get_kfs_amount() == 0) return;
-    time_rec = DWT_GetTimeline_s();
-    now_t = 0.0f;
-    last_t = 0.0f;
-
+    reset_timeline();
     switch (kfs_layer) {
         case -1: { place_kfs(arm.get_kfs_amount()); break; }
         case 1: { arm.set_is_placing_kfs_L(true); break; }
@@ -94,251 +83,81 @@ void place_kfs(int8_t kfs_layer = -1) {
 }
 
 void place_release() {
-    time_rec = DWT_GetTimeline_s();
-    now_t = 0.0f;
-    last_t = 0.0f;
-
+    reset_timeline();
     arm.set_is_place_releasing(true);
 }
 
 
+// 重置计时器
+void reset_timeline() {
+    index = 0;
+    last_t = DWT_GetTimeline_s();
+}
+
 void armTask(void *argument) {
-
     arm.reset();
-    time_rec = DWT_GetTimeline_s();
-    
 
-    // for (;;) {
-        /*
-        index = 0;
-        last_t = DWT_GetTimeline_s();
-        */
+    // fetching_step 模块化实现
+    auto run_fetching_step = [&](int8_t step) -> void {
+        now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
+        float delta_t;
+        void (Arm::*setter)(bool);
+        using namespace arm_actions_config::fetch_proceed;
+        auto get_dt_by_kfs = [&](auto& kfs_0, auto& kfs_1, auto& kfs_2) -> float {
+            return (*std::array{&kfs_0, &kfs_1, &kfs_2}[arm.get_kfs_amount()])[index].delta_t
+        };
+        switch (step) {
+            case 2: { delta_t = get_dt_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2); setter = &Arm::set_is_fetching_step_H; break; }
+            case 1: { delta_t = get_dt_by_kfs(step_M::kfs_0, step_M::kfs_1, step_M::kfs_2); setter = &Arm::set_is_fetching_step_M; break; }
+            case -1: { delta_t = get_dt_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2); setter = &Arm::set_is_fetching_step_L; break; }
+            case 0: { delta_t = get_dt_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2); setter = &Arm::set_is_fetching_step_P; break; }
+        }
+        if (now_t > delta_t) {
+            if (arm.fetch_proceed(step, index++)) { (arm.*setter)(false); arm.addKFS(); }
+            else last_t = DWT_GetTimeline_s();
+        }
+    };
 
-        // if (arm.get_is_fetching_step_H()) {  // 抓取高台阶
-        //     now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
-        //     if (now_t > arm_actions_config::fetch_proceed::step_H::kfs_0[index].delta_t) {
-        //         if (arm.fetch_proceed(2, index)) {  // is_end
-        //             arm.set_is_fetching_step_H(false);
-        //             arm.addKFS();
-        //         } else {  // not_end
-        //             last_t = DWT_GetTimeline_s();
-        //             index++;
-        //         }
-        //     }
-        // }
+    // placing_kfs 模块化实现
+    auto run_placing_kfs = [&](uint8_t layer) -> void {
+        now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
+        float delta_t;
+        void (Arm::*setter)(bool);
+        using namespace arm_actions_config::place_proceed;
+        switch (layer) {
+            case 1: { delta_t = kfs_1[index].delta_t; setter = &Arm::set_is_placing_kfs_L; break; }
+            case 2: { delta_t = kfs_2[index].delta_t; setter = &Arm::set_is_placing_kfs_M; break; }
+            case 3: { delta_t = kfs_3[index].delta_t; setter = &Arm::set_is_placing_kfs_H; break; }
+        }
+        if (now_t > delta_t) {
+            if (arm.place_proceed(index++)) { (arm.*setter)(false); arm.rmvKFS(); }
+            else last_t = DWT_GetTimeline_s();
+        }
+    };
 
-    // }
-
-
+    // 任务大循环
     for (;;) {
-        if (arm.get_is_fetching_step_H()) {  // 抓取高台阶
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (arm.get_kfs_amount() == 0) {  // 如果 储存了 0 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(2, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(2, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(2, 2); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(2, 3); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(2, 4); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(2, 5); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(2, 6); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(2, 7); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(2, 8); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(2, 9); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(2, 10); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(2, 11); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.set_is_fetching_step_H(false); arm.addKFS(); }
-            } else if (arm.get_kfs_amount() == 1) {  // 如果 储存了 1 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(2, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(2, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(2, 2); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(2, 3); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(2, 4); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(2, 5); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(2, 6); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(2, 7); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(2, 8); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(2, 9); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(2, 10); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(2, 11); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.set_is_fetching_step_H(false); arm.addKFS(); }
-            }else if (arm.get_kfs_amount() == 2) {  // 如果 储存了 2 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(2, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(2, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(2,2); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(2, 3); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(2, 4); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(2, 5); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.set_is_fetching_step_H(false); arm.addKFS(); }
-            }
-            last_t = now_t;
-        } else if (arm.get_is_fetching_step_M()) {  // 抓取中台阶
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (arm.get_kfs_amount() == 0) {  // 如果 储存了 0 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(1, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(1, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(1, 2); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(1, 3); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(1, 4); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(1, 5); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(1, 6); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(1, 7); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(1, 8); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(1, 9); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(1, 10); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(1, 11); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.set_is_fetching_step_M(false); arm.addKFS(); }
-            } else if (arm.get_kfs_amount() == 1) {  // 如果 储存了 1 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(1, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(1, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(1, 2); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(1, 3); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(1, 4); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(1, 5); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(1, 6); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(1, 7); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(1, 8); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(1, 9); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(1, 10); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(1, 11); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.set_is_fetching_step_M(false); arm.addKFS(); }
-            } else if (arm.get_kfs_amount() == 2) {  // 如果 储存了 2 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(1, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(1, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(1, 2); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(1, 3); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(1, 4); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(1, 5); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.set_is_fetching_step_M(false); arm.addKFS(); }
-            }
-            last_t = now_t;
-        } else if (arm.get_is_fetching_step_L()) {  // 抓取低台阶
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (arm.get_kfs_amount() == 0) {  // 如果 储存了 0 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(-1, 0); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(-1, 1); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(-1, 2); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(-1, 3); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(-1, 4); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(-1, 5); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(-1, 6); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(-1, 7); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(-1,8); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(-1,9); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(-1, 10); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.fetch_proceed(-1, 11); }
-                else if (now_t >= 13.5f && last_t < 13.5f) { arm.set_is_fetching_step_L(false); arm.addKFS(); }
-            } else if (arm.get_kfs_amount() == 1) {  // 如果 储存了 1 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(-1, 0); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(-1, 1); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(-1, 2); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(-1, 3); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(-1, 4); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(-1, 5); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(-1, 6); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(-1, 7); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(-1,8); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(-1,9); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(-1, 10); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.fetch_proceed(-1, 11); }
-                else if (now_t >= 13.5f && last_t < 13.5f) { arm.set_is_fetching_step_L(false); arm.addKFS(); }
-            } else if (arm.get_kfs_amount() == 2) {  // 如果 储存了 2 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(-1, 0); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(-1, 1); }
-                else if (now_t >= 3.5f && last_t < 3.5f) { arm.fetch_proceed(-1, 2); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(-1, 3); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(-1, 4); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(-1, 5); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.set_is_fetching_step_L(false); arm.addKFS(); }
-            }
-            last_t = now_t;
-        } else if (arm.get_is_fetching_step_P()) {  // 抓取平地
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (arm.get_kfs_amount() == 0) {  // 如果 储存了 0 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(0, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(0, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(0, 2); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(0, 3); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(0, 4); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(0, 5); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(0, 6); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(0, 7); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(0,8); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(0,9); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(0, 10); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.fetch_proceed(0, 11); }
-                else if (now_t >= 13.5f && last_t < 13.5f) { arm.set_is_fetching_step_P(false); arm.addKFS(); }
-            } else if (arm.get_kfs_amount() == 1) {  // 如果 储存了 1 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(0, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(0, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(0, 2); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(0, 3); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(0, 4); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(0, 5); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.fetch_proceed(0, 6); }
-                else if (now_t >= 8.5f && last_t < 8.5f) { arm.fetch_proceed(0, 7); }
-                else if (now_t >= 9.5f && last_t < 9.5f) { arm.fetch_proceed(0,8); }
-                else if (now_t >= 10.5f && last_t < 10.5f) { arm.fetch_proceed(0,9); }
-                else if (now_t >= 11.5f && last_t < 11.5f) { arm.fetch_proceed(0, 10); }
-                else if (now_t >= 12.5f && last_t < 12.5f) { arm.fetch_proceed(0, 11); }
-                else if (now_t >= 13.5f && last_t < 13.5f) { arm.set_is_fetching_step_P(false); arm.addKFS(); }
-            } else if (arm.get_kfs_amount() == 2) {  // 如果 储存了 2 个 KFS
-                if (now_t >= 0.5f && last_t < 0.5f) { arm.fetch_proceed(0, 0); }
-                else if (now_t >= 1.5f && last_t < 1.5f) { arm.fetch_proceed(0, 1); }
-                else if (now_t >= 2.5f && last_t < 2.5f) { arm.fetch_proceed(0, 2); }
-                else if (now_t >= 4.5f && last_t < 4.5f) { arm.fetch_proceed(0, 3); }
-                else if (now_t >= 5.5f && last_t < 5.5f) { arm.fetch_proceed(0, 4); }
-                else if (now_t >= 6.5f && last_t < 6.5f) { arm.fetch_proceed(0, 5); }
-                else if (now_t >= 7.5f && last_t < 7.5f) { arm.set_is_fetching_step_P(false); arm.addKFS(); }
-            }
-            last_t = now_t;
-        }
-        
-        else if (arm.get_is_placing_kfs_L()) {  // 放置最底下的KFS进第二层
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (now_t >= 0.5f && last_t < 0.5f) { arm.place_proceed(0); }
-            if (now_t >= 2.0f && last_t < 2.0f) { arm.place_proceed(1); }
-            if (now_t >= 3.5f && last_t < 3.5f) { arm.place_proceed(2); }
-            if (now_t >= 6.5f && last_t < 6.5f) { arm.place_proceed(3); }
-            if (now_t >= 8.5f && last_t < 8.5f) { arm.place_proceed(4); }
-            if (now_t >= 10.5f && last_t < 10.5f) { arm.place_proceed(5); }
-            if (now_t >= 12.5f && last_t < 12.5f) { arm.place_proceed(6); }
-            else if (now_t >= 14.5f && last_t < 14.5f) { arm.set_is_placing_kfs_L(false); arm.rmvKFS(); }
-            last_t = now_t;
-        } else if (arm.get_is_placing_kfs_M()) {    // 放置中间层的KFS进第二层
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (now_t >= 0.5f && last_t < 0.5f) { arm.place_proceed(0); }
-            if (now_t >= 2.5f && last_t < 2.5f) { arm.place_proceed(1); }
-            if (now_t >= 4.5f && last_t < 4.5f) { arm.place_proceed(2); }
-            if (now_t >= 6.5f && last_t < 6.5f) { arm.place_proceed(3); }
-            if (now_t >= 8.5f && last_t < 8.5f) { arm.place_proceed(4); }
-            if (now_t >= 10.5f && last_t < 10.5f) { arm.place_proceed(5); }
-            if (now_t >= 12.5f && last_t < 12.5f) { arm.place_proceed(6); }
-            else if (now_t >= 16.5f && last_t < 16.5f) { arm.set_is_placing_kfs_M(false); arm.rmvKFS(); }
-            last_t = now_t;
-        } else if (arm.get_is_placing_kfs_H()) {  // 放置最上面的KFS进第二层
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (now_t >= 0.5f && last_t < 0.5f) { arm.place_proceed(0); }
-            if (now_t >= 1.5f && last_t < 1.5f) { arm.place_proceed(1); }
-            if (now_t >= 2.5f && last_t < 2.5f) { arm.place_proceed(2); }
-            if (now_t >= 3.5f && last_t < 3.5f) { arm.place_proceed(3); }
-            else if (now_t >= 4.5f && last_t < 4.5f) { arm.set_is_placing_kfs_H(false); arm.rmvKFS(); }
-            last_t = now_t;
-        }
-        
+        // fetching_step 类
+        if (arm.get_is_fetching_step_H()) run_fetching_step(2);  // 抓取高台阶
+        else if (arm.get_is_fetching_step_M()) run_fetching_step(1);  // 抓取中台阶
+        else if (arm.get_is_fetching_step_L()) run_fetching_step(-1);  // 抓取低台阶
+        else if (arm.get_is_fetching_step_P()) run_fetching_step(0)  // 抓取平地
+        // placing_kfs 类
+        else if (arm.get_is_placing_kfs_L()) run_placing_kfs(1);  // 放置最底下的KFS进第二层
+        else if (arm.get_is_placing_kfs_M()) run_placing_kfs(2);  // 放置中间层的KFS进第二层
+        else if (arm.get_is_placing_kfs_H()) run_placing_kfs(3);  // 放置最上面的KFS进第二层
+        // place_releasing 类
         else if (arm.get_is_place_releasing()) {  // 释放KFS，回归默认姿态
-            now_t = DWT_GetTimeline_s() - time_rec;
-            if (now_t >= 0.5f && last_t < 0.5f) { arm.place_release_proceed(0); }
-            if (now_t >= 1.5f && last_t < 1.5f) { arm.place_release_proceed(1); }
-            if (now_t >= 2.5f && last_t < 2.5f) { arm.place_release_proceed(2); }
-            if (now_t >= 3.5f && last_t < 3.5f) { arm.place_release_proceed(3); }
-            else if (now_t >= 4.5f && last_t < 4.5f) { arm.set_is_place_releasing(false); }
-            last_t = now_t;
+            now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
+            if (now_t > arm_actions_config::place_release_proceed[index].delta_t) {
+                if (arm.place_proceed(index++)) arm.set_is_place_releasing(false);
+                else last_t = DWT_GetTimeline_s();
+            }
         }
 
+        // 测试用（Xbox手柄）
         if (arm_cmd_sub.TryGet(&arm_cmd) || test_flag) {
-            if (arm_cmd.update) {
-                flag++;
-            }
+            if (arm_cmd.update) flag++;
             if (arm_cmd.fetch || test_flag) {
                 switch (flag) {
                     case 1:
