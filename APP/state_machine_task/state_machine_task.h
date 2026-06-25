@@ -52,9 +52,3 @@ inline bool is_path_cmd(uint16_t code) {
 #if defined(MATCH_CWTY) && defined(MATCH_JGCB)
 #error "比赛类型配置异常"
 #endif
-
-struct waypoint {
-    int16_t x;
-    int16_t y;
-    int16_t yaw;
-};

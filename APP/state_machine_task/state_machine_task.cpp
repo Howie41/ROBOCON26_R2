@@ -19,7 +19,24 @@
 
 osThreadId_t StateMachineTaskHandle;
 
-volatile bool triggered{false};
+namespace waypoint {
+    typedef struct {
+        int16_t x;
+        int16_t y;
+        int16_t yaw;
+    } point;
+
+    [[maybe_unused]] point init{-550, 150, 0};
+    [[maybe_unused]] point before_mf{2280, 1600, 0};
+    [[maybe_unused]] point corridor{2050, 4000, 0};
+    [[maybe_unused]] point before_uphill{8860, 3760, 0};
+    [[maybe_unused]] point after_uphill{11930, 3760, 0};
+    [[maybe_unused]] point before_rotate{11830, 1980, 0};
+    [[maybe_unused]] point after_rotate{11350, 1860, -90};
+    [[maybe_unused]] point grid{11170, -980, -90};
+}
+
+volatile bool begin_signal{false};
 
 class StateMachine {
 public:
@@ -40,13 +57,14 @@ public:
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case robot_state::begin: {
-                wait_until([&]() -> bool { return triggered; });
-                triggered = false;
+                wait_until([&]() -> bool { return begin_signal; });
+                begin_signal = false;
                 change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
             case robot_state::go_to_SHR: {
+                // TODO: 一区逻辑
                 break;
             }
 
@@ -101,13 +119,36 @@ public:
             }
 
             case robot_state::execute_chassis_action: {
-                osDelay(2000);
+                path_cmd::code executing_cmd = current_path_cmd_.load();
+                // chassis_action 是耗时函数 内含阻塞等待逻辑
+                switch (executing_cmd) {
+                    case path_cmd::code::move_forward:
+                        chassis_action::start_climb_upstairs();
+                        break;
+                    case path_cmd::code::move_backward:
+                        chassis_action::start_climb_downstairs();
+                        break;
+                    case path_cmd::code::turn_left_90:
+                        chassis_action::turn_left_90_deg();
+                        break;
+                    case path_cmd::code::turn_right_90:
+                        chassis_action::turn_right_90_deg();
+                        break;
+                    case path_cmd::code::move_left:
+                        // TODO: 实现向左平移
+                        break;
+                    case path_cmd::code::move_right:
+                        // TODO: 实现向右平移
+                        break;
+                    default:
+                        break;
+                }
                 change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
             case robot_state::execute_arm_action: {
-                osDelay(2000);
+                // TODO: 实现取矿机构逻辑
                 change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
@@ -167,15 +208,6 @@ private:
 
     TypedTopicSubscriber<path_cmd::code> path_cmd_sub_{"pc_path_cmd", 1}; // 接收路径规划cmd
     TypedTopicPublisher<bool> path_cmd_request_pub_{"pc_path_cmd_request"}; // 请求路径规划cmd
-
-    [[maybe_unused]] struct waypoint wp_init{-550, 150, 0};
-    [[maybe_unused]] struct waypoint wp_before_MF{2280, 1600, 0};
-    struct waypoint wp_corridor{2050, 4000, 0};
-    struct waypoint wp_before_uphill{8860, 3760, 0};
-    struct waypoint wp_after_uphill{11930, 3760, 0};
-    struct waypoint wp_before_rotate{11830, 1980, 0};
-    struct waypoint wp_after_rotate{11350, 1860, -90};
-    struct waypoint wp_grid{11170, -980, -90};
 
     /**
     * @brief 等待直到条件满足
@@ -240,7 +272,7 @@ private:
         return (delta_x < LOOSE_ARRIVED_THRESHOLD && delta_y < LOOSE_ARRIVED_THRESHOLD);
     }
 
-    bool move_to_pos(const waypoint &wp, uint32_t timeout_ms = 0) {
+    bool move_to_pos(const waypoint::point &wp, uint32_t timeout_ms = 0) {
         return move_to_pos(wp.x, wp.y, wp.yaw, timeout_ms);
     }
 
