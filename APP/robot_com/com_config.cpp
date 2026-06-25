@@ -304,7 +304,6 @@ uint8_t comServiceInit() {
     motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
     motor_planning_system.registerMotor(arm2006_motor);
 
-
     return 0;
 }
 

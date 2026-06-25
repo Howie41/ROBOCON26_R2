@@ -13,11 +13,8 @@ enum special_operations_enum {
     SKIP_MOTOR_CONTROL_ = 0b00000001,
     RESET_ = 0b00000010,
     FETCH_ = 0b00000100,
-    RELEASE_ = 0b00001000,
-    DESTROY_VACCUM_START_ = 0b00010000,
-    DESTROY_VACCUM_STOP_ = 0b00100000,
-    PLACE_RELEASE_START_ = 0b01000000,
-    PLACE_RELEASE_STOP_ = 0b10000000
+    PLACE_RELEASE_START_ = 0b00001000,
+    PLACE_RELEASE_STOP_ = 0b00010000
 };
 
 struct height {float pos; float speed; };
@@ -25,23 +22,16 @@ struct flip { float pos; float speed; };
 struct rotate { float pos; float speed; float ip; float ep; };
 struct expand { float pos; float speed; float ip; float ep; };
 struct arm_pose {  // 三个构造函数：第一个是正常构造姿态，第二个是特殊操作（不构造姿态），第三个是结束标志
-    height h; flip f; rotate r; expand e; uint8_t special_operations; bool is_end{false};
+    float delta_t{0.0f}; height h; flip f; rotate r; expand e; uint8_t special_operations; bool is_end{false};
     arm_pose(struct height h, struct flip f, struct rotate r, struct expand e, uint8_t so = 0) : h(h), f(f), r(r), e(e), special_operations(so) {}
-    arm_pose(uint8_t so) : h({0, 0}), f({0, 0}), r({0, 0, 0, 0}), e({0, 0, 0, 0}), special_operations(so | SKIP_MOTOR_CONTROL_) {}
-    arm_pose() : is_end(true) {}
+    arm_pose(float delta_t, struct height h, struct flip f, struct rotate r, struct expand e, uint8_t so = 0) : delta_t(delta_t), h(h), f(f), r(r), e(e), special_operations(so) {}
+    arm_pose(float delta_t, uint8_t so) : delta_t(delta_t), h({0, 0}), f({0, 0}), r({0, 0, 0, 0}), e({0, 0, 0, 0}), special_operations(so | SKIP_MOTOR_CONTROL_) {}
+    arm_pose(float delta_t) : delta_t(delta_t), is_end(true) {}
 };
 
 /** arm_pose前四个成员分别代表：height, flip, rotate, expand
-special_operations各位代表的特殊操作：
-    0b00000001: 置1则跳过电机控制
-    0b00000010: reset
-    0b00000100: fetch
-    0b00001000: release
-    0b00010000: destroy_vaccum_start
-    0b00100000: destroy_vaccum_stop
-    0b01000000: place_release_start
-    0b10000000: place_release_stop
-*/
+ * special_operations各位代表特殊操作，详见枚举special_operations_enum
+ */
 
 namespace arm_actions_config {
     RAM_D1_ATTR const arm_pose reset = { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 3.0f, 10.0f, 20.0f}, {0.0f, 18.0f, 120.0f, 240.0f} };
@@ -54,8 +44,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.2f, 15.0f, 17.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.0f, 18.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 1.8f, 20.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.4f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.4f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.4f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
@@ -69,8 +59,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.2f, 15.0f, 17.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.0f, 18.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 1.8f, 20.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.4f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.4f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.4f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
@@ -95,8 +85,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.4f, 10.0f, 15.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.3f, 15.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 2.2f, 15.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.3f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
@@ -110,8 +100,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.1f, 10.0f, 15.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.1f, 15.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 2.1f, 15.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.4f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.4f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.3f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
@@ -136,8 +126,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.2f, 10.0f, 15.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 2.1f, 15.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.2f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
@@ -151,8 +141,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.2f, 10.0f, 15.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 2.2f, 15.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.2f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
@@ -177,8 +167,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.2f, 10.0f, 15.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 2.1f, 15.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.2f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
@@ -192,8 +182,8 @@ namespace arm_actions_config {
                 { {920.0f, 1000.0f}, {0.0f, 120.0f}, {-40.0f, 2.2f, 10.0f, 15.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {940.0f, 1000.0f}, {-87.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {370.0f, 18.0f, 20.0f, 240.0f} },
                 { {1080.0f, 1000.0f}, {-88.0f, 120.0f}, {-168.0f, 2.2f, 15.0f, 30.0f}, {524.0f, 18.0f, 20.0f, 240.0f} },
-                { RELEASE_ | DESTROY_VACCUM_START_ },
-                { DESTROY_VACCUM_STOP_ },
+                { PLACE_RELEASE_START_ },
+                { PLACE_RELEASE_STOP_ },
                 { {820.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {200.0f, 18.0f, 20.0f, 240.0f} },
                 { {660.0f, 1000.0f}, {0.0f, 120.0f}, {-90.0f, 2.2f, 15.0f, 30.0f}, {1000.0f, 18.0f, 20.0f, 240.0f} },
                 { {570.0f, 1000.0f}, {0.0f, 120.0f}, {0.0f, 2.2f, 20.0f, 40.0f}, {800.0f, 18.0f, 20.0f, 240.0f} },
