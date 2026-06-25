@@ -53,7 +53,7 @@ void load_kfs(int8_t step) { fetch_step(step); }
  * @note 抬起、伸入储存区、吸取、抬起、伸出、kfs_amount-1
  * @param -1:自动识别高度，1,2,3:指定高度
  */
-void unload_kfs(int8_t level) { place_kfs(level); }
+void unload_kfs(int8_t level = -1) { place_kfs(level); }
 
 /**
  * @brief 承接unload_kfs，释放kfs并恢复默认动作
