@@ -18,21 +18,30 @@ namespace {
 std::atomic<uint8_t> g_stair_waypoint_step{0};
 std::atomic<uint8_t> g_stair_waypoint_level{0};
 std::atomic<bool> g_stair_waypoint_armed{false};
+struct SavedCenterPose {
+  bool valid{false};
+  field::StairPose pose{};
+};
+SavedCenterPose g_saved_center_pose{};
 
 TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
 constexpr float kDescendLaserSeekSpeedRpm = -50.0f;
 constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.2f;
+constexpr float kGoToEdgeSeekSpeedMps = 0.08f;
+constexpr float kGoToEdgeLowPostTriggerSpeedMps = 0.05f;
 constexpr int16_t kR1ClimbYawDeg = -90;
 constexpr int16_t kR1PostLowAdvanceMm = 0;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
 constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
 constexpr int16_t kDescendRetreatToLowerMm = 950;
+constexpr int16_t kGoToEdgeLowCoarseAdvanceMm = 200;
 constexpr float kPassDistanceMm = 200.0f;
 constexpr uint32_t kPassHoldMs = 1000U;
 constexpr TickType_t kPassFreshWindowTicks = pdMS_TO_TICKS(200);
 constexpr uint32_t kPosePollDelayMs = 5U;
+constexpr uint32_t kGoToEdgeLowPostTriggerDelayMs = 0U;
 
 template <typename T>
 void wait_until(T &&condition, uint32_t delay_ms = 100U) {
@@ -214,6 +223,11 @@ void publishManualChassisCmd(float linear_x, float linear_y, float omega) {
 
 void stop_manual_chassis_motion() {
   publishManualChassisCmd(0.0f, 0.0f, 0.0f);
+}
+
+void saveCenterPose(const field::StairPose &pose) {
+  g_saved_center_pose.valid = true;
+  g_saved_center_pose.pose = pose;
 }
 
 bool move_to_pose(const field::StairPose &pose, bool allow_pass = false) {
@@ -626,6 +640,107 @@ void stairWaypointRunDown() {
     g_stair_waypoint_level.store(0U);
   }
   g_stair_waypoint_armed.store(true);
+  g_stair_waypoint_step.store(0);
+  stop_auto_nav();
+}
+
+void stairWaypointRunGoToEdge() {
+  if (!refreshCurrentMerlinCell()) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
+  merlin_map::Cell current_cell{};
+  merlin_map::Cell front_cell{};
+  if (!merlin_map::tryGetCurrentCell(&current_cell) ||
+      !merlin_map::tryGetNeighborCell(true, &front_cell)) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
+  const field::StairPose current_center_pose{
+      current_cell.center_x,
+      current_cell.center_y,
+      headingYawDeg(),
+  };
+  saveCenterPose(current_center_pose);
+
+  stairAssistSetMode(StairAssistMode::ClimbUp);
+  stairAssistSetAutoLowerEnabled(false);
+  stairAssistSetEnabled(true);
+
+  const bool front_is_higher = front_cell.height_mm > current_cell.height_mm;
+  const bool front_is_lower = front_cell.height_mm < current_cell.height_mm;
+
+  if (front_is_higher) {
+    g_stair_waypoint_step.store(41);
+    const field::StairPose coarse_pose = headingClosePoseForCell(current_cell);
+    const bool triggered =
+        move_to_pose_until_trigger(coarse_pose, false, []() {
+          return stairAssistSuggestGoToEdgeHigh();
+        });
+
+    stop_auto_nav();
+    if (!triggered) {
+      publishManualChassisCmd(kGoToEdgeSeekSpeedMps, 0.0f, 0.0f);
+      wait_until([]() {
+        stairAssistUpdate();
+        return stairAssistSuggestGoToEdgeHigh();
+      }, 10U);
+      stop_manual_chassis_motion();
+    }
+  } else if (front_is_lower) {
+    g_stair_waypoint_step.store(42);
+    const field::StairPose coarse_pose =
+        advancePoseByHeading(current_cell.center_x, current_cell.center_y,
+                             kGoToEdgeLowCoarseAdvanceMm);
+    const bool triggered =
+        move_to_pose_until_trigger(coarse_pose, true, []() {
+          return stairAssistSuggestGoToEdgeLow();
+        });
+
+    stop_auto_nav();
+    if (!triggered) {
+      publishManualChassisCmd(kGoToEdgeSeekSpeedMps, 0.0f, 0.0f);
+      wait_until([]() {
+        stairAssistUpdate();
+        return stairAssistSuggestGoToEdgeLow();
+      }, 10U);
+      stop_manual_chassis_motion();
+    }
+
+    if (kGoToEdgeLowPostTriggerDelayMs > 0U) {
+      publishManualChassisCmd(kGoToEdgeLowPostTriggerSpeedMps, 0.0f, 0.0f);
+      osDelay(kGoToEdgeLowPostTriggerDelayMs);
+      stop_manual_chassis_motion();
+    }
+  }
+
+  stairAssistSetEnabled(false);
+  stairAssistSetAutoLowerEnabled(false);
+  g_stair_waypoint_step.store(0);
+  stop_auto_nav();
+}
+
+void stairWaypointRunReturnToCenter() {
+  g_stair_waypoint_step.store(43);
+
+  if (g_saved_center_pose.valid) {
+    move_to_pose(g_saved_center_pose.pose, true);
+  } else {
+    merlin_map::Cell current_cell{};
+    if (refreshCurrentMerlinCell() && merlin_map::tryGetCurrentCell(&current_cell)) {
+      const field::StairPose center_pose{
+          current_cell.center_x,
+          current_cell.center_y,
+          headingYawDeg(),
+      };
+      move_to_pose(center_pose, true);
+    }
+  }
+
   g_stair_waypoint_step.store(0);
   stop_auto_nav();
 }
