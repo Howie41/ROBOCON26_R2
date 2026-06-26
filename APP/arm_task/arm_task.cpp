@@ -50,7 +50,7 @@ void load_kfs(int8_t step) { fetch_step(step); }
 /**
  * @brief 取出kfs，自动识别当前kfs数量，从对应的高度取出(取最外层)
  * @note 抬起、伸入储存区、吸取、抬起、伸出、kfs_amount-1
- * @param -1:自动识别高度，1,2,3:指定高度
+ * @param -1:自动识别高度，1,2,3,4:指定高度
  */
 void unload_kfs(int8_t level = -1) { place_kfs(level); }
 
@@ -70,7 +70,7 @@ void reset_timeline() {
 
 
 void fetch_step(int8_t step) { 
-    if (arm.get_kfs_amount() == 3) return;
+    if (arm.get_kfs_amount() == 3 || arm.get_is_kfs_raised()) return;
     reset_timeline();
     switch (step) {
         case 1: { arm.set_is_fetching_step_M(true); break; }
@@ -81,6 +81,8 @@ void fetch_step(int8_t step) {
 }
 
 void place_kfs(int8_t kfs_layer = -1) {
+    // 若存在举高高的KFS，则优先放置
+    if (arm.get_is_kfs_raised()) { reset_timeline(); arm.set_is_placing_kfs_T(true); return; }
     if (arm.get_kfs_amount() == 0) return;
     reset_timeline();
     switch (kfs_layer) {
@@ -88,12 +90,18 @@ void place_kfs(int8_t kfs_layer = -1) {
         case 1: { arm.set_is_placing_kfs_L(true); break; }
         case 2: { arm.set_is_placing_kfs_M(true); break; }
         case 3: { arm.set_is_placing_kfs_H(true); break; }
+        case 4: { arm.set_is_placing_kfs_T(true); break; }
     }
 }
 
 void place_release() {
     reset_timeline();
     arm.set_is_place_releasing(true);
+}
+
+void raise_kfs() {
+    reset_timeline();
+    arm.set_is_raising_kfs(true);
 }
 
 
@@ -136,9 +144,14 @@ void armTask(void *argument) {
             case 1: { delta_t = kfs_1[act_index].delta_t; setter = &Arm::set_is_placing_kfs_L; break; }
             case 2: { delta_t = kfs_2[act_index].delta_t; setter = &Arm::set_is_placing_kfs_M; break; }
             case 3: { delta_t = kfs_3[act_index].delta_t; setter = &Arm::set_is_placing_kfs_H; break; }
+            case 4: { delta_t = kfs_4[act_index].delta_t; setter = &Arm::set_is_placing_kfs_T; break; }
         }
         if (now_t > delta_t) {
-            if (arm.place_proceed(act_index++)) { (arm.*setter)(false); arm.rmvKFS(); }
+            if (arm.place_proceed(act_index++)) {
+                if (arm.get_is_placing_kfs_T()) arm.set_is_kfs_raised(false);
+                else arm.rmvKFS();
+                (arm.*setter)(false);
+            }
             else last_t = DWT_GetTimeline_s();
         }
     };
@@ -154,11 +167,20 @@ void armTask(void *argument) {
         else if (arm.get_is_placing_kfs_L()) run_placing_kfs(1);  // 放置最底下的KFS进第二层
         else if (arm.get_is_placing_kfs_M()) run_placing_kfs(2);  // 放置中间层的KFS进第二层
         else if (arm.get_is_placing_kfs_H()) run_placing_kfs(3);  // 放置最上面的KFS进第二层
+        else if (arm.get_is_placing_kfs_T()) run_placing_kfs(4);  // 放置举高高的KFS进第二层
         // place_releasing 类
         else if (arm.get_is_place_releasing()) {  // 释放KFS，回归默认姿态
             now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
             if (now_t > arm_actions_config::place_release_proceed[act_index].delta_t) {
                 if (arm.place_proceed(act_index++)) arm.set_is_place_releasing(false);
+                else last_t = DWT_GetTimeline_s();
+            }
+        }
+        // raising_kfs 类
+        else if (arm.get_is_raising_kfs()) {  // 举高高KFS
+            now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
+            if (now_t > arm_actions_config::raise_kfs_proceed[act_index].delta_t) {
+                if (arm.place_proceed(act_index++)) { arm.set_is_raising_kfs(false); arm.set_is_kfs_raised(true); }
                 else last_t = DWT_GetTimeline_s();
             }
         }
@@ -181,9 +203,12 @@ void armTask(void *argument) {
                         fetch_step(0);
                         break;
                     case 5:
-                        place_kfs();
+                        raise_kfs();
                         break;
                     case 6:
+                        place_kfs();
+                        break;
+                    case 7:
                         place_release();
                         break;
                 }

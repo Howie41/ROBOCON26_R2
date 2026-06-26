@@ -39,7 +39,7 @@ public:
     ~Arm() {}
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(320.0f + pos_deg, speed_deg); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(336.0f + pos_deg, speed_deg); }
     void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
@@ -80,15 +80,19 @@ public:
     }
     // 取出KFS出储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool place_proceed(uint8_t index) {  // 此函数不会减少kfs_num_，需要在外部结束动作链后主动减少kfs_num_
-        if (kfs_num_ == 1) return set_pose(arm_actions_config::place_proceed::kfs_1[index]);
-        else if (kfs_num_ == 2) return set_pose(arm_actions_config::place_proceed::kfs_2[index]);
-        else if (kfs_num_ == 3) return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
+        if (is_kfs_raised_) {
+            return set_pose(arm_actions_config::place_proceed::kfs_4[index]);
+        } else {
+            if (kfs_num_ == 1) return set_pose(arm_actions_config::place_proceed::kfs_1[index]);
+            else if (kfs_num_ == 2) return set_pose(arm_actions_config::place_proceed::kfs_2[index]);
+            else if (kfs_num_ == 3) return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
+        }
         return false;
     }
     // 释放取出的KFS，并reset
-    bool place_release_proceed(uint8_t index) {
-        return set_pose(arm_actions_config::place_release_proceed[index]);
-    }
+    bool place_release_proceed(uint8_t index) { return set_pose(arm_actions_config::place_release_proceed[index]); }
+    // 吸取平地KFS并举高高
+    bool raise_kfs_proceed(uint8_t index) { return set_pose(arm_actions_config::raise_kfs_proceed[index]); }
 
     // KFS数量控制类接口
     void addKFS() { kfs_num_++; }
@@ -122,8 +126,14 @@ public:
     void set_is_placing_kfs_M(bool is_placing_kfs_M) { is_placing_kfs_M_ = is_placing_kfs_M; }
     bool get_is_placing_kfs_H() { return is_placing_kfs_H_; }
     void set_is_placing_kfs_H(bool is_placing_kfs_H) { is_placing_kfs_H_ = is_placing_kfs_H; }
+    bool get_is_placing_kfs_T() { return is_placing_kfs_T_; }
+    void set_is_placing_kfs_T(bool is_placing_kfs_T) { is_placing_kfs_T_ = is_placing_kfs_T; }
     bool get_is_place_releasing() { return is_place_releasing_; }
     void set_is_place_releasing(bool is_place_releasing) { is_place_releasing_ = is_place_releasing; }
+    bool get_is_raising_kfs() { return is_raising_kfs_; }
+    void set_is_raising_kfs(bool is_raising_kfs) { is_raising_kfs_ = is_raising_kfs; }
+    bool get_is_kfs_raised() { return is_kfs_raised_; }
+    void set_is_kfs_raised(bool is_kfs_raised) { is_kfs_raised_ = is_kfs_raised; }
     bool get_is_holding_kfs() { return is_holding_kfs_; }
     void set_is_holding_kfs(bool is_holding_kfs) { is_holding_kfs_ = is_holding_kfs; }
     
@@ -143,9 +153,13 @@ private:
     bool is_placing_kfs_L_{false};
     bool is_placing_kfs_M_{false};
     bool is_placing_kfs_H_{false};
+    bool is_placing_kfs_T_{false};
 
     bool is_place_releasing_{false};
 
+    bool is_raising_kfs_{false};
+
+    bool is_kfs_raised_{false};
     bool is_holding_kfs_{false};
 
 };
