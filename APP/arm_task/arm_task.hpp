@@ -39,7 +39,7 @@ public:
     ~Arm() {}
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(170.0f + pos_deg, speed_deg); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(360.0f + pos_deg, speed_deg); }
     void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
@@ -54,9 +54,6 @@ public:
         }
         if (pose.special_operations & RESET_) reset();
         if (pose.special_operations & FETCH_) fetch();
-        if (pose.special_operations & RELEASE_) release();
-        if (pose.special_operations & DESTROY_VACCUM_START_) destroy_vaccum_start();
-        if (pose.special_operations & DESTROY_VACCUM_STOP_) destroy_vaccum_stop();
         if (pose.special_operations & PLACE_RELEASE_START_) place_release_start();
         if (pose.special_operations & PLACE_RELEASE_STOP_) place_release_stop();
         return pose.is_end;
@@ -64,24 +61,22 @@ public:
 
     // 吸取KFS入储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool fetch_proceed(int8_t step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
-        if (step == 1) {
-            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_0[index]);
-            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_1[index]);
-            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_M::kfs_2[index]);
-        } else if (step == 2) {
-            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_0[index]);
-            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_1[index]);
-            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_H::kfs_2[index]);
-        } else if (step == -1) {
-            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_0[index]);
-            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_1[index]);
-            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_L::kfs_2[index]);
-        } else if (step == 0) {
-            if (kfs_num_ == 0) return set_pose(arm_actions_config::fetch_proceed::step_P::kfs_0[index]);
-            else if (kfs_num_ == 1) return set_pose(arm_actions_config::fetch_proceed::step_P::kfs_1[index]);
-            else if (kfs_num_ == 2) return set_pose(arm_actions_config::fetch_proceed::step_P::kfs_2[index]);
+        auto get_pose_by_kfs = [&](auto& kfs_0, auto& kfs_1, auto& kfs_2) -> bool {
+            switch (kfs_num_) {
+                case 0: return set_pose(kfs_0[index]);
+                case 1: return set_pose(kfs_1[index]);
+                case 2: return set_pose(kfs_2[index]);
+                default: return false;
+            }
+        };
+        using namespace arm_actions_config::fetch_proceed;
+        switch (step) {
+            case 1: return get_pose_by_kfs(step_M::kfs_0, step_M::kfs_1, step_M::kfs_2);
+            case 2: return get_pose_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2);
+            case -1: return get_pose_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2);
+            case 0: return get_pose_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2);
+            default: return false;
         }
-        return false;
     }
     // 取出KFS出储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool place_proceed(uint8_t index) {  // 此函数不会减少kfs_num_，需要在外部结束动作链后主动减少kfs_num_
@@ -100,8 +95,8 @@ public:
     void rmvKFS() { kfs_num_--; }
 
     // 气泵控制类行为
-    void fetch() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET); }
-    void release() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET); }
+    void fetch() { set_is_holding_kfs(true); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET); }
+    void release() { set_is_holding_kfs(false); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET); }
     void destroy_vaccum_start() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_SET); }
     void destroy_vaccum_stop() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_RESET); }
     // 恢复至默认姿态
@@ -129,6 +124,8 @@ public:
     void set_is_placing_kfs_H(bool is_placing_kfs_H) { is_placing_kfs_H_ = is_placing_kfs_H; }
     bool get_is_place_releasing() { return is_place_releasing_; }
     void set_is_place_releasing(bool is_place_releasing) { is_place_releasing_ = is_place_releasing; }
+    bool get_is_holding_kfs() { return is_holding_kfs_; }
+    void set_is_holding_kfs(bool is_holding_kfs) { is_holding_kfs_ = is_holding_kfs; }
     
 private:
     DM43xxMotor &arm_lift_;
@@ -148,6 +145,8 @@ private:
     bool is_placing_kfs_H_{false};
 
     bool is_place_releasing_{false};
+
+    bool is_holding_kfs_{false};
 
 };
 
