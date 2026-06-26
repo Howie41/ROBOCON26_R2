@@ -13,7 +13,9 @@
 #include "state_machine_task.h"
 #include "com_config.h"
 #include "NavProtocol.hpp"
+#include "infrared_com.hpp"
 #include "memory_map.h"
+#include "tail_claw_task.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "chassis_task.h"
@@ -61,24 +63,95 @@ public:
             case robot_state::begin: {
                 wait_until([&]() -> bool { return begin_signal; });
                 begin_signal = false;
-                change_state_to(robot_state::request_for_path_cmd);
+                // 武馆：初始化夹爪并前往端头架
+                tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
+                move_to_pos(-237, -9, 0, 5000);
+                change_state_to(robot_state::go_to_shr);
                 break;
             }
 
             case robot_state::go_to_shr: {
-                // TODO: 一区逻辑
+                // 前往端头架第一个点位
+                move_to_pos(193, -815, 90, 5000);
+                tail_claw_set_roll_target(-59.5);
+                tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
+                // 通知上位机发送距离数据
+                tail_claw_msg msg{0};
+                msg.distance = 1;
+                tail_claw_weapon_event_pub_.Publish(msg);
+                // tail_claw_task会根据距离数据调整位置
+                change_state_to(robot_state::aim_at_weapon);
                 break;
             }
 
             case robot_state::aim_at_weapon: {
+                wait_until([this]() -> bool {
+                    tail_claw_update_status();
+                    return tail_claw_status_valid_ && tail_claw_status_cache_.weapon_matched;
+                });
+                // 关闭武器对准，告诉上位机不用发了
+                tail_claw_msg msg{};
+                msg.distance = 2;
+                tail_claw_weapon_event_pub_.Publish(msg);
+                tail_claw_set_mode(TailClawMode::Hold); // 对齐后锁定位置
+                change_state_to(robot_state::catch_weapon);
                 break;
             }
 
             case robot_state::catch_weapon: {
+                move_to_pos(193, -890, 90, 8000);
+                tail_claw_set_weapon_claw(false); // 闭合夹爪，夹紧武器头
+                osDelay(1000); // 等待夹爪动作完成，具体时间待调试
+                change_state_to(robot_state::rotate_weapon_claw);
                 break;
             }
 
             case robot_state::rotate_weapon_claw: {
+                tail_claw_set_roll_target(2.0f);
+                osDelay(300);
+                wait_until_timeout_or([this]() -> bool {
+                    tail_claw_update_status();
+                    return tail_claw_status_valid_ && tail_claw_status_cache_.roll_arrived;
+                }, 3000U, 10U);
+                tail_claw_reset_match();
+                change_state_to(robot_state::match_rod);
+                break;
+            }
+
+            case robot_state::match_rod: {
+                move_to_pos(441, 53, -90, 4000U);
+                tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
+                tail_claw_msg msg{};
+                msg.distance = 3;
+                tail_claw_weapon_event_pub_.Publish(msg);
+                wait_until([this]() -> bool {
+                    tail_claw_update_status();
+                    return tail_claw_status_valid_ && tail_claw_status_cache_.weapon_matched;
+                });
+                msg.distance = 4;
+                tail_claw_weapon_event_pub_.Publish(msg);
+                change_state_to(robot_state::wait_for_cmd);
+                break;
+            }
+
+            case robot_state::wait_for_cmd: {
+                // R2松开武器头夹爪，等待操作手决策，决定是否拼装新的武器
+                clean_previous_cmd();
+                wait_until([this]() -> bool {
+                    switch (get_cmd_from_r1()) {
+                        /*case 0x1A: // 夹取新的武器头
+                            change_state_to(robot_state::go_to_shr);
+                            return true;
+                        case 0x1B: // 进入梅林
+                            change_state_to(robot_state::go_to_mf_entrance);
+                            return true;*/
+                        case 0x0A:
+                            tail_claw_set_weapon_claw(true);
+                            return true;
+                        default:
+                            return false;
+                    }
+                });
                 break;
             }
 
@@ -184,6 +257,10 @@ public:
             }
 
             case robot_state::stop: {
+                nav_control::auto_enabled = false;
+                nav_control::target_active = false;
+                nav_control::arrived = false;
+                nav_control::arrival_reported = false;
                 break;
             }
 
@@ -208,6 +285,7 @@ private:
         aim_at_weapon,                 // 夹爪对准对应武器头
         catch_weapon,                  // 夹爪夹取武器
         rotate_weapon_claw,            // 夹爪反转
+        match_rod,                     // 端头架对齐武器杆
         wait_for_cmd,                  // 等待R1指令 决定继续夹取or前往梅林
 
         // 梅林
@@ -245,9 +323,16 @@ private:
     std::atomic<path_cmd::code> current_path_cmd_{path_cmd::code::unknown}; // 初始值对下位机来说没有意义
 
     TypedTopicSubscriber<pub_qr_code_parsed> qr_code_sub_{"qr_code_parsed", 1};
+    // 尾爪武器事件发布（通知上位机发送距离数据）
+    TypedTopicPublisher<tail_claw_msg> tail_claw_weapon_event_pub_{"tail_claw_weapon_event"};
+    // 尾爪状态订阅
+    TypedTopicSubscriber<pub_tail_claw_status> tail_claw_status_sub_{"tail_claw_status", 4};
 
     TypedTopicSubscriber<path_cmd::code> path_cmd_sub_{"pc_path_cmd", 1}; // 接收路径规划cmd
     TypedTopicPublisher<bool> path_cmd_request_pub_{"pc_path_cmd_request"}; // 请求路径规划cmd
+
+    pub_tail_claw_status tail_claw_status_cache_{};
+    bool tail_claw_status_valid_{false};
 
     /**
     * @brief 等待直到条件满足
@@ -307,13 +392,31 @@ private:
 
     bool is_loosely_arrived() {
         constexpr int16_t LOOSE_ARRIVED_THRESHOLD = 50; // 单位mm
-        int16_t delta_x = std::abs(nav_control::target_x - nav_control::current_x);
-        int16_t delta_y = std::abs(nav_control::target_y - nav_control::current_y);
-        return (delta_x < LOOSE_ARRIVED_THRESHOLD && delta_y < LOOSE_ARRIVED_THRESHOLD);
+        int16_t delta_x = nav_control::target_x - nav_control::current_x;
+        int16_t delta_y = nav_control::target_y - nav_control::current_y;
+        return (delta_x < LOOSE_ARRIVED_THRESHOLD && delta_x > -LOOSE_ARRIVED_THRESHOLD
+             && delta_y < LOOSE_ARRIVED_THRESHOLD && delta_y > -LOOSE_ARRIVED_THRESHOLD);
     }
 
     bool move_to_pos(const waypoint::point &wp, uint32_t timeout_ms = 0) {
         return move_to_pos(wp.x, wp.y, wp.yaw, timeout_ms);
+    }
+
+    /**
+     * @brief 更新尾爪状态缓存
+     * @return true 表示有新的状态更新
+     */
+    bool tail_claw_update_status() {
+        pub_tail_claw_status status{};
+        bool updated = false;
+
+        while (tail_claw_status_sub_.TryGet(&status)) {
+            tail_claw_status_cache_ = status;
+            tail_claw_status_valid_ = true;
+            updated = true;
+        }
+
+        return updated;
     }
 
     /**

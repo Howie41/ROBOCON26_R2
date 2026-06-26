@@ -93,9 +93,18 @@ void PcCom::OnPacket(Packet packet) {
       pc_tail_claw_pub_.Publish(msg);
       break;
     }
-
-    case static_cast<uint16_t>(PcCmd::nav_position): {
-      if (packet.body_size() != sizeof(pc_nav_position_t)) {
+      /*case static_cast<uint16_t>(PcCmd::tail_claw_msg_weapon):{
+      if(packet.body_size()!=sizeof(tail_claw_msg)){
+        return;
+      }
+      tail_claw_msg msg{};
+      std::memcpy(&msg,packet.body_data(),sizeof(tail_claw_msg));
+      pc_tail_claw_pub_.Publish(msg);
+      break;
+    }*/
+    // ---- 导航: 上位机上报当前位置 (0x0101) ----
+    case static_cast<uint16_t>(PcCmd::nav_position):{
+      if(packet.body_size()!=sizeof(pc_nav_position_t)){
         return;
       }
       pc_nav_position_t msg{};
@@ -165,8 +174,8 @@ void PcCom::ProcessTx() {
   }
 
   pc_nav_event_t nav_event{};
-  if (pc_nav_event_sub_.TryGet(&nav_event)) {
-    send(nav_event.event_code);
+  if(pc_nav_event_sub_.TryGet(&nav_event)){
+    send(nav_event.event_code, nav_event);
   }
 
   // 请求路径规划步骤
@@ -174,6 +183,13 @@ void PcCom::ProcessTx() {
   if (pc_path_cmd_request_sub_.TryGet(&request_path_cmd)) {
     send(static_cast<uint16_t>(path_cmd::code::request), request_path_cmd);
   }
+  tail_claw_msg claw_start_msg{};
+  if (tail_claw_weapon_event_sub_.TryGet(&claw_start_msg)) {
+      send(static_cast<uint16_t>(PcCmd::tail_claw_weapon_start), claw_start_msg);
+  }
+  /*if (tail_claw_rod_event_sub_.TryGet(&claw_start_msg)) {
+    bool ok=send(static_cast<uint16_t>(PcCmd::tail_claw_rod_start), claw_start_msg);
+  }*/
 }
 
 template <typename T>

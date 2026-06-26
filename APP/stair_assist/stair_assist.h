@@ -86,6 +86,8 @@ StairAssistLaser2State stairAssistLaser2State();
 bool stairAssistSuggestClimbUp();
 bool stairAssistSuggestDescendHighMode();
 bool stairAssistSuggestDescendEdgeReady();
+bool stairAssistSuggestGoToEdgeHigh();
+bool stairAssistSuggestGoToEdgeLow();
 bool stairAssistShouldLowerAfterClimbAdvance();
 bool stairAssistShouldLowerAfterDescendRetreat();
 
