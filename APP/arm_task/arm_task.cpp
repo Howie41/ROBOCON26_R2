@@ -30,11 +30,13 @@ static pub_arm_cmd arm_cmd{};
 
 extern Arm arm;  // 取矿机构实例
 
-static uint8_t index = 0;  // 用于记录动作索引
+static uint8_t act_index = 0;  // 用于记录动作索引
 
 static float now_t = 0.0f;  // 当前相对时刻记录
 static float last_t = 0.0f;  // 上一次相对时刻记录
 
+static uint8_t flag = 0;  // 当前功能状态值
+static uint8_t test_flag = 0;  // 上位机进行速度规划调试用时的flag
 
 namespace arm_action {
 
@@ -57,6 +59,13 @@ void unload_kfs(int8_t level = -1) { place_kfs(level); }
  */
 void release_kfs() { place_release(); }
 
+}
+
+
+// 重置计时器
+void reset_timeline() {
+    act_index = 0;
+    last_t = DWT_GetTimeline_s();
 }
 
 
@@ -88,12 +97,6 @@ void place_release() {
 }
 
 
-// 重置计时器
-void reset_timeline() {
-    index = 0;
-    last_t = DWT_GetTimeline_s();
-}
-
 void armTask(void *argument) {
     arm.reset();
 
@@ -104,7 +107,12 @@ void armTask(void *argument) {
         void (Arm::*setter)(bool);
         using namespace arm_actions_config::fetch_proceed;
         auto get_dt_by_kfs = [&](auto& kfs_0, auto& kfs_1, auto& kfs_2) -> float {
-            return (*std::array{&kfs_0, &kfs_1, &kfs_2}[arm.get_kfs_amount()])[index].delta_t
+            switch (arm.get_kfs_amount()) {
+                case 0: return kfs_0[act_index].delta_t;
+                case 1: return kfs_1[act_index].delta_t;
+                case 2: return kfs_2[act_index].delta_t;
+                default: return 0.0f;
+            }
         };
         switch (step) {
             case 2: { delta_t = get_dt_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2); setter = &Arm::set_is_fetching_step_H; break; }
@@ -113,7 +121,7 @@ void armTask(void *argument) {
             case 0: { delta_t = get_dt_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2); setter = &Arm::set_is_fetching_step_P; break; }
         }
         if (now_t > delta_t) {
-            if (arm.fetch_proceed(step, index++)) { (arm.*setter)(false); arm.addKFS(); }
+            if (arm.fetch_proceed(step, act_index++)) { (arm.*setter)(false); arm.addKFS(); }
             else last_t = DWT_GetTimeline_s();
         }
     };
@@ -125,12 +133,12 @@ void armTask(void *argument) {
         void (Arm::*setter)(bool);
         using namespace arm_actions_config::place_proceed;
         switch (layer) {
-            case 1: { delta_t = kfs_1[index].delta_t; setter = &Arm::set_is_placing_kfs_L; break; }
-            case 2: { delta_t = kfs_2[index].delta_t; setter = &Arm::set_is_placing_kfs_M; break; }
-            case 3: { delta_t = kfs_3[index].delta_t; setter = &Arm::set_is_placing_kfs_H; break; }
+            case 1: { delta_t = kfs_1[act_index].delta_t; setter = &Arm::set_is_placing_kfs_L; break; }
+            case 2: { delta_t = kfs_2[act_index].delta_t; setter = &Arm::set_is_placing_kfs_M; break; }
+            case 3: { delta_t = kfs_3[act_index].delta_t; setter = &Arm::set_is_placing_kfs_H; break; }
         }
         if (now_t > delta_t) {
-            if (arm.place_proceed(index++)) { (arm.*setter)(false); arm.rmvKFS(); }
+            if (arm.place_proceed(act_index++)) { (arm.*setter)(false); arm.rmvKFS(); }
             else last_t = DWT_GetTimeline_s();
         }
     };
@@ -141,7 +149,7 @@ void armTask(void *argument) {
         if (arm.get_is_fetching_step_H()) run_fetching_step(2);  // 抓取高台阶
         else if (arm.get_is_fetching_step_M()) run_fetching_step(1);  // 抓取中台阶
         else if (arm.get_is_fetching_step_L()) run_fetching_step(-1);  // 抓取低台阶
-        else if (arm.get_is_fetching_step_P()) run_fetching_step(0)  // 抓取平地
+        else if (arm.get_is_fetching_step_P()) run_fetching_step(0);  // 抓取平地
         // placing_kfs 类
         else if (arm.get_is_placing_kfs_L()) run_placing_kfs(1);  // 放置最底下的KFS进第二层
         else if (arm.get_is_placing_kfs_M()) run_placing_kfs(2);  // 放置中间层的KFS进第二层
@@ -149,8 +157,8 @@ void armTask(void *argument) {
         // place_releasing 类
         else if (arm.get_is_place_releasing()) {  // 释放KFS，回归默认姿态
             now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
-            if (now_t > arm_actions_config::place_release_proceed[index].delta_t) {
-                if (arm.place_proceed(index++)) arm.set_is_place_releasing(false);
+            if (now_t > arm_actions_config::place_release_proceed[act_index].delta_t) {
+                if (arm.place_proceed(act_index++)) arm.set_is_place_releasing(false);
                 else last_t = DWT_GetTimeline_s();
             }
         }
