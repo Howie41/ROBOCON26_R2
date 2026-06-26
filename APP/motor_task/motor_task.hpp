@@ -16,6 +16,7 @@
 #include <cstdint>
 #include "Motor.hpp"
 #include "pid_controller.h"
+#include "filters.hpp"
 
 /** @brief 电机规划系统 
  *  @note 该系统负责对注册的电机进行位置和速度控制，使用两个级联的PID控制器实现。位置PID计算目标速度，速度PID计算最终命令输出。每个电机的PID参数可以独立配置，并且位置PID的输出会根据当前运动阶段动态调整最大速度，以实现平滑的加速和减速过程。
@@ -23,11 +24,16 @@
  *  @param motor 电机对象，必须继承自MotorBase并实现相关接口。
 */
 
-
 struct MotorPlanningUnit {
     MotorBase *motor;
     PID_t pos_pid;
     PID_t speed_pid;
+    KalmanFilter1D output_filter1{0.002f, 0.5f};
+    MovingAverageFilter<64> output_filter2;
+    LowPassFilter output_filter3{30.0f, 1000.0f};
+    uint16_t wait_num1{100};
+    uint16_t wait_num2{10};
+    float output{0.0f};
 };
 
 class MotorPlanningSystem {
@@ -47,10 +53,10 @@ public:
                 .DeadBand = 0.01f
             },
             .speed_pid = {
-                .Kp = 2200.0f,
-                .Ki = 600.0f,
+                .Kp = 1800.0f,
+                .Ki = 20.0f,
                 .Kd = 1.8f,
-                .MaxOut = 12000.0f,
+                .MaxOut = 8000.0f,
                 .DeadBand = 0.1f
             }
         };
@@ -66,8 +72,18 @@ public:
      */
     void update() {
         for (uint8_t i = 0; i < motor_count_; i++) {
-            motor_planning_units_[i]->pos_pid.MaxOut = motor_planning_units_[i]->motor->updateSpeedProcess();
-            motor_planning_units_[i]->motor->setMotorCmd(PID_Calculate(&motor_planning_units_[i]->speed_pid, motor_planning_units_[i]->motor->getCurrentSpeed(), PID_Calculate(&motor_planning_units_[i]->pos_pid, motor_planning_units_[i]->motor->getCurrentSumPos(), motor_planning_units_[i]->motor->tar_sum_pos_)));
+            float v = motor_planning_units_[i]->motor->updateSpeedProcess();
+            motor_planning_units_[i]->pos_pid.MaxOut = v;
+            if (motor_planning_units_[i]->wait_num1++ > -1) {
+                motor_planning_units_[i]->wait_num1 = 0;
+                PID_Calculate(&motor_planning_units_[i]->pos_pid, motor_planning_units_[i]->motor->getCurrentSumPos(), motor_planning_units_[i]->motor->tar_sum_pos_);
+            }
+            if (motor_planning_units_[i]->wait_num2++ > -1) {
+                motor_planning_units_[i]->wait_num2 = 0;
+                PID_Calculate(&motor_planning_units_[i]->speed_pid, motor_planning_units_[i]->motor->getCurrentSpeed(), motor_planning_units_[i]->pos_pid.Output);
+            }
+            motor_planning_units_[i]->output = motor_planning_units_[i]->speed_pid.Output; // motor_planning_units_[i]->output_filter3.update(motor_planning_units_[i]->output_filter2.update(motor_planning_units_[i]->output_filter1.update(motor_planning_units_[i]->speed_pid.Output)));
+            motor_planning_units_[i]->motor->setMotorCmd(motor_planning_units_[i]->output);
         }
     }
 private:
