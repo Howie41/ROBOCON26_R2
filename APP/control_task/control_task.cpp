@@ -122,6 +122,16 @@ void Lift_Data_Process() {
   }
 }
 
+static void Lift_2006_Axis_Process() {
+  if (ABS(control_xbox_cmd.joyRVert - 32767) > 2000) {
+    lift_cmd.lift_2006_input =
+        (int)(control_xbox_cmd.joyRVert - 32767) / 32767.0f *
+        MAX_LIFT_VELOCITY;
+  } else {
+    lift_cmd.lift_2006_input = 0.0f;
+  }
+}
+
 static bool consumeModeSwitch(bool current_state) {
   const bool rising_edge = current_state && !xbox_mode_last;
   xbox_mode_last = current_state;
@@ -137,6 +147,12 @@ static bool consumeButtonRisingEdge(bool current_state, bool *last_state) {
 static bool manualActionReady() {
   return !nav_control::auto_enabled &&
          !nav_control::high_mode_active &&
+         (stairWaypointStep() == 0U);
+}
+
+static bool manualLift2006Ready() {
+  return !nav_control::auto_enabled &&
+         nav_control::high_mode_active &&
          (stairWaypointStep() == 0U);
 }
 
@@ -306,9 +322,19 @@ void controlTask(void *argument) {
 
         if (manualActionReady()) {
           Xbox_Data_Process();
+          chassis_cmd.nav_mode_ = false;
+          chassis_data_pub.Publish(chassis_cmd);
+        }
 
+        if (stairWaypointStep() == 0U) {
           if (!stairWaypointArmed()) {
             Lift_Data_Process();
+          } else if (manualLift2006Ready()) {
+            lift_cmd.request_high = false;
+            lift_cmd.request_low = false;
+            lift_cmd.lift_up = false;
+            lift_cmd.lift_down = false;
+            Lift_2006_Axis_Process();
           } else {
             lift_cmd.request_high = false;
             lift_cmd.request_low = false;
@@ -318,8 +344,6 @@ void controlTask(void *argument) {
           }
           applyManualStairAssist();
           lift_data_pub.Publish(lift_cmd);
-          chassis_cmd.nav_mode_ = false;
-          chassis_data_pub.Publish(chassis_cmd);
         }
       }
     }

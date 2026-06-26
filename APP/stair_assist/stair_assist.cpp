@@ -30,8 +30,8 @@ constexpr int32_t kLaser3EdgeMinMm = 800;
 
 constexpr int32_t kLaser2ClimbHighMinMm = 210;
 constexpr int32_t kLaser2ClimbHighMaxMm = 240;
-constexpr int32_t kLaser2GoToEdgeLowMinMm = 300;
-constexpr int32_t kLaser2GoToEdgeLowMaxMm = 500;
+constexpr int32_t kLaser2GoToEdgeLowMinMm = 500;
+constexpr int32_t kLaser2GoToEdgeLowMaxMm = 700;
 constexpr int32_t kLaser2DescendLowerMinMm = 280;
 constexpr int32_t kLaser2DescendLowerMaxMm = 500;
 
