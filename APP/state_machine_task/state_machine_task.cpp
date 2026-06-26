@@ -209,6 +209,9 @@ public:
                     case path_cmd::code::turn_right_90:
                         chassis_action::turn_right_90_deg();
                         break;
+                    case path_cmd::code::turn_around:
+                        chassis_action::turn_right_180_deg();
+                        break;
                     case path_cmd::code::move_left:
                         // TODO: 实现向左平移
                         break;
@@ -421,7 +424,7 @@ private:
 
     /**
     * @brief 清空之前的命令，避免误触发
-    * @note 两个Subscriber的长度都是1，各自TryGet一次就能清空之前的命令了
+    * @note qr_code_sub_ 的长度是1，TryGet一次就能清空之前的命令了
     * @note 不要放入 wait_until，只清理一次就好了
     */
     void clean_previous_cmd() {
