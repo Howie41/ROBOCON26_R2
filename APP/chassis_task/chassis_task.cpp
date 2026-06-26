@@ -395,6 +395,8 @@ void turn_right_90_deg() {
 
 void start_climb_upstairs() { stairWaypointRunUp(); }
 
+void start_climb_R1() { stairWaypointRunUpR1(); }
+
 void start_climb_downstairs() { stairWaypointRunDown(); }
 
 bool is_chassis_idle() {

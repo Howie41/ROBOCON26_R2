@@ -351,7 +351,7 @@ void NavControlTask(void *argument) {
       chassis_cmd_pub.Publish(cmd);
 
       const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
-      const bool reached = (dist_error < 30.0f) && (fabsf(error_yaw) < 1.0f);
+      const bool reached = (dist_error < 20.0f) && (fabsf(error_yaw) < 1.0f);
 
       nav_control::arrived = reached;
       if (reached) {

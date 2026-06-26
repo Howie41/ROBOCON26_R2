@@ -10,9 +10,10 @@
 #include <cstdint>
 //消息类型
 enum class PcCmd : uint16_t {
-  tail_claw_msg = 0x0001,
-  tail_claw_msg_flase = 0x0002,
-  tail_claw_msg_success = 0x0003,
+  tail_claw_msg         = 0x0001,      //夹武器
+  //tail_claw_msg_weapon   = 0x0002,    //夹杆子
+  tail_claw_weapon_start   = 0x0002,     //状态机通知tail_claw_task开始对准武器头的指令，1是开，0是关
+  //tail_claw_rod_start   = 0x0004,     //状态机通知tail_claw_task开始对准武器杆的指令，1是开，0是关
 // ---- 上位机→下位机: 导航指令 (0x01xx) ----
   nav_position = 0x0101, // 上位机上报当前位置
   nav_target = 0x0102,// 上位机下发目标点
@@ -56,15 +57,20 @@ private:
   bool send(uint16_t code);  // 无负载版本
 
 private:
-  Manager manager_;
-  UartPort *uart_{nullptr};
-  UsbPort *usb_={nullptr};
+    Manager manager_;
+    UartPort *uart_{nullptr};
+    UsbPort *usb_={nullptr};
 
-  // 示例: tail_claw 收发
-  TypedTopicPublisher<tail_claw_msg> pc_tail_claw_pub_{"pc_tail_claw_pub"};
-  TypedTopicSubscriber<tail_claw_msg> pc_tail_claw_sub_{"pc_tail_claw_sub", 8};
-  
-    // 导航事件订阅: lift_task / NavProtocol 发布事件 → ProcessTx 发送到上位机
+    // 示例: tail_claw 收发
+    TypedTopicPublisher<tail_claw_msg> pc_tail_claw_pub_{"pc_tail_claw_pub"};
+    TypedTopicSubscriber<tail_claw_msg> pc_tail_claw_sub_{"pc_tail_claw_sub", 8};
+    //下位机告诉上位机开始发夹爪信息
+   TypedTopicSubscriber<tail_claw_msg>
+    tail_claw_weapon_event_sub_{"tail_claw_weapon_event", 4};
+
+    /*TypedTopicSubscriber<tail_claw_msg>
+    tail_claw_rod_event_sub_{"tail_claw_rod_event", 4};
+    // 导航事件订阅: lift_task / NavProtocol 发布事件 → ProcessTx 发送到上位机*/
     // 队列深度 4，足够缓冲连续事件
   TypedTopicSubscriber<pc_nav_event_t> pc_nav_event_sub_{"pc_nav_event_pub", 4};
   
