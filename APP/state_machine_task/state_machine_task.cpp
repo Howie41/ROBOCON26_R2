@@ -18,7 +18,7 @@
 #include "waypoint_navigator.hpp"
 #include "tail_claw_task.hpp"
 #include "chassis_task.h"
-void state_machine();
+void weapon();
 osThreadId_t StateMachineTaskHandle;
 
 static std::atomic<RobotState> current_state{RobotState::begin};
@@ -153,7 +153,8 @@ test_action action = test_action::unknown;
 
 int start=0;
 void stateMachineTask(void *argument) {
-    state_machine();
+    //下面这个如果要调试武器就别注释
+    //weapon();
     TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
     pub_Xbox_Data control_xbox_cmd{};
     for (;;) {
@@ -190,122 +191,6 @@ void stateMachineTask(void *argument) {
                 break;
             }
 
-            case RobotState::aim_at_weapon: {
-                wait_until([&]() -> bool {
-                    // TODO: 判断夹爪是否对准武器头
-                    tail_claw_update_status();
-                    return tail_claw_status_valid && tail_claw_status_cache.weapon_matched;     //对准
-                });
-                //关闭武器对准，告诉上位机不用发了
-                tail_claw_msg msg{};
-                msg.distance = 2;
-                tail_claw_weapon_event_pub.Publish(msg);
-
-                tail_claw_set_mode(TailClawMode::Hold);//对齐后锁定位置
-                change_state_to(RobotState::catch_weapon);
-                break;
-            }
-
-            case RobotState::catch_weapon: {
-                 /* if (!move_to_pos(-290, -944, 90, 10000U)) {
-                        change_state_to(RobotState::stop);
-                        break;
-                }*/// 对准后向前移动一段距离，具体数值待调试
-                move_to_pos(-266, -960, 90, 10000U);
-                tail_claw_set_weapon_claw(false);//闭合夹爪，夹紧武器头
-                osDelay(100); // 等待夹爪动作完成，具体时间待调试
-                change_state_to(RobotState::rotate_weapon_claw);
-                break;
-            }
-
-            case RobotState::rotate_weapon_claw: {  
-                    tail_claw_set_roll_target(2.0f);
-
-                    /*wait_until([]() -> bool {
-                        constexpr float roll_reduction_ratio = 2.5f;
-                        constexpr float target_roll_pos = 83.0f * roll_reduction_ratio;
-                        constexpr float pos_tolerance = 5.0f;
-                        constexpr float speed_tolerance = 5.0f;
-
-                        return fabsf(tail_claw_roll_motor.getCurrentSumPos() - target_roll_pos) < pos_tolerance &&
-                            fabsf(tail_claw_roll_motor.getCurrentSpeed()) < speed_tolerance;
-                    });*/
-                     /*wait_until_timeout_or([]() -> bool {
-                    constexpr float roll_reduction_ratio = 2.5f;
-                    constexpr float target_roll_pos = 2.0f * roll_reduction_ratio;
-                     constexpr float pos_tolerance = 4.0f;
-                    constexpr float speed_tolerance = 5.0f;
-
-                    return fabsf(tail_claw_roll_motor.getCurrentSumPos() - target_roll_pos) < pos_tolerance &&
-                    fabsf(tail_claw_roll_motor.getCurrentSpeed()) < speed_tolerance;
-                    }, 3000U, 10U);   // 最多等 3000ms，每 10ms 检查一次*/
-                    wait_until_timeout_or([]() -> bool {
-                        tail_claw_update_status();
-                        return tail_claw_status_valid && tail_claw_status_cache.roll_arrived;
-                    }, 3000U, 10U);
-                    //change_state_to(RobotState::stop);
-
-                    change_state_to(RobotState::match_rod);
-                    break;
-            }
-
-            case RobotState::match_rod: {
-                 /* if (!move_to_pos(20, -100, -90, 4000U)) {
-                         change_state_to(RobotState::stop);
-                            break;
-                     } */// TODO: 填入武器rod位置
-                move_to_pos(20, -100, -90, 4000U);
-                tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
-
-                /*static TypedTopicPublisher<tail_claw_msg>
-                tail_claw_rod_event_pub("tail_claw_rod_event");
-                tail_claw_msg msg{};
-                msg.distance = 1;
-                tail_claw_rod_event_pub.Publish(msg);*/
-                tail_claw_msg msg{};
-                msg.distance = 3;
-                tail_claw_weapon_event_pub.Publish(msg);
-                tail_claw_reset_match();
-                /*wait_until([&]() -> bool {
-                    // TODO: 判断夹爪是否对准武器杆
-                    return (weapon_match_state_ & ismatch)!= 0;      //对准
-                });*/
-                wait_until([&]() -> bool {
-                    // TODO: 判断夹爪是否对准武器杆
-                    tail_claw_update_status();
-                    return tail_claw_status_valid && tail_claw_status_cache.weapon_matched;
-                });
-
-                //关闭武器对准，告诉上位机不用发了
-                /*msg.distance = 2;
-                tail_claw_rod_event_pub.Publish(msg);
-                tail_claw_set_mode(TailClawMode::Hold);*/
-                msg.distance = 4;
-                tail_claw_weapon_event_pub.Publish(msg);
-
-                change_state_to(RobotState::wait_for_cmd);
-                break;
-            }
-            // R2松开武器头夹爪，等待操作手决策，决定是否拼装新的武器
-            case RobotState::wait_for_cmd: {
-                clean_previous_cmd();
-                wait_until([&]() -> bool {
-                    switch (get_cmd_from_r1()) {
-                        /*case 0x1A: // 夹取新的武器头
-                            change_state_to(RobotState::go_to_SHR);
-                            return true;
-                        case 0x1B: // 进入梅林
-                            change_state_to(RobotState::go_to_MF);
-                            return true;*/
-                            case 0x0A:
-                                tail_claw_set_weapon_claw(true);
-                                return true;
-                        default:
-                            return false;
-                    }
-                });
-                break;
-            }
 
             case RobotState::stop:{
                 nav_control::auto_enabled = false;
@@ -330,44 +215,33 @@ void stateMachineTask(void *argument) {
     }
 }
 
-void state_machine()
+void weapon()
 {
     for (;;) {
         switch (current_state.load()) {
             case RobotState::begin:{
-                //start==2是测试
+                //start==2是测试模式，可以在这里面放要测试的代码
+                //start==1是自动模式
                 if(start==2)
                 {
-                    clean_previous_cmd();
-                    wait_until([&]() -> bool {
-                    switch (get_cmd_from_r1()) {
-                        /*case 0x1A: // 夹取新的武器头
-                            change_state_to(RobotState::go_to_SHR);
-                            return true;
-                        case 0x1B: // 进入梅林
-                            change_state_to(RobotState::go_to_MF);
-                            return true;*/
-                            case 0x0A:
-                                tail_claw_set_weapon_claw(true);
-                                tail_claw_set_roll_target(-56.5);
-                                return true;
-                        default:
-                            return false;
-                    }
-                });
+                    tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
+                    //发消息给上位机，他要发消息给我了
+                    tail_claw_msg msg{0}; 
+                    msg.distance = 3;
+                    tail_claw_weapon_event_pub.Publish(msg);           
                 }
                 if(start==1) 
                 {
-                    //按下View键进入下一状态
                     //开始进行自动
                     //tail_claw_set_roll_target(-56.5);
-                    //tail_claw_setAirPump(true);      //气泵的开关
-                    tail_claw_set_weapon_claw(true);     //闭合夹爪，夹紧武器头，
-                    //原点
-                    //move_to_pos(-110, 210, 0,5000);
-                    //30，210，
-                    move_to_pos(30, 210, 0,5000);
-                    //tail_claw_set_roll_target(-59.5);
+                    //tail_claw_setAirPump(true);               //气泵的开关
+                    tail_claw_set_weapon_claw(true);     //打开夹爪，夹紧武器头，
+                    /*里程计版//原点
+                    //move_to_pos(-110, 210, 0,5000)
+                    //新版
+                    //move_to_pos(30, 210, 0,5000);
+                    */
+                    move_to_pos(-237, -9, 0,5000);
                     change_state_to(RobotState::go_to_SHR);
                     
                 }
@@ -375,15 +249,13 @@ void state_machine()
             }
 
             case RobotState::go_to_SHR: {
-                //发个信号，唤醒通知tail_claw_task去对准武器头
-                //move_to_pos(-286, -840, 90,5000);
-                //move_to_pos(-266, -860, 90,5000);
+
                 //第一个点位
-                move_to_pos(430, -370, 90,5000);
+                //里程计版本move_to_pos(400, -390, 90,5000);
+                move_to_pos(193, -815, 90,5000);
                 tail_claw_set_roll_target(-59.5);
                 //第二个点位
-                //move_to_pos(430, -420, 90,5000);
-                //tail_claw_setAirPump(false);
+                //tail_claw_setAirPump(false);                    //关闭气泵
                 tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
                 //发消息给上位机，他要发消息给我了
                 tail_claw_msg msg{0}; 
@@ -411,79 +283,39 @@ void state_machine()
             }
 
             case RobotState::catch_weapon: {
-                 /* if (!move_to_pos(-290, -944, 90, 10000U)) {
-                        change_state_to(RobotState::stop);
-                        break;
-                }*/// 对准后向前移动一段距离，具体数值待调试
-                move_to_pos(-266, -960, 90, 10000U);
-                tail_claw_set_weapon_claw(false);//闭合夹爪，夹紧武器头
-                osDelay(100); // 等待夹爪动作完成，具体时间待调试
+                //里程计版本move_to_pos(400, -445, 90,5000);
+                move_to_pos(193, -890, 90,8000);
+                tail_claw_set_weapon_claw(false);         //闭合夹爪，夹紧武器头
+                osDelay(1000);                            // 等待夹爪动作完成，具体时间待调试
                 change_state_to(RobotState::rotate_weapon_claw);
                 break;
             }
 
             case RobotState::rotate_weapon_claw: {  
                     tail_claw_set_roll_target(2.0f);
-
-                    /*wait_until([]() -> bool {
-                        constexpr float roll_reduction_ratio = 2.5f;
-                        constexpr float target_roll_pos = 83.0f * roll_reduction_ratio;
-                        constexpr float pos_tolerance = 5.0f;
-                        constexpr float speed_tolerance = 5.0f;
-
-                        return fabsf(tail_claw_roll_motor.getCurrentSumPos() - target_roll_pos) < pos_tolerance &&
-                            fabsf(tail_claw_roll_motor.getCurrentSpeed()) < speed_tolerance;
-                    });*/
-                     /*wait_until_timeout_or([]() -> bool {
-                    constexpr float roll_reduction_ratio = 2.5f;
-                    constexpr float target_roll_pos = 2.0f * roll_reduction_ratio;
-                     constexpr float pos_tolerance = 4.0f;
-                    constexpr float speed_tolerance = 5.0f;
-
-                    return fabsf(tail_claw_roll_motor.getCurrentSumPos() - target_roll_pos) < pos_tolerance &&
-                    fabsf(tail_claw_roll_motor.getCurrentSpeed()) < speed_tolerance;
-                    }, 3000U, 10U);   // 最多等 3000ms，每 10ms 检查一次*/
+                    osDelay(300);
                     wait_until_timeout_or([]() -> bool {
                         tail_claw_update_status();
                         return tail_claw_status_valid && tail_claw_status_cache.roll_arrived;
                     }, 3000U, 10U);
-                    //change_state_to(RobotState::stop);
-
-                    change_state_to(RobotState::stop);
+                    tail_claw_reset_match();
+                    change_state_to(RobotState::match_rod);
                     break;
             }
 
             case RobotState::match_rod: {
-                 /* if (!move_to_pos(20, -100, -90, 4000U)) {
-                         change_state_to(RobotState::stop);
-                            break;
-                     } */// TODO: 填入武器rod位置
-                move_to_pos(20, -100, -90, 4000U);
-                tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
+                //里程计版本move_to_pos(477, 279, -90, 4000U);
+                move_to_pos(441, 53, -90, 4000U);
 
-                /*static TypedTopicPublisher<tail_claw_msg>
-                tail_claw_rod_event_pub("tail_claw_rod_event");
-                tail_claw_msg msg{};
-                msg.distance = 1;
-                tail_claw_rod_event_pub.Publish(msg);*/
+                tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
                 tail_claw_msg msg{};
                 msg.distance = 3;
                 tail_claw_weapon_event_pub.Publish(msg);
-                tail_claw_reset_match();
-                /*wait_until([&]() -> bool {
-                    // TODO: 判断夹爪是否对准武器杆
-                    return (weapon_match_state_ & ismatch)!= 0;      //对准
-                });*/
                 wait_until([&]() -> bool {
                     // TODO: 判断夹爪是否对准武器杆
                     tail_claw_update_status();
                     return tail_claw_status_valid && tail_claw_status_cache.weapon_matched;
                 });
-
-                //关闭武器对准，告诉上位机不用发了
-                /*msg.distance = 2;
-                tail_claw_rod_event_pub.Publish(msg);
-                tail_claw_set_mode(TailClawMode::Hold);*/
                 msg.distance = 4;
                 tail_claw_weapon_event_pub.Publish(msg);
 

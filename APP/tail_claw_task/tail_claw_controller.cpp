@@ -70,8 +70,8 @@ void TailClawController::init_pid()
 {
     move_pos_pid_ = {};
     move_pos_pid_.Kp = 0.05f;
-    move_pos_pid_.Ki = 0.0f;
-    move_pos_pid_.Kd = 0.0f;
+    move_pos_pid_.Ki = 0.03f;
+    move_pos_pid_.Kd = 0.5f;
     move_pos_pid_.MaxOut = 5.0f;
     move_pos_pid_.IntegralLimit = 0.35f;
     move_pos_pid_.DeadBand = 0.3f;
@@ -81,7 +81,7 @@ void TailClawController::init_pid()
     move_speed_pid_.Kp = 400.0f;
     move_speed_pid_.Ki = 0.03f;
     move_speed_pid_.Kd = 0.02f;
-    move_speed_pid_.MaxOut = 10000.0f;
+    move_speed_pid_.MaxOut = 3000.0f;
     move_speed_pid_.IntegralLimit = 0.35f;
     move_speed_pid_.DeadBand = 0.3f;
     move_speed_pid_.Improve = NONE;
@@ -95,7 +95,7 @@ void TailClawController::init_pid()
     roll_pos_pid_.Improve = NONE;
 
     roll_speed_pid_ = {};
-    roll_speed_pid_.Kp = 80.0f;
+    roll_speed_pid_.Kp = 70.0f;
     roll_speed_pid_.Ki = 8.0f;
     roll_speed_pid_.Kd = 1.4f;
     roll_speed_pid_.MaxOut = 3000.0f;
@@ -251,8 +251,8 @@ void TailClawController::update_control_bits()
 
     if (mode_ == TailClawMode::AutoAlign) {
         tail_claw_msg msg{last_distance_};
-        update_auto_align(is_distance_fresh() ? &msg : nullptr);
         update_manual_control();
+        update_auto_align(is_distance_fresh() ? &msg : nullptr);
         return;
     }
 
@@ -279,7 +279,7 @@ void TailClawController::update_auto_align(const tail_claw_msg* msg)
 
         if (match_lost_count_ >= match_lost_count_limit) {
             weapon_matched_stable_ = false;
-            match_ok_count_ = 0;
+            if(match_ok_count_ > 0)match_ok_count_ =0;
             motion_bits_ &= static_cast<uint8_t>(~ismatch);
         }
         return;
@@ -295,7 +295,7 @@ void TailClawController::update_auto_align(const tail_claw_msg* msg)
 
         if (match_lost_count_ >= match_lost_count_limit) {
             weapon_matched_stable_ = false;
-            match_ok_count_ = 0;
+             if(match_ok_count_ > 0)match_ok_count_ =0;
             motion_bits_ &= static_cast<uint8_t>(~ismatch);
         }
         return;
