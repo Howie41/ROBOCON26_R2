@@ -5,6 +5,7 @@
  * @date 2026-05-24
  */
 
+#include "arm_task.hpp"
 #include "cmsis_os2.h"
 #include <atomic>
 #include <cstdint>
@@ -18,6 +19,7 @@
 #include "chassis_task.h"
 
 osThreadId_t StateMachineTaskHandle;
+extern Arm arm;  // 取矿机构实例
 
 namespace waypoint {
     typedef struct {
@@ -63,7 +65,7 @@ public:
                 break;
             }
 
-            case robot_state::go_to_SHR: {
+            case robot_state::go_to_shr: {
                 // TODO: 一区逻辑
                 break;
             }
@@ -80,7 +82,7 @@ public:
                 break;
             }
 
-            case robot_state::go_to_MF_entrance: {
+            case robot_state::go_to_mf_entrance: {
                 break;
             }
 
@@ -109,7 +111,7 @@ public:
                         change_state_to(robot_state::execute_arm_action);
                         break;
                     case path_cmd::code::no_more_commands:
-                        change_state_to(robot_state::go_to_MF_exit);
+                        change_state_to(robot_state::go_to_mf_exit);
                         break;
                     default:
                         break;
@@ -143,17 +145,41 @@ public:
                     default:
                         break;
                 }
+                current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
                 change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
             case robot_state::execute_arm_action: {
-                // TODO: 实现取矿机构逻辑
+
+                path_cmd::code executing_cmd = current_path_cmd_.load();
+
+                switch (executing_cmd) {
+                    case path_cmd::code::grab_low_r2kfs:
+                        arm_action::load_kfs(-1);
+                        break;
+                    case path_cmd::code::grab_mid_r2kfs:
+                        arm_action::load_kfs(1);
+                        break;
+                    case path_cmd::code::grab_high_r2kfs:
+                        arm_action::load_kfs(2);
+                        break;
+                    case path_cmd::code::drop_and_grab_new_kfs:
+                        break;
+                    default:
+                        break;
+                }
+                wait_until([]() -> bool {
+                    return !arm.get_is_fetching_step_L() && !arm.get_is_fetching_step_P()
+                            && !arm.get_is_fetching_step_M() && !arm.get_is_fetching_step_H();
+                });
+
+                current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
                 change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
-            case robot_state::go_to_MF_exit: {
+            case robot_state::go_to_mf_exit: {
                 break;
             }
 
@@ -177,27 +203,41 @@ private:
     enum class robot_state: uint8_t {
     #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
         // 武馆
-        begin = 0,            // 启动
-        go_to_SHR,            // 前往端头架
-        aim_at_weapon,        // 夹爪对准对应武器头
-        catch_weapon,         // 夹爪夹取武器
-        rotate_weapon_claw,   // 夹爪反转
-        wait_for_cmd,         // 等待R1指令 决定继续夹取or前往梅林
+        begin = 0,                     // 启动
+        go_to_shr,                     // 前往端头架
+        aim_at_weapon,                 // 夹爪对准对应武器头
+        catch_weapon,                  // 夹爪夹取武器
+        rotate_weapon_claw,            // 夹爪反转
+        wait_for_cmd,                  // 等待R1指令 决定继续夹取or前往梅林
 
         // 梅林
-        go_to_MF_entrance,     // 前往梅林入口
-        request_for_path_cmd,  // 请求路径规划命令
-        execute_chassis_action,// 执行底盘动作
-        execute_arm_action,    // 执行取矿机构动作
-        go_to_MF_exit,         // 前往梅林出口
-        stop                   // 停止
+        go_to_mf_entrance,             // 前往梅林入口
+        request_for_path_cmd,          // 请求路径规划命令
+        execute_chassis_action,        // 执行底盘动作
+        execute_arm_action,            // 执行取矿机构动作
+        go_to_mf_exit,                 // 前往梅林出口
+        stop                           // 停止
 
     #elif MATCH_JGCB /** ========== 九宫藏宝 单项赛 ========== */
+        begin = 0,                     // 启动
+        go_to_arena,                   // 上坡、前往竞技场
+        go_to_load_kfs,                // 前往距斜坡最近的KFS前
+        load_kfs,                      // 装载KFS
+        wait_for_place_mid_kfs_cmd,    // 等待放置中层KFS的指令
 
-        
-        begin = 0,            // 启动
-        // TODO ...
-        
+        go_to_tic_tac_toe,             // 前往九宫格前
+        request_for_kfs_location,      // 请求KFS放置位置
+        go_to_kfs_location,            // 前往KFS放置位置
+        place_kfs,                     // 放置KFS
+        go_to_combination_area,        // 前往合体点位
+        wait_for_combination_cmd,      // 等待合体指令
+        begin_combination,             // 合体
+
+        unload_kfs,                    // 取出KFS并手持
+        wait_for_place_hi_kfs_cmd,     // 等待放置高层KFS的指令
+        release_kfs,                   // 释放KFS 
+
+        stop                           // 停止
     #endif
     };
 
