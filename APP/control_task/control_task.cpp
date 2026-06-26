@@ -304,7 +304,7 @@ void controlTask(void *argument) {
         // }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
-            chassis_action::start_climb_upstairs();
+            chassis_action::turn_left_90_deg();
         }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
