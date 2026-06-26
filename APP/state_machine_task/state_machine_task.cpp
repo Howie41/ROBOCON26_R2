@@ -38,11 +38,20 @@ namespace waypoint {
     [[maybe_unused]] point before_rotate{11830, 1980, 0};
     [[maybe_unused]] point after_rotate{11350, 1860, -90};
     [[maybe_unused]] point grid{11170, -980, -90};
+
+    point mf_entrance_mid{1300, 1470, 0};
+    point mf_entrance_left{1300, 1470-1200, 0};
+    point mf_entrance_right{1300, 1470+1200, 0};
 }
 
 volatile bool begin_signal{false};
+volatile bool paused{false};
 
 class StateMachine {
+
+private:
+    int8_t moved_left_right_{0}; // 左右移动计数
+
 public:
     StateMachine() = default;
     ~StateMachine() = default;
@@ -63,10 +72,12 @@ public:
             case robot_state::begin: {
                 wait_until([&]() -> bool { return begin_signal; });
                 begin_signal = false;
+                change_state_to(robot_state::request_for_path_cmd);
+
                 // 武馆：初始化夹爪并前往端头架
-                tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
-                move_to_pos(-237, -9, 0, 5000);
-                change_state_to(robot_state::go_to_shr);
+                // tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
+                // move_to_pos(-237, -9, 0, 5000);
+                // change_state_to(robot_state::go_to_shr);
                 break;
             }
 
@@ -168,6 +179,12 @@ public:
                 });
 
                 current_path_cmd_.store(cmd); // 给其他后续状态读取
+
+                paused = true;
+                wait_until([]() -> bool {
+                    return !paused;
+                });
+
                 switch (cmd) {
                     case path_cmd::code::move_forward:
                     case path_cmd::code::move_backward:
@@ -175,6 +192,7 @@ public:
                     case path_cmd::code::turn_right_90:
                     case path_cmd::code::move_left:
                     case path_cmd::code::move_right:
+                    case path_cmd::code::turn_around:
                         change_state_to(robot_state::execute_chassis_action);
                         break;
                     case path_cmd::code::grab_low_r2kfs:
@@ -213,10 +231,10 @@ public:
                         chassis_action::turn_right_180_deg();
                         break;
                     case path_cmd::code::move_left:
-                        // TODO: 实现向左平移
+                        move_left();
                         break;
                     case path_cmd::code::move_right:
-                        // TODO: 实现向右平移
+                        move_right();
                         break;
                     default:
                         break;
@@ -230,25 +248,25 @@ public:
 
                 path_cmd::code executing_cmd = current_path_cmd_.load();
 
-                switch (executing_cmd) {
-                    case path_cmd::code::grab_low_r2kfs:
-                        arm_action::load_kfs(-1);
-                        break;
-                    case path_cmd::code::grab_mid_r2kfs:
-                        arm_action::load_kfs(1);
-                        break;
-                    case path_cmd::code::grab_high_r2kfs:
-                        arm_action::load_kfs(2);
-                        break;
-                    case path_cmd::code::drop_and_grab_new_kfs:
-                        break;
-                    default:
-                        break;
-                }
-                wait_until([]() -> bool {
-                    return !arm.get_is_fetching_step_L() && !arm.get_is_fetching_step_P()
-                            && !arm.get_is_fetching_step_M() && !arm.get_is_fetching_step_H();
-                });
+                // switch (executing_cmd) {
+                //     case path_cmd::code::grab_low_r2kfs:
+                //         arm_action::load_kfs(-1);
+                //         break;
+                //     case path_cmd::code::grab_mid_r2kfs:
+                //         arm_action::load_kfs(1);
+                //         break;
+                //     case path_cmd::code::grab_high_r2kfs:
+                //         arm_action::load_kfs(2);
+                //         break;
+                //     case path_cmd::code::drop_and_grab_new_kfs:
+                //         break;
+                //     default:
+                //         break;
+                // }
+                // wait_until([]() -> bool {
+                //     return !arm.get_is_fetching_step_L() && !arm.get_is_fetching_step_P()
+                //             && !arm.get_is_fetching_step_M() && !arm.get_is_fetching_step_H();
+                // }, 10 * 1000);
 
                 current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
                 change_state_to(robot_state::request_for_path_cmd);
@@ -451,6 +469,30 @@ private:
             cmd = qr_code_msg.data;
         }
         return cmd;
+    }
+
+    void move_left() {
+        if (moved_left_right_ == 0) {
+            moved_left_right_ -= 1;
+            move_to_pos(waypoint::mf_entrance_left);
+        } else if (moved_left_right_ == 1) {
+            moved_left_right_ -= 1;
+            move_to_pos(waypoint::mf_entrance_mid);
+        } else {
+            return; // 已经在最左边了，不能再左移
+        }
+    }
+
+    void move_right() {
+        if (moved_left_right_ == 0) {
+            moved_left_right_ += 1;
+            move_to_pos(waypoint::mf_entrance_right);
+        } else if (moved_left_right_ == -1) {
+            moved_left_right_ += 1;
+            move_to_pos(waypoint::mf_entrance_mid);
+        } else {
+            return; // 已经在最右边了，不能再右移
+        }
     }
 };
 
