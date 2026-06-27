@@ -6,8 +6,6 @@
  * @date 2026-05-26
  *
  * @copyright Copyright (c) 2026
- * @note :
- * @versioninfo :
  */
 
 #pragma once
@@ -120,7 +118,7 @@ public:
     void set_is_fetching_step_M(bool is_fetching_step_M) { is_fetching_step_M_ = is_fetching_step_M; }
     bool get_is_fetching_step_H() { return is_fetching_step_H_; }
     void set_is_fetching_step_H(bool is_fetching_step_H) { is_fetching_step_H_ = is_fetching_step_H; }
-    bool get_is_placing_kfs_L() { return is_placing_kfs_L_; }
+    const bool get_is_placing_kfs_L() { return is_placing_kfs_L_; }
     void set_is_placing_kfs_L(bool is_placing_kfs_L) { is_placing_kfs_L_ = is_placing_kfs_L; }
     bool get_is_placing_kfs_M() { return is_placing_kfs_M_; }
     void set_is_placing_kfs_M(bool is_placing_kfs_M) { is_placing_kfs_M_ = is_placing_kfs_M; }
