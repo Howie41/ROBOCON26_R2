@@ -24,11 +24,14 @@ void chassisTask(void *argument);
 
 namespace chassis_action {
 
-void requestYawRotateDeg(float delta_deg);
-void requestYawRotateCcw90();
-void requestYawRotateCw90();
-bool yawRotateActive();
-bool takeYawRotateFinished();
-float yawRotateTargetDeg();
+void turn_left_90_deg();
+void turn_right_90_deg();
+void turn_right_180_deg();
+void start_climb_upstairs();
+void start_climb_R1();
+void start_climb_downstairs();
+void start_go_to_edge();
+void start_return_to_center();
+bool is_chassis_idle();
 
 }  // namespace chassis_action

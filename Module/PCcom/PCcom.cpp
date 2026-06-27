@@ -1,6 +1,7 @@
 #include "PCcom.hpp"
 #include "NavProtocol.hpp"
 #include "lift_task.h"
+#include "state_machine_task.h"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "waypoint_navigator.hpp"
@@ -28,9 +29,6 @@ void applyNavTarget(int16_t x, int16_t y, int16_t yaw) {
 }
 
 void handleEmergencyStop() {
-  g_stair_ctx.active = false;
-  g_stair_ctx.phase = 0;
-
   nav_control::auto_enabled = false;
   nav_control::arrived = false;
   nav_control::target_active = false;
@@ -38,6 +36,7 @@ void handleEmergencyStop() {
   nav_control::target_x = nav_control::current_x;
   nav_control::target_y = nav_control::current_y;
   nav_control::target_yaw = nav_control::current_yaw;
+  // change_state_to(RobotState::begin);
 
   pub_chassis_cmd stop_cmd{};
   stop_cmd.nav_mode_ = true;
@@ -92,9 +91,18 @@ void PcCom::OnPacket(Packet packet) {
       pc_tail_claw_pub_.Publish(msg);
       break;
     }
-
-    case static_cast<uint16_t>(PcCmd::nav_position): {
-      if (packet.body_size() != sizeof(pc_nav_position_t)) {
+      /*case static_cast<uint16_t>(PcCmd::tail_claw_msg_weapon):{
+      if(packet.body_size()!=sizeof(tail_claw_msg)){
+        return;
+      }
+      tail_claw_msg msg{};
+      std::memcpy(&msg,packet.body_data(),sizeof(tail_claw_msg));
+      pc_tail_claw_pub_.Publish(msg);
+      break;
+    }*/
+    // ---- 导航: 上位机上报当前位置 (0x0101) ----
+    case static_cast<uint16_t>(PcCmd::nav_position):{
+      if(packet.body_size()!=sizeof(pc_nav_position_t)){
         return;
       }
       pc_nav_position_t msg{};
@@ -116,12 +124,16 @@ void PcCom::OnPacket(Packet packet) {
       break;
     }
 
-    case static_cast<uint16_t>(PcCmd::nav_climb_up):
-      stairSMStart(true);
-      break;
-    case static_cast<uint16_t>(PcCmd::nav_climb_down):
-      stairSMStart(false);
-      break;
+    // case static_cast<uint16_t>(PcCmd::nav_climb_up):
+    //   if (state_machine_idle()) {
+    //     change_state_to(RobotState::test_stair_up);
+    //   }
+    //   break;
+    // case static_cast<uint16_t>(PcCmd::nav_climb_down):
+    //   if (state_machine_idle()) {
+    //     change_state_to(RobotState::test_stair_down);
+    //   }
+    //   break;
     case static_cast<uint16_t>(PcCmd::nav_enter_high):
       liftRequestHigh();
       break;
@@ -154,9 +166,17 @@ void PcCom::ProcessTx() {
   }
 
   pc_nav_event_t nav_event{};
-  if (pc_nav_event_sub_.TryGet(&nav_event)) {
-    send(nav_event.event_code);
+  if(pc_nav_event_sub_.TryGet(&nav_event)){
+    send(nav_event.event_code, nav_event);
   }
+
+  tail_claw_msg claw_start_msg{};
+  if (tail_claw_weapon_event_sub_.TryGet(&claw_start_msg)) {
+      send(static_cast<uint16_t>(PcCmd::tail_claw_weapon_start), claw_start_msg);
+  }
+  /*if (tail_claw_rod_event_sub_.TryGet(&claw_start_msg)) {
+    bool ok=send(static_cast<uint16_t>(PcCmd::tail_claw_rod_start), claw_start_msg);
+  }*/
 }
 
 template <typename T>

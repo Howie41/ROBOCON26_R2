@@ -26,19 +26,25 @@ struct StairAssistDebug {
   bool auto_lower_enabled{false};
   bool laser1_fresh{false};
   bool laser2_fresh{false};
+  bool laser3_fresh{false};
   uint8_t assist_mode{static_cast<uint8_t>(StairAssistMode::ClimbUp)};
 
   int32_t laser1_mm{0};
   int32_t laser2_mm{0};
+  int32_t laser3_mm{0};
 
   uint32_t laser1_frame_count{0};
   uint32_t laser2_frame_count{0};
+  uint32_t laser3_frame_count{0};
 
   uint8_t laser1_state{static_cast<uint8_t>(StairAssistLaser1State::Invalid)};
   uint8_t laser2_state{static_cast<uint8_t>(StairAssistLaser2State::Invalid)};
+  uint8_t laser3_state{static_cast<uint8_t>(StairAssistLaser1State::Invalid)};
 
   uint8_t laser1_near_count{0};
   uint8_t laser1_edge_count{0};
+  uint8_t laser3_near_count{0};
+  uint8_t laser3_edge_count{0};
   uint8_t laser1_auto_lower_count{0};
   uint8_t laser1_descend_ready_count{0};
   uint8_t laser1_descend_lower_count{0};
@@ -47,6 +53,12 @@ struct StairAssistDebug {
   uint8_t laser2_ground_count{0};
   uint8_t laser2_high_count{0};
   uint8_t laser2_step_count{0};
+  bool rear_photogate_blocked{false};
+  bool rear_photogate_unblocked{false};
+  bool rear_photogate_blocked_edge{false};
+  bool rear_photogate_unblocked_edge{false};
+  bool rear_photogate_climb_lower_latched{false};
+  bool rear_photogate_descend_high_latched{false};
 
   bool saw_laser2_high_for_climb{false};
   bool saw_laser2_close_for_descend{false};
@@ -74,6 +86,8 @@ StairAssistLaser2State stairAssistLaser2State();
 bool stairAssistSuggestClimbUp();
 bool stairAssistSuggestDescendHighMode();
 bool stairAssistSuggestDescendEdgeReady();
+bool stairAssistSuggestGoToEdgeHigh();
+bool stairAssistSuggestGoToEdgeLow();
 bool stairAssistShouldLowerAfterClimbAdvance();
 bool stairAssistShouldLowerAfterDescendRetreat();
 

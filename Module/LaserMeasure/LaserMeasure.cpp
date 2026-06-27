@@ -16,7 +16,7 @@ HAL_StatusTypeDef LaserMeasure::triggerSingleMeasure() {
   return uart_port_.writeDma(cmd, sizeof(cmd));
 }
 
-bool LaserMeasure::processFrame(const uint8_t *data, std::size_t len) {
+bool LaserMeasure::processFrame(const uint8_t *data, std::size_t len) {  
   if (data == nullptr || len < 5 || len > kMaxFrameSize) {
     return false;
   }

@@ -1,14 +1,21 @@
 #pragma once
 
+#include <cstdint>
+
 namespace field {
 
-/// @brief 2006 高位驱动距离 (mm)，沿当前 yaw 方向前进
-constexpr float STAIR_CLIMB_DIST = 660.0f;
+struct StairPose {
+  int16_t x;
+  int16_t y;
+  int16_t yaw;
+};
 
-/// @brief 降下后 omni 去中心的距离 (mm)
-constexpr float STAIR_CENTER_OFFSET = 350.0f;
-
-/// @brief 下台阶 2006 高位后退距离 (mm)
-constexpr float STAIR_CLIMB_DOWN_DIST = 640.0f;
+// 当前楼梯直线测试坐标
+constexpr StairPose kStairFrontPose{1300, 1470, 0};      // center0
+constexpr StairPose kStairClosePose{2180, 1470, 0};      // close1
+constexpr StairPose kStairHighDrivePose{2820, 1470, 0};  // lower-trigger1
+constexpr StairPose kStairCenterPose{3100, 1470, 0};     // center1
+constexpr int16_t kStairSpanMm = 1200;
+constexpr uint8_t kStairMaxLevel = 3;
 
 }  // namespace field

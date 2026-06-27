@@ -27,6 +27,7 @@
 #include "Motor.hpp"
 #include "ROSCom.hpp"
 #include "UartPort.hpp"
+#include "arm_task.hpp"
 #include "UsbPort.hpp"
 #include "XboxRemote.hpp"
 #include "NavProtocol.hpp"
@@ -67,6 +68,7 @@ C620Motor chassis_motor2(&fdcan3_bus, 0x202, 0, 0x200, 0);
 C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
 
+
 // 取矿电机
 C610Motor arm2006_motor(&fdcan2_bus, 0x203, 0, 0x200, 0);  // 伸缩
 C620Motor arm3508_motor(&fdcan2_bus, 0x204, 0, 0x200, 0);  // 旋转
@@ -75,7 +77,12 @@ DM43xxMotor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,  // 翻转
 DM43xxMotor arm4340_motor(&fdcan2_bus, 0x302, 0, 0x02, 0, // 抬升
                          DM43xxMotor::PosWithSpeed, true);
 
-// 尾部电机
+
+// 取矿机构
+Arm arm(arm4340_motor, arm3508_motor, arm2006_motor, arm4310_motor);
+
+
+//尾部的电机
 C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
 C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
 
@@ -96,14 +103,18 @@ void onUart4RxCb(const uint8_t *data, size_t len, void *user);
 void onUart9RxCb(const uint8_t *data, size_t len, void *user);
 void onUart7RxCb(const uint8_t *data, size_t len, void *user);
 void onUart8RxCb(const uint8_t *data, size_t len, void *user);
+void onUart1RxCb(const uint8_t *data, size_t len, void *user);
 
 void onUsbRxCb(const uint8_t *data, size_t len, void *user);
 
 extern UART_HandleTypeDef huart7;
 extern UART_HandleTypeDef huart8;
+extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart6;
+extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart6_rx;
 
 DMA_BUFFER_ATTR static uint8_t uart7_rx_dma[64];
@@ -130,12 +141,17 @@ DMA_BUFFER_ATTR static uint8_t uart2_tx_dma[64];
 UartPort uart2_port(&huart2, uart2_rx_dma, sizeof(uart2_rx_dma), uart2_tx_dma, sizeof(uart2_tx_dma), onUart2RxCb, nullptr);
 osSemaphoreId_t uart2_rx_semphore = NULL;
 
- // USART6 红外模块
+ // 4、5、6、9 红外模块 波特率 9600bps
 DMA_BUFFER_ATTR static uint8_t uart6_rx_dma[UartPort::kPacketPayloadSize] = {0};
 DMA_BUFFER_ATTR static uint8_t uart6_tx_dma[64] = {0};
 UartPort uart6_port(&huart6, uart6_rx_dma, sizeof(uart6_rx_dma),
                             uart6_tx_dma, sizeof(uart6_tx_dma), onUart6RxCb, nullptr);
 
+DMA_BUFFER_ATTR static uint8_t uart1_rx_dma[64] = {0};
+DMA_BUFFER_ATTR static uint8_t uart1_tx_dma[64] = {0};
+UartPort uart1_port(&huart1, uart1_rx_dma, sizeof(uart1_rx_dma),
+                    uart1_tx_dma, sizeof(uart1_tx_dma), onUart1RxCb, nullptr);
+osSemaphoreId_t uart1_rx_semphore = NULL;
 DMA_BUFFER_ATTR static uint8_t uart5_rx_dma[UartPort::kPacketPayloadSize] = {0};
 UartPort uart5_port(&huart5, uart5_rx_dma, sizeof(uart5_rx_dma),
                             nullptr, 0, onUart5RxCb, nullptr);
@@ -173,10 +189,10 @@ InfraredModule infrared_module_uart4(uart4_port);
 InfraredModule infrared_module_uart9(uart9_port);
 InfraredModuleGroup infrared_group{&infrared_module_uart6, &infrared_module_uart5};
 
-InfraredModule infrared_module(uart6_port);
 #if LASER_MEASURE_ENABLE
 LaserMeasure laser1(uart7_port, 0x50);
 LaserMeasure laser2(uart8_port, 0x50);
+SK60PlusLaser laser3(uart1_port, 0x00);
 #endif
 // 日志
 Logger logger(uart10_port);
@@ -218,7 +234,7 @@ uint8_t comServiceInit() {
     chassis_motor4.init();
 
   arm2006_motor.init();
-  arm3508_motor.init(100, 20000.0f);  // 减速比 P100
+  arm3508_motor.init(142.0f, 20000.0f);  // 减速比 P100
   arm4310_motor.init();
   arm4340_motor.init();
 
@@ -265,6 +281,9 @@ uint8_t comServiceInit() {
   uart8_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart8_port.startRxDmaIdle();
   laser2.init();
+  uart1_rx_semphore = osSemaphoreNew(1, 0, NULL);
+  uart1_port.startRxDmaIdle();
+  laser3.init();
   #endif
   uart2_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart2_port.startRxDmaIdle();
@@ -281,10 +300,9 @@ uint8_t comServiceInit() {
     ros_protocol.init();
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
 
-    // Motor 速度规划系统注册电机
-    motor_planning_system.registerMotor(arm3508_motor);
+    // Motor速度规划系统注册电机
+    motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
     motor_planning_system.registerMotor(arm2006_motor);
-
 
     return 0;
 }
@@ -323,6 +341,18 @@ void onUart8RxCb(const uint8_t *data, size_t len, void *user) {
 #if LASER_MEASURE_ENABLE
   if (data != nullptr && len > 0 && uart8_rx_semphore != NULL) {
     (void)osSemaphoreRelease(uart8_rx_semphore);
+  }
+#else
+  (void)data;
+  (void)len;
+#endif
+}
+
+void onUart1RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)user;
+#if LASER_MEASURE_ENABLE
+  if (data != nullptr && len > 0 && uart1_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(uart1_rx_semphore);
   }
 #else
   (void)data;
@@ -420,7 +450,7 @@ void can3SendTask(void *argument) {
     int16_t commands[4] = {0};
     commands[0] = static_cast<int16_t>(chassis_motor1.cmdTrans()); // 0x201
     commands[1] = static_cast<int16_t>(chassis_motor2.cmdTrans()); // 0x202
-    commands[2] = static_cast<int16_t>(chassis_motor3.cmdTrans()); // 0x203   
+    commands[2] = static_cast<int16_t>(chassis_motor3.cmdTrans()); // 0x203  
     commands[3] = static_cast<int16_t>(chassis_motor4.cmdTrans()); // 0x204
     packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
     // arm3508_motor.manager_->addCanMsg(pack);
@@ -499,6 +529,7 @@ void laserMeasureTask(void *argument) {
 
   uint32_t laser1_tick = osKernelGetTickCount();
   uint32_t laser2_tick = laser1_tick + 25U;
+  uint32_t laser3_tick = laser1_tick + 40U;
 
   for (;;) {
     const uint32_t now_tick = osKernelGetTickCount();
@@ -511,6 +542,11 @@ void laserMeasureTask(void *argument) {
     if ((now_tick - laser2_tick) >= 50U) {
       (void)laser2.triggerSingleMeasure();
       laser2_tick = now_tick;
+    }
+
+    if ((now_tick - laser3_tick) >= 50U) {
+      (void)laser3.triggerSingleMeasure();
+      laser3_tick = now_tick;
     }
 
     if (uart7_rx_semphore != NULL &&
@@ -526,6 +562,14 @@ void laserMeasureTask(void *argument) {
       UartPort::Packet packet{};
       while (uart8_port.Read(packet)) {
         (void)laser2.processFrame(packet.data, packet.len);
+      }
+    }
+
+    if (uart1_rx_semphore != NULL &&
+        osSemaphoreAcquire(uart1_rx_semphore, 0) == osOK) {
+      UartPort::Packet packet{};
+      while (uart1_port.Read(packet)) {
+        (void)laser3.processFrame(packet.data, packet.len);
       }
     }
 
