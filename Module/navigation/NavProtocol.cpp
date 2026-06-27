@@ -103,10 +103,10 @@ void resetAllPIDs() {
 
 namespace {
 
-constexpr TickType_t kPositionTimeoutTicks = pdMS_TO_TICKS(200);
-constexpr float kHighCruiseSpeedRpm = 400.0f;
+constexpr TickType_t kPositionTimeoutTicks = pdMS_TO_TICKS(1000);
+constexpr float kHighCruiseSpeedRpm = 500.0f;
 constexpr float kHighCrawlSpeedRpm = 100.0f;
-constexpr float kHighSlowdownDistMm = 100.0f;
+constexpr float kHighSlowdownDistMm = 70.0f;
 
 bool isPositionFresh(TickType_t now) {
   return (nav_control::g_last_position_update_tick != 0U) &&
@@ -351,7 +351,7 @@ void NavControlTask(void *argument) {
       chassis_cmd_pub.Publish(cmd);
 
       const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
-      const bool reached = (dist_error < 20.0f) && (fabsf(error_yaw) < 1.0f);
+      const bool reached = (dist_error < 30.0f) && (fabsf(error_yaw) < 1.0f);
 
       nav_control::arrived = reached;
       if (reached) {
