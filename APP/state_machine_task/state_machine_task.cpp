@@ -299,7 +299,7 @@ void weapon()
 
             case RobotState::catch_weapon: {
                 //里程计版本move_to_pos(400, -445, 90,5000);315，-890
-                move_to_pos(335, -910, 90,5000);
+                move_to_pos(335, -900, 90,5000);
                 tail_claw_set_weapon_claw(false);         //闭合夹爪，夹紧武器头
                 osDelay(500);                            // 等待夹爪动作完成，具体时间待调试
                 change_state_to(RobotState::rotate_weapon_claw);
