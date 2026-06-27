@@ -267,7 +267,7 @@ void weapon()
                 //里程计版本move_to_pos(400, -390, 90,5000);
                 //move_to_pos(193, -815, 90,5000);
                 //315，-825
-                move_to_pos(345, -825, 90,5000);
+                move_to_pos(335, -830, 90,5000);
                 tail_claw_set_roll_target(-59.5);
                 //第二个点位
                 //tail_claw_setAirPump(false);                    //关闭气泵
@@ -299,7 +299,7 @@ void weapon()
 
             case RobotState::catch_weapon: {
                 //里程计版本move_to_pos(400, -445, 90,5000);315，-890
-                move_to_pos(345, -910, 90,5000);
+                move_to_pos(335, -910, 90,5000);
                 tail_claw_set_weapon_claw(false);         //闭合夹爪，夹紧武器头
                 osDelay(500);                            // 等待夹爪动作完成，具体时间待调试
                 change_state_to(RobotState::rotate_weapon_claw);
@@ -308,7 +308,7 @@ void weapon()
 
             case RobotState::rotate_weapon_claw: {  
                     tail_claw_set_roll_target(2.0f);
-                    osDelay(300);
+                    osDelay(1000);
                     wait_until_timeout_or([]() -> bool {
                         tail_claw_update_status();
                         return tail_claw_status_valid && tail_claw_status_cache.roll_arrived;
@@ -320,7 +320,7 @@ void weapon()
 
             case RobotState::match_rod: {
                 //里程计版本move_to_pos(477, 279, -90, 4000U);360，-80
-                move_to_pos(360, -80, -90, 4000U);
+                move_to_pos(300, -170, -90, 4000U);
 
                 tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
                 /*tail_claw_msg msg{};
