@@ -13,7 +13,9 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 #include <optional>
+#include <limits>
 #include "bsp_dwt.h"
 
 
@@ -71,15 +73,17 @@ public:
 
     /**
      * @brief 以指定参数开始速度规划
-     * @param x 目标位置
-     * @param v 最大速度
-     * @param a 最大加速度
      * @param t 目标时间（所需时间）
+     * @param x 目标位置
+     * @param v 最大速度；默认-1.0f，传入负值表示不限制
+     * @param a 最大加速度；默认-1.0f，传入负值表示不限制
      * @return true 规划成功，开始速度规划
      * @return false 指定参数下无解，规划失败
      */
-    bool init(float x, float v, float a, float t) {
-        if (isZero(x) || v <= 0 || a <= 0 || t <= 0) return false;  // 判断参数合理性: x可正可负，a和v取绝对值
+    bool init(float t, float x, float v = -1.0f, float a = -1.0f) {
+        if (isZero(x) || isZero(v) || isZero(a) || t <= 0.0f) return false;  // 判断参数合理性: x可正可负，a和v取绝对值
+        if (v < 0.0f) v = std::numeric_limits<float>::max();
+        if (a < 0.0f) a = std::numeric_limits<float>::max();
         // 此处共有两个约束：x = v(t - 2v/a) 且 2v/a < t/2，进行数学建模
         float p = fabsf(x - cur_state_.get_x());  // 距离差
         if (v >= 2 * p / t) {  // 区间1
