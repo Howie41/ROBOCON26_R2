@@ -51,6 +51,7 @@ namespace {
 
 float normalizeDeg(float angle_deg);
 void refreshYawReference();
+void updateHeadingFromChassisYaw();
 bool hasMotionCommand(const pub_chassis_cmd &cmd);
 void requestYawRotateDegInternal(float delta_deg);
 void requestYawRotateCcw90Internal();
@@ -209,6 +210,28 @@ void refreshYawReference() {
   g_chassis_yaw_deg = currentRelativeYawDeg();
 }
 
+void updateHeadingFromChassisYaw() {
+  const float yaw_deg = g_chassis_yaw_deg;
+  merlin_map::Heading matched_heading{};
+  bool matched = true;
+
+  if (yaw_deg >= -30.0f && yaw_deg <= 30.0f) {
+    matched_heading = merlin_map::Heading::PosX;
+  } else if (yaw_deg >= 60.0f && yaw_deg <= 120.0f) {
+    matched_heading = merlin_map::Heading::PosY;
+  } else if (yaw_deg >= 150.0f || yaw_deg <= -150.0f) {
+    matched_heading = merlin_map::Heading::NegX;
+  } else if (yaw_deg >= -120.0f && yaw_deg <= -60.0f) {
+    matched_heading = merlin_map::Heading::NegY;
+  } else {
+    matched = false;
+  }
+
+  if (matched && merlin_map::heading() != matched_heading) {
+    merlin_map::setHeading(matched_heading);
+  }
+}
+
 bool hasMotionCommand(const pub_chassis_cmd &cmd) {
   return std::fabs(cmd.linear_x_) > kHoldCmdDeadbandXY ||
          std::fabs(cmd.linear_y_) > kHoldCmdDeadbandXY ||
@@ -261,6 +284,7 @@ void chassisTask(void *argument) {
     }
 
     refreshYawReference();
+    updateHeadingFromChassisYaw();
 
     pub_chassis_cmd final_cmd = chassis_cmd;
 
@@ -380,7 +404,8 @@ void turn_left_90_deg() {
 
   requestYawRotateCcw90Internal();
   waitForYawRotateFinished();
-  merlin_map::rotateCcw90();
+  refreshYawReference();
+  updateHeadingFromChassisYaw();
 }
 
 void turn_right_90_deg() {
@@ -390,7 +415,19 @@ void turn_right_90_deg() {
 
   requestYawRotateCw90Internal();
   waitForYawRotateFinished();
-  merlin_map::rotateCw90();
+  refreshYawReference();
+  updateHeadingFromChassisYaw();
+}
+
+void turn_right_180_deg() {
+  if (yawRotateActiveInternal()) {
+    waitForYawRotateFinished();
+  }
+
+  requestYawRotateDegInternal(-180.0f);
+  waitForYawRotateFinished();
+  refreshYawReference();
+  updateHeadingFromChassisYaw();
 }
 
 void start_climb_upstairs() { stairWaypointRunUp(); }
@@ -398,6 +435,10 @@ void start_climb_upstairs() { stairWaypointRunUp(); }
 void start_climb_R1() { stairWaypointRunUpR1(); }
 
 void start_climb_downstairs() { stairWaypointRunDown(); }
+
+void start_go_to_edge() { stairWaypointRunGoToEdge(); }
+
+void start_return_to_center() { stairWaypointRunReturnToCenter(); }
 
 bool is_chassis_idle() {
   return !yawRotateActiveInternal() &&

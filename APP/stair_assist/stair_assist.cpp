@@ -30,6 +30,8 @@ constexpr int32_t kLaser3EdgeMinMm = 800;
 
 constexpr int32_t kLaser2ClimbHighMinMm = 210;
 constexpr int32_t kLaser2ClimbHighMaxMm = 240;
+constexpr int32_t kLaser2GoToEdgeLowMinMm = 500;
+constexpr int32_t kLaser2GoToEdgeLowMaxMm = 700;
 constexpr int32_t kLaser2DescendLowerMinMm = 280;
 constexpr int32_t kLaser2DescendLowerMaxMm = 500;
 
@@ -480,6 +482,18 @@ bool stairAssistSuggestDescendHighMode() {
 
 bool stairAssistSuggestDescendEdgeReady() {
   return g_debug.suggest_descend_edge_ready;
+}
+
+bool stairAssistSuggestGoToEdgeHigh() {
+  return g_enabled &&
+         (g_debug.laser3_near_count >= kStableFrames);
+}
+
+bool stairAssistSuggestGoToEdgeLow() {
+  return g_enabled &&
+         g_debug.laser2_fresh &&
+         inRangeInclusive(g_debug.laser2_mm, kLaser2GoToEdgeLowMinMm,
+                          kLaser2GoToEdgeLowMaxMm);
 }
 
 bool stairAssistShouldLowerAfterClimbAdvance() {
