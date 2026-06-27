@@ -145,8 +145,8 @@ public:
         }
     }
 
-    inline const bool get_is_planning() { return is_planning_; }
-    inline const float get_process() { return process_; }
+    const inline bool get_is_planning() { return is_planning_; }
+    const inline float get_process() { return process_; }
 
 private:
     MotionState ini_state_{0.0f, 0.0f, 0.0f};  // 初始运动学状态
