@@ -19,9 +19,9 @@ constexpr float move_degree_per_cm = 360.0f / (3.0f * 3.1415926f);
 constexpr float move_step = 0.005f;
 constexpr float roll_step = 0.3f;
 
-constexpr int16_t match_enter_threshold = 5;
+constexpr int16_t match_enter_threshold = 7;
 constexpr int16_t match_exit_threshold = 9;
-constexpr uint8_t match_ok_count_limit = 5;
+constexpr uint8_t match_ok_count_limit = 0;
 constexpr uint8_t match_lost_count_limit = 3;
 
 constexpr TickType_t distance_timeout_ticks = pdMS_TO_TICKS(200);
@@ -279,7 +279,7 @@ void TailClawController::update_auto_align(const tail_claw_msg* msg)
 
         if (match_lost_count_ >= match_lost_count_limit) {
             weapon_matched_stable_ = false;
-            if(match_ok_count_ > 0)match_ok_count_ =0;
+            if(match_ok_count_ > 0)match_ok_count_ --;
             motion_bits_ &= static_cast<uint8_t>(~ismatch);
         }
         return;
@@ -295,7 +295,7 @@ void TailClawController::update_auto_align(const tail_claw_msg* msg)
 
         if (match_lost_count_ >= match_lost_count_limit) {
             weapon_matched_stable_ = false;
-             if(match_ok_count_ > 0)match_ok_count_ =0;
+             if(match_ok_count_ > 0)match_ok_count_ --;
             motion_bits_ &= static_cast<uint8_t>(~ismatch);
         }
         return;

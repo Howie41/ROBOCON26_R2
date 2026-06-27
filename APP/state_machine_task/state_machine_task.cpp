@@ -76,15 +76,15 @@ public:
                 change_state_to(robot_state::request_for_path_cmd);
 
                 // 武馆：初始化夹爪并前往端头架
-                // tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
-                // move_to_pos(-237, -9, 0, 5000);
-                // change_state_to(robot_state::go_to_shr);
+                tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
+                move_to_pos(-180, -115, 0, 5000);
+                change_state_to(robot_state::go_to_shr);
                 break;
             }
 
             case robot_state::go_to_shr: {
                 // 前往端头架第一个点位
-                move_to_pos(193, -815, 90, 5000);
+                move_to_pos(335, -830, 90, 5000);
                 tail_claw_set_roll_target(-59.5);
                 tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
                 // 通知上位机发送距离数据
@@ -111,16 +111,16 @@ public:
             }
 
             case robot_state::catch_weapon: {
-                move_to_pos(193, -890, 90, 8000);
+                move_to_pos(335, -910, 90, 5000);
                 tail_claw_set_weapon_claw(false); // 闭合夹爪，夹紧武器头
-                osDelay(1000); // 等待夹爪动作完成，具体时间待调试
+                osDelay(500); // 等待夹爪动作完成，具体时间待调试
                 change_state_to(robot_state::rotate_weapon_claw);
                 break;
             }
 
             case robot_state::rotate_weapon_claw: {
                 tail_claw_set_roll_target(2.0f);
-                osDelay(300);
+                osDelay(1000);
                 wait_until_timeout_or([this]() -> bool {
                     tail_claw_update_status();
                     return tail_claw_status_valid_ && tail_claw_status_cache_.roll_arrived;
@@ -131,7 +131,7 @@ public:
             }
 
             case robot_state::match_rod: {
-                move_to_pos(441, 53, -90, 4000U);
+                move_to_pos(300, -170, -90, 4000U);
                 tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
                 tail_claw_msg msg{};
                 msg.distance = 3;
@@ -164,6 +164,7 @@ public:
                             return false;
                     }
                 });
+                change_state_to(robot_state::stop);
                 break;
             }
 
@@ -339,7 +340,7 @@ private:
 
         unload_kfs,                    // 取出KFS并手持
         wait_for_place_hi_kfs_cmd,     // 等待放置高层KFS的指令
-        release_kfs,                   // 释放KFS 
+        release_kfs,                   // 释放KFS
 
         stop                           // 停止
     #endif
