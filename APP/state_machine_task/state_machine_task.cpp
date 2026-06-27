@@ -73,7 +73,7 @@ public:
                 wait_until([&]() -> bool { return begin_signal; });
                 begin_signal = false;
                 move_to_pos(waypoint::mf_entrance_mid);
-                change_state_to(robot_state::request_for_path_cmd);
+                // change_state_to(robot_state::request_for_path_cmd);
 
                 // 武馆：初始化夹爪并前往端头架
                 tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
@@ -88,23 +88,23 @@ public:
                 tail_claw_set_roll_target(-59.5);
                 tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
                 // 通知上位机发送距离数据
-                tail_claw_msg msg{0};
-                msg.distance = 1;
-                tail_claw_weapon_event_pub_.Publish(msg);
+                // tail_claw_msg msg{0};
+                // msg.distance = 1;
+                // tail_claw_weapon_event_pub_.Publish(msg);
                 // tail_claw_task会根据距离数据调整位置
                 change_state_to(robot_state::aim_at_weapon);
                 break;
             }
 
             case robot_state::aim_at_weapon: {
-                wait_until([this]() -> bool {
-                    tail_claw_update_status();
-                    return tail_claw_status_valid_ && tail_claw_status_cache_.weapon_matched;
-                });
+                // wait_until([this]() -> bool {
+                //     tail_claw_update_status();
+                //     return tail_claw_status_valid_ && tail_claw_status_cache_.weapon_matched;
+                // });
                 // 关闭武器对准，告诉上位机不用发了
-                tail_claw_msg msg{};
-                msg.distance = 2;
-                tail_claw_weapon_event_pub_.Publish(msg);
+                // tail_claw_msg msg{};
+                // msg.distance = 2;
+                // tail_claw_weapon_event_pub_.Publish(msg);
                 tail_claw_set_mode(TailClawMode::Hold); // 对齐后锁定位置
                 change_state_to(robot_state::catch_weapon);
                 break;
@@ -133,15 +133,15 @@ public:
             case robot_state::match_rod: {
                 move_to_pos(300, -170, -90, 4000U);
                 tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
-                tail_claw_msg msg{};
-                msg.distance = 3;
-                tail_claw_weapon_event_pub_.Publish(msg);
-                wait_until([this]() -> bool {
-                    tail_claw_update_status();
-                    return tail_claw_status_valid_ && tail_claw_status_cache_.weapon_matched;
-                });
-                msg.distance = 4;
-                tail_claw_weapon_event_pub_.Publish(msg);
+                // tail_claw_msg msg{};
+                // msg.distance = 3;
+                // tail_claw_weapon_event_pub_.Publish(msg);
+                // wait_until([this]() -> bool {
+                //     tail_claw_update_status();
+                //     return tail_claw_status_valid_ && tail_claw_status_cache_.weapon_matched;
+                // });
+                // msg.distance = 4;
+                // tail_claw_weapon_event_pub_.Publish(msg);
                 change_state_to(robot_state::wait_for_cmd);
                 break;
             }
