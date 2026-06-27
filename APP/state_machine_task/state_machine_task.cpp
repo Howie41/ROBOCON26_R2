@@ -39,9 +39,9 @@ namespace waypoint {
     [[maybe_unused]] point after_rotate{11350, 1860, -90};
     [[maybe_unused]] point grid{11170, -980, -90};
 
-    point mf_entrance_mid{1300, 1470, 0};
-    point mf_entrance_left{1300, 1470-1200, 0};
-    point mf_entrance_right{1300, 1470+1200, 0};
+    point mf_entrance_mid{1300, 1500, 0};
+    point mf_entrance_left{1300, 1500+1200, 0};
+    point mf_entrance_right{1300, 1500-1200, 0};
 }
 
 volatile bool begin_signal{false};
@@ -72,6 +72,7 @@ public:
             case robot_state::begin: {
                 wait_until([&]() -> bool { return begin_signal; });
                 begin_signal = false;
+                move_to_pos(waypoint::mf_entrance_mid);
                 change_state_to(robot_state::request_for_path_cmd);
 
                 // 武馆：初始化夹爪并前往端头架
@@ -180,10 +181,10 @@ public:
 
                 current_path_cmd_.store(cmd); // 给其他后续状态读取
 
-                paused = true;
-                wait_until([]() -> bool {
-                    return !paused;
-                });
+                // paused = true;
+                // wait_until([]() -> bool {
+                //     return !paused;
+                // });
 
                 switch (cmd) {
                     case path_cmd::code::move_forward:
@@ -248,25 +249,29 @@ public:
 
                 path_cmd::code executing_cmd = current_path_cmd_.load();
 
-                // switch (executing_cmd) {
-                //     case path_cmd::code::grab_low_r2kfs:
-                //         arm_action::load_kfs(-1);
-                //         break;
-                //     case path_cmd::code::grab_mid_r2kfs:
-                //         arm_action::load_kfs(1);
-                //         break;
-                //     case path_cmd::code::grab_high_r2kfs:
-                //         arm_action::load_kfs(2);
-                //         break;
-                //     case path_cmd::code::drop_and_grab_new_kfs:
-                //         break;
-                //     default:
-                //         break;
-                // }
-                // wait_until([]() -> bool {
-                //     return !arm.get_is_fetching_step_L() && !arm.get_is_fetching_step_P()
-                //             && !arm.get_is_fetching_step_M() && !arm.get_is_fetching_step_H();
-                // }, 10 * 1000);
+                chassis_action::start_go_to_edge();
+
+
+                switch (executing_cmd) {
+                    case path_cmd::code::grab_low_r2kfs:
+                        arm_action::load_kfs(-1);
+                        break;
+                    case path_cmd::code::grab_mid_r2kfs:
+                        arm_action::load_kfs(1);
+                        break;
+                    case path_cmd::code::grab_high_r2kfs:
+                        arm_action::load_kfs(2);
+                        break;
+                    case path_cmd::code::drop_and_grab_new_kfs:
+                        break;
+                    default:
+                        break;
+                }
+
+
+                osDelay(10*1000); // 等待10s，确保KFS放置完成
+
+                chassis_action::start_return_to_center();
 
                 current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
                 change_state_to(robot_state::request_for_path_cmd);
