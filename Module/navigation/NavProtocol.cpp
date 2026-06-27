@@ -104,9 +104,9 @@ void resetAllPIDs() {
 namespace {
 
 constexpr TickType_t kPositionTimeoutTicks = pdMS_TO_TICKS(200);
-constexpr float kHighCruiseSpeedRpm = 400.0f;
-constexpr float kHighCrawlSpeedRpm = 100.0f;
-constexpr float kHighSlowdownDistMm = 100.0f;
+constexpr float kHighCruiseSpeedRpm = 750.0f;
+constexpr float kHighCrawlSpeedRpm = 70.0f;
+constexpr float kHighSlowdownDistMm = 130.0f;
 
 bool isPositionFresh(TickType_t now) {
   return (nav_control::g_last_position_update_tick != 0U) &&
@@ -307,10 +307,10 @@ void NavControlTask(void *argument) {
         high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
 
         // 限幅
-        if (high_cmd.forward_speed > 500.0f) high_cmd.forward_speed = 500.0f;
-        if (high_cmd.forward_speed < -500.0f) high_cmd.forward_speed = -500.0f;
-        if (high_cmd.omega > 500.0f) high_cmd.omega = 500.0f;
-        if (high_cmd.omega < -500.0f) high_cmd.omega = -500.0f;
+        if (high_cmd.forward_speed > 1000.0f) high_cmd.forward_speed = 1000.0f;
+        if (high_cmd.forward_speed < -1000.0f) high_cmd.forward_speed = -1000.0f;
+        if (high_cmd.omega > 1000.0f) high_cmd.omega = 1000.0f;
+        if (high_cmd.omega < -1000.0f) high_cmd.omega = -1000.0f;
 
         const bool reached = (fabsf(error_x_body) < 10.0f);
         nav_control::arrived = reached;

@@ -26,12 +26,12 @@ SavedCenterPose g_saved_center_pose{};
 
 TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
 constexpr float kDescendLaserSeekSpeedRpm = -50.0f;
-constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
+constexpr float kClimbLaserSeekSpeedRpm = 200.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.2f;
 constexpr float kGoToEdgeSeekSpeedMps = 0.2f;
 constexpr float kGoToEdgeLowPostTriggerSpeedMps = 0.1f;
 constexpr int16_t kR1ClimbYawDeg = -90;
-constexpr int16_t kR1PostLowAdvanceMm = 0;
+constexpr int16_t kR1PostLowAdvanceMm = 80;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
 constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
