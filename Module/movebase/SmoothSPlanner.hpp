@@ -7,6 +7,7 @@
  * @copyright Copyright (c) 2025
  
  * @note 该规划器中x指代电机位置的多圈累加绝对量，且x,v,a,t单位制统一
+ * @note 今后将会考虑增加：紧急刹停、中断规划、重规划等接口
  */
 
 #pragma once
@@ -16,7 +17,7 @@
 #include "bsp_dwt.h"
 
 
-#define EPSILON 1e-6
+#define EPSILON 1e-4
 
 inline bool isZero(float x) { return fabsf(x) < EPSILON; }
 
@@ -29,20 +30,20 @@ public:
 
     void set_x(float x) { x_ = x; }
     void add_x(float dx) { x_ += dx; }
-    inline float get_x() { return x_; }
+    const inline float get_x() { return x_; }
 
     void set_v(float v) { v_ = v; }
     void add_v(float dv) { v_ += dv; }
-    inline float get_v() { return v_; }
+    const inline float get_v() { return v_; }
 
     void set_a(float a) { a_ = a; }
     void add_a(float da) { a_ += da; }
-    inline float get_a() { return a_; }
+    const inline float get_a() { return a_; }
 
     void set_params(std::optional<float> x, std::optional<float> v, std::optional<float> a) {
         if (x.has_value()) set_x(x.value());
-        if (x.has_value()) set_v(v.value());
-        if (x.has_value()) set_a(a.value());
+        if (v.has_value()) set_v(v.value());
+        if (a.has_value()) set_a(a.value());
     }
 
 private:
@@ -122,11 +123,12 @@ public:
                 cur_state_.set_params(tar_state_.get_x(), 0.0f, 0.0f);
                 is_planning_ = false;
             } else {  // 未结束
-                process_ = (cur_t_ - ini_t_) / (tar_t_ - ini_t_);
+                float t = cur_t_ - ini_t_;
+                process_ = t / (tar_t_ - ini_t_);
                 // 缓冲段1
-                if (t < T_buf_) cur_state_.set_params((is_towards_positive_ > 0 ? integral_smooth_curve(cur_t_ - ini_t_) : -integral_smooth_curve(cur_t_ - ini_t_)) + ini_state_.get_x(), smooth_curve(cur_t_ - ini_t_), 0.0f);
+                if (t < T_buf_) cur_state_.set_params((is_towards_positive_ > 0 ? integral_smooth_curve(t) : -integral_smooth_curve(t)) + ini_state_.get_x(), smooth_curve(t), 0.0f);
                 // 缓冲段2
-                else if (t < T_buf_ + T_vel_) cur_state_.set_params((is_towards_positive_ > 0 ? (tar_state_.get_v() * tar_state_.get_v() / tar_state_.get_a() + tar_state_.get_v() * (cur_t_ - ini_t_ - T_buf_)) : -(tar_state_.get_v() * tar_state_.get_v() / tar_state_.get_a() + tar_state_.get_v() * (cur_t_ - ini_t_ - T_buf_))) + ini_state_.get_x(), tar_state_.get_v(), 0.0f);
+                else if (t < T_buf_ + T_vel_) cur_state_.set_params((is_towards_positive_ > 0 ? (tar_state_.get_v() * tar_state_.get_v() / tar_state_.get_a() + tar_state_.get_v() * (t - T_buf_)) : -(tar_state_.get_v() * tar_state_.get_v() / tar_state_.get_a() + tar_state_.get_v() * (t - T_buf_))) + ini_state_.get_x(), tar_state_.get_v(), 0.0f);
                 // 缓冲段3
                 else cur_state_.set_params(tar_state_.get_x() + (is_towards_positive_ > 0 ? -integral_smooth_curve(tar_t_ - cur_t_) : integral_smooth_curve(tar_t_ - cur_t_)), smooth_curve(tar_t_ - cur_t_), 0.0f);
             }
@@ -139,12 +141,15 @@ public:
         }
     }
 
+    inline const bool get_is_planning() { return is_planning_; }
+    inline const float get_process() { return process_; }
+
 private:
-    MotionState &ini_state_{0.0f, 0.0f, 0.0f};  // 初始运动学状态
-    MotionState &tar_state_{0.0f, 0.0f, 0.0f};  // 目标运动学状态
+    MotionState ini_state_{0.0f, 0.0f, 0.0f};  // 初始运动学状态
+    MotionState tar_state_{0.0f, 0.0f, 0.0f};  // 目标运动学状态
     float ini_t_, tar_t_;  // 初始时刻，目标时刻
 
-    MotionState &cur_state_{0.0f, 0.0f, 0.0f};  // 当前运动学状态
+    MotionState cur_state_{0.0f, 0.0f, 0.0f};  // 当前运动学状态
     float cur_t_;  // 当前时刻
 
     float T_buf_, T_vel_;  // 缓冲时间段，匀速时间段
