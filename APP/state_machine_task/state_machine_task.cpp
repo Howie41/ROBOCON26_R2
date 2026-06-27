@@ -154,7 +154,7 @@ test_action action = test_action::unknown;
 int start=0;
 void stateMachineTask(void *argument) {
     //下面这个如果要调试武器就别注释
-    //weapon();
+    weapon();
     TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox", 8);
     pub_Xbox_Data control_xbox_cmd{};
     for (;;) {
@@ -224,11 +224,22 @@ void weapon()
                 //start==1是自动模式
                 if(start==2)
                 {
-                    tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
-                    //发消息给上位机，他要发消息给我了
-                    tail_claw_msg msg{0}; 
-                    msg.distance = 3;
-                    tail_claw_weapon_event_pub.Publish(msg);           
+                    clean_previous_cmd();
+                    wait_until([&]() -> bool {
+                         switch (get_cmd_from_r1()) {
+                            /*case 0x1A: // 夹取新的武器头
+                            change_state_to(RobotState::go_to_SHR);
+                            return true;
+                             case 0x1B: // 进入梅林
+                            change_state_to(RobotState::go_to_MF);
+                            return true;*/
+                            case 0x0A:
+                                tail_claw_set_weapon_claw(true);
+                                return true;
+                        default:
+                            return false;
+                    }
+                });
                 }
                 if(start==1) 
                 {
@@ -240,8 +251,10 @@ void weapon()
                     //move_to_pos(-110, 210, 0,5000)
                     //新版
                     //move_to_pos(30, 210, 0,5000);
-                    */
-                    move_to_pos(-237, -9, 0,5000);
+                    *///-330 -115
+                    //move_to_pos(-237, -9, 0,5000);
+                    //起点-330 -115
+                    move_to_pos(-180, -115, 0,5000);
                     change_state_to(RobotState::go_to_SHR);
                     
                 }
@@ -252,48 +265,50 @@ void weapon()
 
                 //第一个点位
                 //里程计版本move_to_pos(400, -390, 90,5000);
-                move_to_pos(193, -815, 90,5000);
+                //move_to_pos(193, -815, 90,5000);
+                //315，-825
+                move_to_pos(335, -830, 90,5000);
                 tail_claw_set_roll_target(-59.5);
                 //第二个点位
                 //tail_claw_setAirPump(false);                    //关闭气泵
                 tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
                 //发消息给上位机，他要发消息给我了
-                tail_claw_msg msg{0}; 
+                /*tail_claw_msg msg{0}; 
                 msg.distance = 1;
-                tail_claw_weapon_event_pub.Publish(msg);
+                tail_claw_weapon_event_pub.Publish(msg);*/
                 // tail_claw_task会根据距离数据调整位置
                 change_state_to(RobotState::aim_at_weapon);
                 break;
             }
 
             case RobotState::aim_at_weapon: {
-                wait_until([&]() -> bool {
+                /*wait_until([&]() -> bool {
                     // TODO: 判断夹爪是否对准武器头
                     tail_claw_update_status();
                     return tail_claw_status_valid && tail_claw_status_cache.weapon_matched;     //对准
                 });
+                tail_claw_set_mode(TailClawMode::Hold);//对齐后锁定位置
                 //关闭武器对准，告诉上位机不用发了
                 tail_claw_msg msg{};
                 msg.distance = 2;
-                tail_claw_weapon_event_pub.Publish(msg);
+                tail_claw_weapon_event_pub.Publish(msg);*/
 
-                tail_claw_set_mode(TailClawMode::Hold);//对齐后锁定位置
                 change_state_to(RobotState::catch_weapon);
                 break;
             }
 
             case RobotState::catch_weapon: {
-                //里程计版本move_to_pos(400, -445, 90,5000);
-                move_to_pos(193, -890, 90,8000);
+                //里程计版本move_to_pos(400, -445, 90,5000);315，-890
+                move_to_pos(335, -910, 90,5000);
                 tail_claw_set_weapon_claw(false);         //闭合夹爪，夹紧武器头
-                osDelay(1000);                            // 等待夹爪动作完成，具体时间待调试
+                osDelay(500);                            // 等待夹爪动作完成，具体时间待调试
                 change_state_to(RobotState::rotate_weapon_claw);
                 break;
             }
 
             case RobotState::rotate_weapon_claw: {  
                     tail_claw_set_roll_target(2.0f);
-                    osDelay(300);
+                    osDelay(1000);
                     wait_until_timeout_or([]() -> bool {
                         tail_claw_update_status();
                         return tail_claw_status_valid && tail_claw_status_cache.roll_arrived;
@@ -304,11 +319,11 @@ void weapon()
             }
 
             case RobotState::match_rod: {
-                //里程计版本move_to_pos(477, 279, -90, 4000U);
-                move_to_pos(441, 53, -90, 4000U);
+                //里程计版本move_to_pos(477, 279, -90, 4000U);360，-80
+                move_to_pos(300, -170, -90, 4000U);
 
                 tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
-                tail_claw_msg msg{};
+                /*tail_claw_msg msg{};
                 msg.distance = 3;
                 tail_claw_weapon_event_pub.Publish(msg);
                 wait_until([&]() -> bool {
@@ -317,7 +332,7 @@ void weapon()
                     return tail_claw_status_valid && tail_claw_status_cache.weapon_matched;
                 });
                 msg.distance = 4;
-                tail_claw_weapon_event_pub.Publish(msg);
+                tail_claw_weapon_event_pub.Publish(msg);*/
 
                 change_state_to(RobotState::wait_for_cmd);
                 break;
@@ -340,7 +355,9 @@ void weapon()
                             return false;
                     }
                 });
+                change_state_to(RobotState::stop);
                 break;
+
             }
 
             case RobotState::stop:{
