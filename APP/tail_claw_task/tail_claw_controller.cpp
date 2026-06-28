@@ -96,8 +96,8 @@ void TailClawController::init_pid()
 
     roll_speed_pid_ = {};
     roll_speed_pid_.Kp = 70.0f;
-    roll_speed_pid_.Ki = 8.0f;
-    roll_speed_pid_.Kd = 1.4f;
+    roll_speed_pid_.Ki = 0.4;
+    roll_speed_pid_.Kd = 0.6f;
     roll_speed_pid_.MaxOut = 3000.0f;
     roll_speed_pid_.DeadBand = 0.3f;
     roll_speed_pid_.Improve = NONE;
