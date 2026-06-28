@@ -1,15 +1,13 @@
 /**
- * @file motor_task.h
+ * @file motor_task.hpp
  * @author FunFer
- * @brief
+ * @brief 电机托管系统（带速度规划器）
  * @version 0.1
- * @date 2026-04-18
+ * @date 2026-05-18
  *
  * @copyright Copyright (c) 2026
  *
- * @attention :
  * @note :
- * @versioninfo :
  */
 #pragma once
 

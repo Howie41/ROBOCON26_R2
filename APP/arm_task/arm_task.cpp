@@ -12,7 +12,7 @@
  * @versioninfo :
  */
 #include "arm_task.hpp"
-
+#include <optional>
 #include "Motor.hpp"
 #include "com_config.h"
 #include "pid_controller.h"
@@ -20,6 +20,7 @@
 #include "topics.hpp"
 #include "logger.hpp"
 #include "bsp_dwt.h"
+#include <optional>
 
 
 osThreadId_t Arm_TaskHandle;
@@ -43,21 +44,26 @@ namespace arm_action {
 /**
  * @brief 吸取并放入对应层高的kfs，自动处理存入kfs的数量
  * @note 伸出、吸取、抬起、伸入储存区、释放、恢复默认、kfs_amount+1
- * @param 参数接收: 1, 2, -1, 0的输入，对应+200, +400, -200, 0高度的kfs
+ * @param 参数接收: LOAD_MEDIUM, LOAD_HIGH, LOAD_LOW, LOAD_PLAIN, LOAD_TOP的输入，对应+200, +400, -200, 0高度与举高高的kfs
  */
 void load_kfs(int8_t step) { fetch_step(step); }
 
 /**
  * @brief 取出kfs，自动识别当前kfs数量，从对应的高度取出(取最外层)
  * @note 抬起、伸入储存区、吸取、抬起、伸出、kfs_amount-1
- * @param -1:自动识别高度，1,2,3:指定高度
+ * @param std::nullopt:自动识别高度，UNLOAD_LOW, UNLOAD_MEDIUM, UNLOAD_HIGH, UNLOAD_TOP: 指定高度
  */
-void unload_kfs(int8_t level = -1) { place_kfs(level); }
+void unload_kfs(std::optional<int8_t> level = std::nullopt) { place_kfs(level); }
 
 /**
  * @brief 承接unload_kfs，释放kfs并恢复默认动作
  */
 void release_kfs() { place_release(); }
+
+/**
+ * @brief 将平地KFS举高高
+ */
+void raise_kfs_top() { raise_kfs(); }
 
 }
 
@@ -70,30 +76,39 @@ void reset_timeline() {
 
 
 void fetch_step(int8_t step) { 
-    if (arm.get_kfs_amount() == 3) return;
+    if (arm.get_kfs_amount() == 3 || (step == LOAD_TOP && !arm.get_is_kfs_raised())) return;
     reset_timeline();
     switch (step) {
-        case 1: { arm.set_is_fetching_step_M(true); break; }
-        case 2: { arm.set_is_fetching_step_H(true); break; }
-        case -1: { arm.set_is_fetching_step_L(true); break; }
-        case 0: { arm.set_is_fetching_step_P(true); break; }
+        case LOAD_MEDIUM: { arm.set_is_fetching_step_M(true); break; }
+        case LOAD_HIGH: { arm.set_is_fetching_step_H(true); break; }
+        case LOAD_LOW: { arm.set_is_fetching_step_L(true); break; }
+        case LOAD_PLAIN: { arm.set_is_fetching_step_P(true); break; }
+        case LOAD_TOP: { arm.set_is_fetching_step_T(true); break; }
     }
 }
 
-void place_kfs(int8_t kfs_layer = -1) {
+void place_kfs(std::optional<int8_t> kfs_layer = std::nullopt) {
+    // 若存在举高高的KFS，则优先放置
+    if ((kfs_layer == UNLOAD_TOP && !arm.get_is_kfs_raised()) || (arm.get_is_kfs_raised() && kfs_layer != UNLOAD_TOP)) { reset_timeline(); arm.set_is_placing_kfs_T(true); return; }
     if (arm.get_kfs_amount() == 0) return;
     reset_timeline();
-    switch (kfs_layer) {
+    switch (kfs_layer.value_or(-1)) {
         case -1: { place_kfs(arm.get_kfs_amount()); break; }
-        case 1: { arm.set_is_placing_kfs_L(true); break; }
-        case 2: { arm.set_is_placing_kfs_M(true); break; }
-        case 3: { arm.set_is_placing_kfs_H(true); break; }
+        case UNLOAD_LOW: { arm.set_is_placing_kfs_L(true); break; }
+        case UNLOAD_MEDIUM: { arm.set_is_placing_kfs_M(true); break; }
+        case UNLOAD_HIGH: { arm.set_is_placing_kfs_H(true); break; }
+        case UNLOAD_TOP: { arm.set_is_placing_kfs_T(true); break; }
     }
 }
 
 void place_release() {
     reset_timeline();
     arm.set_is_place_releasing(true);
+}
+
+void raise_kfs() {
+    reset_timeline();
+    arm.set_is_raising_kfs(true);
 }
 
 
@@ -115,13 +130,14 @@ void armTask(void *argument) {
             }
         };
         switch (step) {
-            case 2: { delta_t = get_dt_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2); setter = &Arm::set_is_fetching_step_H; break; }
-            case 1: { delta_t = get_dt_by_kfs(step_M::kfs_0, step_M::kfs_1, step_M::kfs_2); setter = &Arm::set_is_fetching_step_M; break; }
-            case -1: { delta_t = get_dt_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2); setter = &Arm::set_is_fetching_step_L; break; }
-            case 0: { delta_t = get_dt_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2); setter = &Arm::set_is_fetching_step_P; break; }
+            case LOAD_HIGH: { delta_t = get_dt_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2); setter = &Arm::set_is_fetching_step_H; break; }
+            case LOAD_MEDIUM: { delta_t = get_dt_by_kfs(step_M::kfs_0, step_M::kfs_1, step_M::kfs_2); setter = &Arm::set_is_fetching_step_M; break; }
+            case LOAD_LOW: { delta_t = get_dt_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2); setter = &Arm::set_is_fetching_step_L; break; }
+            case LOAD_PLAIN: { delta_t = get_dt_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2); setter = &Arm::set_is_fetching_step_P; break; }
+            case LOAD_TOP: { delta_t = get_dt_by_kfs(step_T::kfs_0, step_T::kfs_1, step_T::kfs_2); setter = &Arm::set_is_fetching_step_T; break; }
         }
         if (now_t > delta_t) {
-            if (arm.fetch_proceed(step, act_index++)) { (arm.*setter)(false); arm.addKFS(); }
+            if (arm.fetch_proceed(step, act_index++)) { (arm.*setter)(false); arm.addKFS(); arm.set_is_kfs_raised(false); }
             else last_t = DWT_GetTimeline_s();
         }
     };
@@ -133,12 +149,17 @@ void armTask(void *argument) {
         void (Arm::*setter)(bool);
         using namespace arm_actions_config::place_proceed;
         switch (layer) {
-            case 1: { delta_t = kfs_1[act_index].delta_t; setter = &Arm::set_is_placing_kfs_L; break; }
-            case 2: { delta_t = kfs_2[act_index].delta_t; setter = &Arm::set_is_placing_kfs_M; break; }
-            case 3: { delta_t = kfs_3[act_index].delta_t; setter = &Arm::set_is_placing_kfs_H; break; }
+            case UNLOAD_LOW: { delta_t = kfs_1[act_index].delta_t; setter = &Arm::set_is_placing_kfs_L; break; }
+            case UNLOAD_MEDIUM: { delta_t = kfs_2[act_index].delta_t; setter = &Arm::set_is_placing_kfs_M; break; }
+            case UNLOAD_HIGH: { delta_t = kfs_3[act_index].delta_t; setter = &Arm::set_is_placing_kfs_H; break; }
+            case UNLOAD_TOP: { delta_t = kfs_4[act_index].delta_t; setter = &Arm::set_is_placing_kfs_T; break; }
         }
         if (now_t > delta_t) {
-            if (arm.place_proceed(act_index++)) { (arm.*setter)(false); arm.rmvKFS(); }
+            if (arm.place_proceed(act_index++)) {
+                if (arm.get_is_placing_kfs_T()) arm.set_is_kfs_raised(false);
+                else arm.rmvKFS();
+                (arm.*setter)(false);
+            }
             else last_t = DWT_GetTimeline_s();
         }
     };
@@ -150,15 +171,25 @@ void armTask(void *argument) {
         else if (arm.get_is_fetching_step_M()) run_fetching_step(1);  // 抓取中台阶
         else if (arm.get_is_fetching_step_L()) run_fetching_step(-1);  // 抓取低台阶
         else if (arm.get_is_fetching_step_P()) run_fetching_step(0);  // 抓取平地
+        else if (arm.get_is_fetching_step_P()) run_fetching_step(4);  // 抓取平地
         // placing_kfs 类
         else if (arm.get_is_placing_kfs_L()) run_placing_kfs(1);  // 放置最底下的KFS进第二层
         else if (arm.get_is_placing_kfs_M()) run_placing_kfs(2);  // 放置中间层的KFS进第二层
         else if (arm.get_is_placing_kfs_H()) run_placing_kfs(3);  // 放置最上面的KFS进第二层
+        else if (arm.get_is_placing_kfs_T()) run_placing_kfs(4);  // 放置举高高的KFS进第二层
         // place_releasing 类
         else if (arm.get_is_place_releasing()) {  // 释放KFS，回归默认姿态
             now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
             if (now_t > arm_actions_config::place_release_proceed[act_index].delta_t) {
                 if (arm.place_proceed(act_index++)) arm.set_is_place_releasing(false);
+                else last_t = DWT_GetTimeline_s();
+            }
+        }
+        // raising_kfs 类
+        else if (arm.get_is_raising_kfs()) {  // 举高高KFS
+            now_t = DWT_GetTimeline_s() - last_t;  // now_t记录以last_t为基准的相对时间
+            if (now_t > arm_actions_config::raise_kfs_proceed[act_index].delta_t) {
+                if (arm.place_proceed(act_index++)) { arm.set_is_raising_kfs(false); arm.set_is_kfs_raised(true); }
                 else last_t = DWT_GetTimeline_s();
             }
         }
@@ -181,9 +212,15 @@ void armTask(void *argument) {
                         fetch_step(0);
                         break;
                     case 5:
-                        place_kfs();
+                        raise_kfs();
                         break;
                     case 6:
+                        fetch_step(3);
+                        break;
+                    case 7:
+                        place_kfs();
+                        break;
+                    case 8:
                         place_release();
                         break;
                 }
