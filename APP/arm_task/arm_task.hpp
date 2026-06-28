@@ -16,18 +16,35 @@
 #include <cmath>
 #include <stdint.h>
 #include <stdio.h>
+#include <optional>
 #include "arm_actions_config.hpp"
 
 
 void fetch_step(int8_t step);
-void place_kfs(int8_t kfs_layer);
+void place_kfs(std::optional<int8_t> kfs_layer);
 void place_release();
 
 namespace arm_action {
     void load_kfs(int8_t step);
-    void unload_kfs(int8_t level);
+    void unload_kfs(std::optional<int8_t> level);
     void release_kfs();
+    void raise_kfs();
 }
+
+enum LOAD_TYPE {
+    LOAD_LOW = -1,
+    LOAD_PLAIN = 0,
+    LOAD_MEDIUM = 1,
+    LOAD_HIGH = 2,
+    LOAD_TOP = 4
+};
+
+enum UNLOAD_TYPE {
+    UNLOAD_LOW = 1,
+    UNLOAD_MEDIUM = 2,
+    UNLOAD_HIGH = 3,
+    UNLOAD_TOP = 4
+};
 
 class Arm {
 
@@ -73,7 +90,7 @@ public:
             case 2: return get_pose_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2);
             case -1: return get_pose_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2);
             case 0: return get_pose_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2);
-            case 3: return get_pose_by_kfs(step_T::kfs_0, step_T::kfs_1, step_T::kfs_2);
+            case 4: return get_pose_by_kfs(step_T::kfs_0, step_T::kfs_1, step_T::kfs_2);
             default: return false;
         }
     }
