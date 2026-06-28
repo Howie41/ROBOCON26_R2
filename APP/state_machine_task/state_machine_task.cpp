@@ -8,6 +8,7 @@
 #include "arm_task.hpp"
 #include "cmsis_os2.h"
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <mutex>
 #include <sys/_pthreadtypes.h>
@@ -47,6 +48,8 @@ namespace waypoint {
 }
 
 volatile bool begin_signal{false};
+
+static TypedTopicPublisher<pub_chassis_cmd> chassis_stop_cmd_pub("chassis_cmd");
 volatile bool paused{false};
 
 class StateMachine {
@@ -58,28 +61,19 @@ private:
 public:
     StateMachine() = default;
     ~StateMachine() = default;
-    // 禁止拷贝和移动
-    // StateMachine(const StateMachine&) = delete;
-    // StateMachine& operator=(const StateMachine&) = delete;
-    // StateMachine(StateMachine&&) = delete;
-    // StateMachine& operator=(StateMachine&&) = delete;
 
-    // static StateMachine& instance() {
-    //     RAM_D1_ATTR static StateMachine instance;
-    //     return instance;
-    // }
     void run() {
         switch (current_state_.load()) {
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case robot_state::begin: {
-                    // 开始进行自动
-                    // tail_claw_set_roll_target(-56.5);
-                    // tail_claw_setAirPump(true);               // 气泵的开关
-                    tail_claw_set_weapon_claw(true);            // 打开夹爪，夹紧武器头
-                    move_to_pos(-180, -115, 0, 5000);
-                    change_state_to(robot_state::go_to_shr);
-                }
+                wait_until([]() -> bool {
+                    return begin_signal;
+                });
+
+                tail_claw_set_weapon_claw(true);            // 打开夹爪，夹紧武器头
+                move_to_pos(-180, -115, 0, 5000);
+                change_state_to(robot_state::go_to_shr);
                 break;
             }
 
@@ -99,7 +93,6 @@ public:
                         && fabsf(tail_claw_status_cache_.roll_target_deg - target) < 0.5f
                         && tail_claw_status_cache_.roll_arrived;
                 }, 3000U, 20U);
-                tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
                 change_state_to(robot_state::aim_at_weapon);
                 break;
             }
@@ -117,7 +110,7 @@ public:
                     move_to_pos(735, -905, 90, 8000);
                 }
                 tail_claw_set_weapon_claw(false);         // 闭合夹爪，夹紧武器头
-                osDelay(500);                               // 等待夹爪动作完成，具体时间待调试
+                osDelay(500);                             // 等待夹爪动作完成，具体时间待调试
                 flag_++;
                 change_state_to(robot_state::rotate_weapon_claw);
                 break;
@@ -136,50 +129,45 @@ public:
             }
 
             case robot_state::match_rod: {
-                // 里程计版本 move_to_pos(477, 279, -90, 4000U); 360，-80
                 move_to_pos(300, -170, -90, 4000U);
-
-                tail_claw_set_mode(TailClawMode::AutoAlign); // 进入自动对齐模式
-                /*tail_claw_msg msg{};
-                msg.distance = 3;
-                tail_claw_weapon_event_pub_.Publish(msg);
-                wait_until([this]() -> bool {
-                    // TODO: 判断夹爪是否对准武器杆
-                    tail_claw_update_status();
-                    return tail_claw_status_valid_ && tail_claw_status_cache_.weapon_matched;
-                });
-                msg.distance = 4;
-                tail_claw_weapon_event_pub_.Publish(msg);*/
-
-                change_state_to(robot_state::wait_for_cmd);
+                change_state_to(robot_state::wait_for_decision_cmd);
                 break;
             }
 
-            // R2松开武器头夹爪，等待操作手决策，决定是否拼装新的武器
-            case robot_state::wait_for_cmd: {
+            case robot_state::wait_for_claw_cmd: {
+                change_state_to(robot_state::wait_for_decision_cmd);
+                break;
+            }
+
+            case robot_state::wait_for_decision_cmd: {
                 clean_previous_cmd();
                 wait_until([this]() -> bool {
                     switch (get_cmd_from_r1()) {
+                        case 0x0A: // 松开夹爪
+                            tail_claw_set_weapon_claw(true);
+                            return false;
+                            break;
                         case 0x1A: // 夹取新的武器头
                             change_state_to(robot_state::go_to_shr);
                             return true;
                             break;
-                       /* case 0x1B: // 进入梅林
+                        case 0x1B: // 进梅林
                             change_state_to(robot_state::go_to_mf_entrance);
-                            return true;*/
-                        case 0x0A:
-                            tail_claw_set_weapon_claw(true);
                             return true;
                             break;
                         default:
                             return false;
+                            break;
                     }
                 });
+                // change_state_to(robot_state::go_to_mf_entrance);
                 break;
             }
 
             case robot_state::go_to_mf_entrance: {
                 move_to_pos(waypoint::mf_entrance_mid);
+                tail_claw_set_roll_target(-118.0f);
+                change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
@@ -192,11 +180,6 @@ public:
                 });
 
                 current_path_cmd_.store(cmd); // 给其他后续状态读取
-
-                // paused = true;
-                // wait_until([]() -> bool {
-                //     return !paused;
-                // });
 
                 switch (cmd) {
                     case path_cmd::code::move_forward:
@@ -242,7 +225,7 @@ public:
                         break;
                     case path_cmd::code::turn_around:
                         chassis_action::turn_right_180_deg();
-                        chassis_action::start_return_to_center();
+                        // chassis_action::start_return_to_center();
                         break;
                     case path_cmd::code::move_left:
                         move_left();
@@ -259,12 +242,9 @@ public:
             }
 
             case robot_state::execute_arm_action: {
-
                 path_cmd::code executing_cmd = current_path_cmd_.load();
 
                 chassis_action::start_go_to_edge();
-
-
                 switch (executing_cmd) {
                     case path_cmd::code::grab_low_r2kfs:
                         arm_action::load_kfs(-1);
@@ -276,14 +256,13 @@ public:
                         arm_action::load_kfs(2);
                         break;
                     case path_cmd::code::drop_and_grab_new_kfs:
+                        // 忽略这个指令
                         break;
                     default:
                         break;
                 }
 
-
                 osDelay(10*1000); // 等待10s，确保KFS放置完成
-
                 chassis_action::start_return_to_center();
 
                 current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
@@ -292,6 +271,7 @@ public:
             }
 
             case robot_state::go_to_mf_exit: {
+                change_state_to(robot_state::stop);
                 break;
             }
 
@@ -325,7 +305,8 @@ private:
         catch_weapon,                  // 夹爪夹取武器
         rotate_weapon_claw,            // 夹爪反转
         match_rod,                     // 端头架对齐武器杆
-        wait_for_cmd,                  // 等待R1指令 决定继续夹取or前往梅林
+        wait_for_claw_cmd,             // 等待R1指令 决定继续夹取or前往梅林
+        wait_for_decision_cmd,         // 等待操作手决策，决定是否拼装新的武器
 
         // 梅林
         go_to_mf_entrance,             // 前往梅林入口
@@ -443,6 +424,26 @@ private:
     }
 
     /**
+     * @brief 强制停止底盘导航
+     *
+     * 禁用自动导航并发布零速度指令，立即刹停底盘。
+     * 可在任何任务上下文中安全调用。
+     */
+    void chassis_stop() {
+        taskENTER_CRITICAL();
+        nav_control::auto_enabled = false;
+        nav_control::arrived = false;
+        nav_control::target_active = false;
+        nav_control::arrival_reported = false;
+        taskEXIT_CRITICAL();
+
+        // 发布零速度指令，确保底盘物理停止
+        pub_chassis_cmd cmd{};
+        cmd.nav_mode_ = true;
+        chassis_stop_cmd_pub.Publish(cmd);
+    }
+
+    /**
      * @brief 更新尾爪状态缓存
      * @return true 表示有新的状态更新
      */
@@ -460,17 +461,6 @@ private:
     }
 
     /**
-     * @brief 上升沿检测，用于状态机视图切换
-     * @param current_state 当前信号状态
-     * @return true 表示检测到上升沿（false→true）
-     */
-    bool consume_state_machine_view(bool current_state) {
-        const bool rising_edge = current_state && !state_machine_view_last_;
-        state_machine_view_last_ = current_state;
-        return rising_edge;
-    }
-
-    /**
     * @brief 清空之前的命令，避免误触发
     * @note qr_code_sub_ 的长度是1，TryGet一次就能清空之前的命令了
     * @note 不要放入 wait_until，只清理一次就好了
@@ -478,6 +468,7 @@ private:
     void clean_previous_cmd() {
         pub_qr_code_parsed temp_qr{};
         qr_code_sub_.TryGet(&temp_qr);
+        (void)infrared_group.tryGet();
     }
 
     /**
