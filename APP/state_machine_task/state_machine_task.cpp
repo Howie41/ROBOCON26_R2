@@ -22,9 +22,11 @@
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "chassis_task.h"
+#include "logger.hpp"
 
 osThreadId_t StateMachineTaskHandle;
 extern Arm arm;  // 取矿机构实例
+extern LoggerQueue logger_queue;
 
 namespace waypoint {
     typedef struct {
@@ -42,9 +44,9 @@ namespace waypoint {
     [[maybe_unused]] point after_rotate{11350, 1860, -90};
     [[maybe_unused]] point grid{11170, -980, -90};
 
-    point mf_entrance_mid{1300, 1500, 0};
-    point mf_entrance_left{1300, 1500+1200, 0};
-    point mf_entrance_right{1300, 1500-1200, 0};
+    point mf_entrance_mid{2100, 1500, 0};
+    point mf_entrance_left{2100, 1500+1200, 0};
+    point mf_entrance_right{2100, 1500-1200, 0};
 }
 
 volatile bool begin_signal{false};
@@ -67,6 +69,9 @@ public:
         #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case robot_state::begin: {
+                // change_state_to(robot_state::wait_for_decision_cmd);
+                // break;
+
                 wait_until([]() -> bool {
                     return begin_signal;
                 });
@@ -79,7 +84,7 @@ public:
 
             case robot_state::go_to_shr: {
                 if (flag_ == 0) {
-                    move_to_pos(335, -830, 90, 5000);
+                    move_to_pos(335, -825, 90, 5000);
                 } else {
                     move_to_pos(300, -170, 90, 4000U);
                     move_to_pos(735, -830, 90, 5000);
@@ -104,7 +109,7 @@ public:
 
             case robot_state::catch_weapon: {
                 if (flag_ == 0) {
-                    move_to_pos(335, -910, 90, 5000);
+                    move_to_pos(335, -895, 90, 5000);
                     // move_to_pos(735, -905, 90, 5000);
                 } else {
                     move_to_pos(735, -905, 90, 8000);
@@ -159,7 +164,7 @@ public:
                             return false;
                             break;
                     }
-                });
+                }, 25);
                 // change_state_to(robot_state::go_to_mf_entrance);
                 break;
             }
@@ -387,6 +392,7 @@ private:
     }
 
     void change_state_to(robot_state new_state) {
+        logger_queue.log("SM %d -> %d\n", static_cast<int>(current_state_.load()), static_cast<int>(new_state));
         current_state_.store(new_state);
     }
 
@@ -485,9 +491,11 @@ private:
         auto ir_result = infrared_group.tryGet();
         if (ir_result.has_value()) {
             cmd = static_cast<uint8_t>(ir_result.value().data);
+            logger_queue.log("R1 ir cmd: 0x%02X\n", cmd);
         }
         if (qr_code_sub_.TryGet(&qr_code_msg)) {
             cmd = qr_code_msg.data;
+            logger_queue.log("R1 qr cmd: 0x%02X\n", cmd);
         }
         return cmd;
     }
@@ -495,10 +503,10 @@ private:
     void move_left() {
         if (moved_left_right_ == 0) {
             moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_left);
+            move_to_pos(waypoint::mf_entrance_left, 5000);
         } else if (moved_left_right_ == 1) {
             moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_mid);
+            move_to_pos(waypoint::mf_entrance_mid, 5000);
         } else {
             return; // 已经在最左边了，不能再左移
         }
@@ -507,10 +515,10 @@ private:
     void move_right() {
         if (moved_left_right_ == 0) {
             moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_right);
+            move_to_pos(waypoint::mf_entrance_right, 5000);
         } else if (moved_left_right_ == -1) {
             moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_mid);
+            move_to_pos(waypoint::mf_entrance_mid, 5000);
         } else {
             return; // 已经在最右边了，不能再右移
         }

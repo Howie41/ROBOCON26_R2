@@ -66,7 +66,7 @@ void debugTask(void *argument) {
 
   for (;;) {
     osDelay(50);
-    logger_queue.log("Hello world!");
+    // logger_queue.log("Hello world!");
     logger_queue.trySend();
   }
 }
