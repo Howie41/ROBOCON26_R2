@@ -1,7 +1,9 @@
 #include "PCcom.hpp"
 #include "NavProtocol.hpp"
 #include "lift_task.h"
+#include "field_waypoints.hpp"
 #include "state_machine_task.h"
+#include "waypoint_navigator.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "waypoint_navigator.hpp"
@@ -154,8 +156,14 @@ void PcCom::OnPacket(Packet packet) {
       break;
     }
 
-    default:
+    default: {
+      // 路径规划指令
+      if (path_cmd::is_path_cmd(packet.code())) {
+        path_cmd::code cmd = static_cast<path_cmd::code>(packet.code());
+        pc_path_cmd_pub_.Publish(cmd);
+      }
       break;
+    }
   }
 }
 
@@ -170,6 +178,11 @@ void PcCom::ProcessTx() {
     send(nav_event.event_code, nav_event);
   }
 
+  // 请求路径规划步骤
+  bool request_path_cmd{};
+  if (pc_path_cmd_request_sub_.TryGet(&request_path_cmd)) {
+    send(static_cast<uint16_t>(path_cmd::code::request), request_path_cmd);
+  }
   tail_claw_msg claw_start_msg{};
   if (tail_claw_weapon_event_sub_.TryGet(&claw_start_msg)) {
       send(static_cast<uint16_t>(PcCmd::tail_claw_weapon_start), claw_start_msg);

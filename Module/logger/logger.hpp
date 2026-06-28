@@ -16,7 +16,7 @@
 
 class Logger {
     public:
-        static constexpr size_t BUFFER_LENGTH = 256;
+        static constexpr size_t BUFFER_LENGTH = 128;
         enum class LogLevel : uint8_t {
             debug = 0,
             info = 1,
