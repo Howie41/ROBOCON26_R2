@@ -72,7 +72,7 @@ public:
             case robot_state::begin: {
                 wait_until([&]() -> bool { return begin_signal; });
                 begin_signal = false;
-                move_to_pos(waypoint::mf_entrance_mid);
+
                 // change_state_to(robot_state::request_for_path_cmd);
 
                 // 武馆：初始化夹爪并前往端头架
@@ -163,12 +163,14 @@ public:
                         default:
                             return false;
                     }
-                });
-                change_state_to(robot_state::stop);
+                }, 5000);
+                // change_state_to(robot_state::stop);
+                change_state_to(robot_state::go_to_mf_entrance);
                 break;
             }
 
             case robot_state::go_to_mf_entrance: {
+                move_to_pos(waypoint::mf_entrance_mid);
                 break;
             }
 
@@ -231,6 +233,7 @@ public:
                         break;
                     case path_cmd::code::turn_around:
                         chassis_action::turn_right_180_deg();
+                        chassis_action::start_return_to_center();
                         break;
                     case path_cmd::code::move_left:
                         move_left();
