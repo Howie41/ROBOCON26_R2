@@ -72,9 +72,12 @@ public:
     StateMachine() = default;
     ~StateMachine() = default;
 
-    void run() {
+    void run_cwty() {
+        if constexpr (MATCH_TYPE != match_type::CWTY) {
+            return;
+        }
+        
         switch (current_state_.load()) {
-        #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case robot_state::begin: {
                 // change_state_to(robot_state::wait_for_decision_cmd);
@@ -296,21 +299,29 @@ public:
             }
 
             case robot_state::go_to_mf_exit: {
+                move_to_pos(waypoint::before_uphill, 5000);
                 change_state_to(robot_state::stop);
                 break;
             }
 
             case robot_state::stop: {
                 logger_queue.log("SM ======== STOP ========\n");
-                move_to_pos(waypoint::before_uphill, 5000);
-                chassis_stop();
+                // chassis_stop();
                 break;
             }
 
-        #elif MATCH_JGCB /** ========== 九宫藏宝 单项赛 ========== */
+            default: // 不应该到达这里
+                break;
+        }
+    }
+    void run_jgcb() {
+        if constexpr (MATCH_TYPE != match_type::JGCB) {
+            return;
+        }
+        switch (current_state_.load()) {
             case robot_state::begin: {
                 logger_queue.log("SM ======== BEGIN ========\n");
-                wait_until([]() -> bool {
+                wait_until([this]() -> bool {
                     if (get_cmd_from_r1() == 0x2A) {
                         return true;
                     } else {
@@ -322,20 +333,23 @@ public:
                 break;
             }
 
-        #endif /** ============================================= */
-            
+            case robot_state::stop: {
+                logger_queue.log("SM ======== STOP ========\n");
+                break;
+            }
+
             default: // 不应该到达这里
                 break;
-
         }
     }
 
 private:
 
     enum class robot_state: uint8_t {
-    #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
-        // 武馆
         begin = 0,                     // 启动
+        stop,                          // 停止
+
+        // 崇武探幽
         go_to_shr,                     // 前往端头架
         aim_at_weapon,                 // 夹爪对准对应武器头
         catch_weapon,                  // 夹爪夹取武器
@@ -344,21 +358,17 @@ private:
         wait_for_claw_cmd,             // 等待R1指令 决定继续夹取or前往梅林
         wait_for_decision_cmd,         // 等待操作手决策，决定是否拼装新的武器
 
-        // 梅林
         go_to_mf_entrance,             // 前往梅林入口
         request_for_path_cmd,          // 请求路径规划命令
         execute_chassis_action,        // 执行底盘动作
         execute_arm_action,            // 执行取矿机构动作
         go_to_mf_exit,                 // 前往梅林出口
-        stop                           // 停止
 
-    #elif MATCH_JGCB /** ========== 九宫藏宝 单项赛 ========== */
-        begin = 0,                     // 启动
+        // 九宫藏宝
         go_to_arena,                   // 上坡、前往竞技场
         go_to_load_kfs,                // 前往距斜坡最近的KFS前
         load_kfs,                      // 装载KFS
         wait_for_place_mid_kfs_cmd,    // 等待放置中层KFS的指令
-
         go_to_tic_tac_toe,             // 前往九宫格前
         request_for_kfs_location,      // 请求KFS放置位置
         go_to_kfs_location,            // 前往KFS放置位置
@@ -366,13 +376,9 @@ private:
         go_to_combination_area,        // 前往合体点位
         wait_for_combination_cmd,      // 等待合体指令
         begin_combination,             // 合体
-
         unload_kfs,                    // 取出KFS并手持
         wait_for_place_hi_kfs_cmd,     // 等待放置高层KFS的指令
         release_kfs,                   // 释放KFS
-
-        stop                           // 停止
-    #endif
     };
 
     std::atomic<robot_state> current_state_{robot_state::begin};
@@ -563,7 +569,11 @@ private:
 RAM_D1_ATTR static StateMachine state_machine;
 void stateMachineTask(void *argument) {
     for (;;) {
-        state_machine.run();
+        if constexpr (MATCH_TYPE == match_type::CWTY) {
+            state_machine.run_cwty();
+        } else if constexpr (MATCH_TYPE == match_type::JGCB) {
+            state_machine.run_jgcb(); 
+        }
         osDelay(1);
     }
 }
