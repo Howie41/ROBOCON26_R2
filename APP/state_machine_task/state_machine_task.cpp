@@ -29,24 +29,32 @@ extern Arm arm;  // 取矿机构实例
 extern LoggerQueue logger_queue;
 
 namespace waypoint {
-    typedef struct {
+    struct point{
         int16_t x;
         int16_t y;
         int16_t yaw;
-    } point;
+    };
 
-    [[maybe_unused]] point init{-550, 150, 0};
-    [[maybe_unused]] point before_mf{2280, 1600, 0};
-    [[maybe_unused]] point corridor{2050, 4000, 0};
-    [[maybe_unused]] point before_uphill{8860, 3760, 0};
-    [[maybe_unused]] point after_uphill{11930, 3760, 0};
-    [[maybe_unused]] point before_rotate{11830, 1980, 0};
-    [[maybe_unused]] point after_rotate{11350, 1860, -90};
-    [[maybe_unused]] point grid{11170, -980, -90};
+    constexpr point init{-550, 150, 0};
+    constexpr point before_mf{2280, 1600, 0};
+    constexpr point corridor{2050, 4000, 0};
+    constexpr point before_uphill{7967, 3760, 0};
+    constexpr point after_uphill{10837, 3840, 0};
+    constexpr point before_rotate{11830, 1980, 0};
+    constexpr point after_rotate{11350, 1860, -90};
+    constexpr point grid{11170, -980, -90};
 
-    point mf_entrance_mid{2100, 1500, 0};
-    point mf_entrance_left{2100, 1500+1200, 0};
-    point mf_entrance_right{2100, 1500-1200, 0};
+    constexpr point mf_entrance_mid{2060, 1500, 0};
+    constexpr point mf_entrance_left{2060, 1500+1200, 0};
+    constexpr point mf_entrance_right{2060, 1500-1200, 0};
+
+    constexpr point mf_entrance_mid_close{2085, mf_entrance_mid.y, 0};
+    constexpr point mf_entrance_left_close{2085, mf_entrance_left.y, 0};
+    constexpr point mf_entrance_right_close{2085, mf_entrance_right.y, 0};
+
+    constexpr point grid_left{10517, -480, -90};
+    constexpr point grid_mid{9979, -480, -90};
+    constexpr point grid_right{9443, -480, -90};
 }
 
 volatile bool begin_signal{false};
@@ -64,17 +72,23 @@ public:
     StateMachine() = default;
     ~StateMachine() = default;
 
-    void run() {
+    void run_cwty() {
+        if constexpr (MATCH_TYPE != match_type::CWTY) {
+            return;
+        }
+        
         switch (current_state_.load()) {
-        #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
 
             case robot_state::begin: {
                 // change_state_to(robot_state::wait_for_decision_cmd);
                 // break;
-
+                logger_queue.log("SM ======== BEGIN ========\n");
                 wait_until([]() -> bool {
                     return begin_signal;
                 });
+                logger_queue.log("SM begin signal\n");
+                change_state_to(robot_state::go_to_mf_entrance);
+                break;
 
                 tail_claw_set_weapon_claw(true);            // 打开夹爪，夹紧武器头
                 move_to_pos(-180, -115, 0, 5000);
@@ -165,7 +179,9 @@ public:
                             break;
                     }
                 }, 25);
-                // change_state_to(robot_state::go_to_mf_entrance);
+                // tail_claw_set_weapon_claw(true);
+                // osDelay(3000);
+                change_state_to(robot_state::go_to_mf_entrance);
                 break;
             }
 
@@ -178,12 +194,14 @@ public:
 
             case robot_state::request_for_path_cmd: {
                 path_cmd_request_pub_.Publish(true); // 发一次 path_cmd::code::request
+                logger_queue.log("SM request path cmd\n");
 
                 path_cmd::code cmd;
                 wait_until([&]() -> bool {
                     return path_cmd_sub_.TryGet(&cmd);
                 });
 
+                logger_queue.log("SM path cmd: 0x%02X\n", static_cast<uint8_t>(cmd));
                 current_path_cmd_.store(cmd); // 给其他后续状态读取
 
                 switch (cmd) {
@@ -203,6 +221,7 @@ public:
                         change_state_to(robot_state::execute_arm_action);
                         break;
                     case path_cmd::code::no_more_commands:
+                        logger_queue.log("SM no more commands\n");
                         change_state_to(robot_state::go_to_mf_exit);
                         break;
                     default:
@@ -267,7 +286,11 @@ public:
                         break;
                 }
 
-                osDelay(10*1000); // 等待10s，确保KFS放置完成
+                // wait_until_timeout_or([&]() -> bool {
+                //     return arm.get_is_holding_kfs();
+                // }, 8000);
+                osDelay(10*1000);
+
                 chassis_action::start_return_to_center();
 
                 current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
@@ -276,35 +299,57 @@ public:
             }
 
             case robot_state::go_to_mf_exit: {
+                move_to_pos(waypoint::before_uphill, 5000);
                 change_state_to(robot_state::stop);
                 break;
             }
 
             case robot_state::stop: {
-                nav_control::auto_enabled = false;
-                nav_control::target_active = false;
-                nav_control::arrived = false;
-                nav_control::arrival_reported = false;
+                logger_queue.log("SM ======== STOP ========\n");
+                // chassis_stop();
                 break;
             }
 
-        #elif MATCH_JGCB /** ========== 九宫藏宝 单项赛 ========== */
-
-
-        #endif /** ============================================= */
-            
             default: // 不应该到达这里
                 break;
+        }
+    }
+    void run_jgcb() {
+        if constexpr (MATCH_TYPE != match_type::JGCB) {
+            return;
+        }
+        switch (current_state_.load()) {
+            case robot_state::begin: {
+                logger_queue.log("SM ======== BEGIN ========\n");
+                wait_until([this]() -> bool {
+                    if (get_cmd_from_r1() == 0x2A) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                });
+                logger_queue.log("SM begin signal\n");
+                change_state_to(robot_state::go_to_arena);
+                break;
+            }
 
+            case robot_state::stop: {
+                logger_queue.log("SM ======== STOP ========\n");
+                break;
+            }
+
+            default: // 不应该到达这里
+                break;
         }
     }
 
 private:
 
     enum class robot_state: uint8_t {
-    #ifdef MATCH_CWTY /** ========== 崇武探幽 单项赛 ========== */
-        // 武馆
         begin = 0,                     // 启动
+        stop,                          // 停止
+
+        // 崇武探幽
         go_to_shr,                     // 前往端头架
         aim_at_weapon,                 // 夹爪对准对应武器头
         catch_weapon,                  // 夹爪夹取武器
@@ -313,21 +358,17 @@ private:
         wait_for_claw_cmd,             // 等待R1指令 决定继续夹取or前往梅林
         wait_for_decision_cmd,         // 等待操作手决策，决定是否拼装新的武器
 
-        // 梅林
         go_to_mf_entrance,             // 前往梅林入口
         request_for_path_cmd,          // 请求路径规划命令
         execute_chassis_action,        // 执行底盘动作
         execute_arm_action,            // 执行取矿机构动作
         go_to_mf_exit,                 // 前往梅林出口
-        stop                           // 停止
 
-    #elif MATCH_JGCB /** ========== 九宫藏宝 单项赛 ========== */
-        begin = 0,                     // 启动
+        // 九宫藏宝
         go_to_arena,                   // 上坡、前往竞技场
         go_to_load_kfs,                // 前往距斜坡最近的KFS前
         load_kfs,                      // 装载KFS
         wait_for_place_mid_kfs_cmd,    // 等待放置中层KFS的指令
-
         go_to_tic_tac_toe,             // 前往九宫格前
         request_for_kfs_location,      // 请求KFS放置位置
         go_to_kfs_location,            // 前往KFS放置位置
@@ -335,13 +376,9 @@ private:
         go_to_combination_area,        // 前往合体点位
         wait_for_combination_cmd,      // 等待合体指令
         begin_combination,             // 合体
-
         unload_kfs,                    // 取出KFS并手持
         wait_for_place_hi_kfs_cmd,     // 等待放置高层KFS的指令
         release_kfs,                   // 释放KFS
-
-        stop                           // 停止
-    #endif
     };
 
     std::atomic<robot_state> current_state_{robot_state::begin};
@@ -503,10 +540,12 @@ private:
     void move_left() {
         if (moved_left_right_ == 0) {
             moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_left, 5000);
+            move_to_pos(waypoint::mf_entrance_left);
+            move_to_pos(waypoint::mf_entrance_left_close);
         } else if (moved_left_right_ == 1) {
             moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_mid, 5000);
+            move_to_pos(waypoint::mf_entrance_mid);
+            move_to_pos(waypoint::mf_entrance_mid_close);
         } else {
             return; // 已经在最左边了，不能再左移
         }
@@ -515,10 +554,12 @@ private:
     void move_right() {
         if (moved_left_right_ == 0) {
             moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_right, 5000);
+            move_to_pos(waypoint::mf_entrance_right);
+            move_to_pos(waypoint::mf_entrance_right_close);
         } else if (moved_left_right_ == -1) {
             moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_mid, 5000);
+            move_to_pos(waypoint::mf_entrance_mid);
+            move_to_pos(waypoint::mf_entrance_mid_close);
         } else {
             return; // 已经在最右边了，不能再右移
         }
@@ -528,7 +569,11 @@ private:
 RAM_D1_ATTR static StateMachine state_machine;
 void stateMachineTask(void *argument) {
     for (;;) {
-        state_machine.run();
+        if constexpr (MATCH_TYPE == match_type::CWTY) {
+            state_machine.run_cwty();
+        } else if constexpr (MATCH_TYPE == match_type::JGCB) {
+            state_machine.run_jgcb(); 
+        }
         osDelay(1);
     }
 }

@@ -12,13 +12,17 @@
 extern osThreadId_t StateMachineTaskHandle;
 void stateMachineTask(void *argument);
 
+#ifdef __cplusplus
+enum class match_type : uint8_t { 
+    CWTY, // “崇武探幽”
+    JGCB  // “九宫藏宝”
+};
+
 /** ========== 比赛类型 ========== */
 
-#define MATCH_CWTY
+constexpr match_type MATCH_TYPE = match_type::CWTY;
 
 /** ============================= */
-
-#ifdef __cplusplus
 
 namespace path_cmd {
 enum class code: uint16_t {
@@ -46,10 +50,5 @@ inline bool is_path_cmd(uint16_t code) {
 
 #endif // __cplusplus
 
-#if !defined(MATCH_CWTY) && !defined(MATCH_JGCB)
-#error "未设置比赛类型"
-#endif
-
-#if defined(MATCH_CWTY) && defined(MATCH_JGCB)
-#error "比赛类型配置异常"
-#endif
+static_assert(MATCH_TYPE == match_type::CWTY || MATCH_TYPE == match_type::JGCB,
+    "Invalid match type: MATCH_TYPE must be CWTY or JGCB");
