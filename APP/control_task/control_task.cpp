@@ -281,6 +281,8 @@ void controlTask(void *argument) {
       //                                   nav_control::current_y);
       // }
 
+      const bool stair_action_active = (stairWaypointStep() != 0U);
+
       if (!nav_control::auto_enabled) {
         [[maybe_unused]] const bool stair_y_pressed =
             consumeButtonRisingEdge(control_xbox_cmd.btnY,
@@ -302,7 +304,7 @@ void controlTask(void *argument) {
         // }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnLB, &xbox_lb_last)) {
-            chassis_action::start_climb_upstairs();
+            chassis_action::turn_left_90_deg();
         }
 
         if (consumeButtonRisingEdge(control_xbox_cmd.btnRB, &xbox_rb_last)) {
@@ -325,8 +327,10 @@ void controlTask(void *argument) {
         arm_data_pub.Publish(arm_cmd);
         applyManualStairAssist();
         lift_data_pub.Publish(lift_cmd);
-        chassis_cmd.nav_mode_ = false;
-        chassis_data_pub.Publish(chassis_cmd);
+        if (!stair_action_active) {
+          chassis_cmd.nav_mode_ = false;
+          chassis_data_pub.Publish(chassis_cmd);
+        }
       }
     }
 

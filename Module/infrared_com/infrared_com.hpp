@@ -70,7 +70,7 @@ class InfraredModule {
     private:
         UartPort &uart_port_;
 
-        std::atomic<infrared_msg_t> latest_msg_{};
+        std::atomic<infrared_msg_t> latest_msg_{infrared_msg_t{0, 0}}; // 最新收到的红外数据包
 
         // 如果这里报错了，那说明这个结构体读写时有锁，没触发就是无锁，可以接受
         // 我编译的时候这里没有触发断言，说明编译器能做到无锁
