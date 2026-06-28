@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <optional>
 #include <array>
+#include <functional>
 #include "Motor.hpp"
 #include "pid_controller.h"
 #include "filters.hpp"
@@ -52,14 +53,8 @@ public:
     }
 
     // 判断位置环/速度环等待周期是否足够（用于拉开各环计算的频段）
-    bool is_pos_pid_waiting_enough() {
-        if (pos_pid_waiting_rec_++ > pos_pid_control_ratio_) { pos_pid_waiting_rec_ = 0; return true; }
-        return false;
-    }
-    bool is_speed_pid_waiting_enough() {
-        if (speed_pid_waiting_rec_++ > speed_pid_control_ratio_) { speed_pid_waiting_rec_ = 0; return true; }
-        return false;
-    }
+    bool is_pos_pid_waiting_enough() { return ++pos_pid_waiting_rec_ > pos_pid_control_ratio_ ? (pos_pid_waiting_rec_ = 0, true) : false; }
+    bool is_speed_pid_waiting_enough() { return ++speed_pid_waiting_rec_ > speed_pid_control_ratio_ ? (speed_pid_waiting_rec_ = 0, true) : false; }
 
     // getter & setter
     inline MotorBase& get_motor() { return motor_; }
@@ -67,20 +62,20 @@ public:
     inline PID_t& get_pos_pid() { return pos_pid_; }
     inline PID_t& get_speed_pid() { return speed_pid_; }
     const inline uint8_t get_pos_pid_control_ratio() { return pos_pid_control_ratio_; }
-    const inline uint8_t get_speed_control_ratio() { return speed_pid_control_ratio_; }
     void set_pos_pid_control_ratio(uint8_t pos_pid_control_ratio) { pos_pid_control_ratio_ = pos_pid_control_ratio; }
+    const inline uint8_t get_speed_pid_control_ratio() { return speed_pid_control_ratio_; }
     void set_speed_pid_control_ratio(uint8_t speed_pid_control_ratio) { speed_pid_control_ratio_ = speed_pid_control_ratio; }
 
 private:
-    MotorBase motor_{};  // 电机
+    MotorBase& motor_{};  // 电机
     SmoothSPlanner SSP_{};  // 规划器
     PID_t pos_pid_{};  // 位置环
     PID_t speed_pid_{};  // 速度环
     uint8_t pos_pid_control_ratio_{50};  // 位置环控制周期
     uint8_t speed_pid_control_ratio_{10};  // 速度环控制周期
 
-    uint8_t pos_pid_waiting_rec_{50};
-    uint8_t speed_pid_waiting_rec_{10};
+    uint8_t pos_pid_waiting_rec_{0};
+    uint8_t speed_pid_waiting_rec_{0};
 
 };
 
@@ -91,12 +86,13 @@ public:
     ~MotorPlanningSystem() {}
 
     void register_motor(MotorPlanningUnit &MP_Unit) {
-        motor_planning_units_[motor_count_] = MP_Unit;
+        motor_planning_units_[motor_count_] = std::ref(MP_Unit);
         motor_count_++;
     }
 
     void update() {
-        for (MotorPlanningUnit &MP_Unit : motor_planning_units_) {
+        for (uint8_t i = 0; i < motor_count_; i++) {
+            MotorPlanningUnit& MP_Unit = motor_planning_units_[i].get();
             float tar_x, tar_v;  // 追踪的目标位置与目标速度
             MP_Unit.get_SSP().update(tar_x, tar_v);
             if (MP_Unit.is_pos_pid_waiting_enough()) PID_Calculate(&MP_Unit.get_pos_pid(), MP_Unit.get_motor().getCurrentSumPos(), tar_x);  // 位置环计算
@@ -107,7 +103,7 @@ public:
     
 private:
     uint8_t motor_count_{0};  // 电机数量
-    std::array<MotorPlanningUnit, MAX_MOTOR_COUNT> motor_planning_units_{};  // 电机规划单元数组
+    std::array<std::reference_wrapper<MotorPlanningUnit>, MAX_MOTOR_COUNT> motor_planning_units_{};  // 电机规划单元数组
 
 };
 

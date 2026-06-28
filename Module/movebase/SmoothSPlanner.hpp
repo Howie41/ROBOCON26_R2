@@ -82,9 +82,10 @@ public:
      * @return false 指定参数下无解，规划失败
      */
     bool init(float t, float x, std::optional<float> v = std::nullopt, std::optional<float> a = std::nullopt) {
-        if (t <= 0.0f || isZero(x) || v.value() <= 0.0f || a.value() <= 0.0f) return false;  // 判断参数合理性: x可正可负，a和v取绝对值
-        if (!v.has_value()) v.value() = std::numeric_limits<float>::max();
-        if (!a.has_value()) a.value() = std::numeric_limits<float>::max();
+        if (!v.has_value()) v.emplace(std::numeric_limits<float>::max());
+        if (!a.has_value()) a.emplace(std::numeric_limits<float>::max());
+        // 判断参数合理性: x可正可负，a和v取绝对值
+        if (t <= 0.0f || isZero(x) || v.value() <= 0.0f || a.value() <= 0.0f) return false;
         // 此处共有两个约束：x = v(t - 2v/a) 且 2v/a < t/2，进行数学建模
         float p = fabsf(x - cur_state_.get_x());  // 距离差
         if (v.value() >= 2 * p / t) {  // 区间1

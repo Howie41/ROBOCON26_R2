@@ -68,6 +68,15 @@ C620Motor chassis_motor2(&fdcan3_bus, 0x202, 0, 0x200, 0);
 C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
 
+//尾部的电机
+C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
+C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
+
+// 抬升电机
+C610Motor lift_2006_motor1(&fdcan1_bus, 0x201, 0, 0x200, 0);
+C610Motor lift_2006_motor2(&fdcan1_bus, 0x202, 0, 0x200, 0);
+C620Motor lift_3508_motor1(&fdcan1_bus, 0x203, 0, 0x200, 0);
+C620Motor lift_3508_motor2(&fdcan1_bus, 0x204, 0, 0x200, 0);
 
 // 取矿电机
 C610Motor arm2006_motor(&fdcan2_bus, 0x203, 0, 0x200, 0);  // 伸缩
@@ -86,19 +95,6 @@ MotorPlanningSystem motor_planning_system;
 
 // 取矿机构
 Arm arm(arm4340_motor, arm3508_motor_planner, arm2006_motor_planner, arm4310_motor);
-
-
-
-//尾部的电机
-C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
-C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
-
-
-// 抬升电机
-C610Motor lift_2006_motor1(&fdcan1_bus, 0x201, 0, 0x200, 0);
-C610Motor lift_2006_motor2(&fdcan1_bus, 0x202, 0, 0x200, 0);
-C620Motor lift_3508_motor1(&fdcan1_bus, 0x203, 0, 0x200, 0);
-C620Motor lift_3508_motor2(&fdcan1_bus, 0x204, 0, 0x200, 0);
 
 
 // 串口外设（回调中释放信号量，唤醒处理线程解包）
