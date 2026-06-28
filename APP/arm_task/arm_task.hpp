@@ -11,6 +11,7 @@
 #pragma once
 
 #include "Motor.hpp"
+#include "motor_task.hpp"
 #include "stm32h723xx.h"
 #include "stm32h7xx_hal_gpio.h"
 #include <cmath>
@@ -33,13 +34,14 @@ class Arm {
 
 public:
     // 构造函数
-    Arm(DM43xxMotor &arm_lift, MotorBase &arm_rotate, MotorBase &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
+    Arm(DM43xxMotor &arm_lift, MotorPlanningUnit &arm_rotate, MotorPlanningUnit &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) :
+        arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
     ~Arm() {}
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(336.0f + pos_deg, speed_deg); }
-    void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
-    void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(-24.0f + pos_deg, speed_deg); }
+    void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { }//arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
+    void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { }//arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
@@ -108,37 +110,37 @@ public:
     void place_release_stop() { destroy_vaccum_stop(); }
 
     // 状态属性的getter与setter
-    uint8_t get_kfs_amount() { return kfs_num_; }
+    const uint8_t get_kfs_amount() { return kfs_num_; }
     void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
-    bool get_is_fetching_step_L() { return is_fetching_step_L_; }
+    const bool get_is_fetching_step_L() { return is_fetching_step_L_; }
     void set_is_fetching_step_L(bool is_fetching_step_L) { is_fetching_step_L_ = is_fetching_step_L; }
-    bool get_is_fetching_step_P() { return is_fetching_step_P_; }
+    const bool get_is_fetching_step_P() { return is_fetching_step_P_; }
     void set_is_fetching_step_P(bool is_fetching_step_P) { is_fetching_step_P_ = is_fetching_step_P; }
-    bool get_is_fetching_step_M() { return is_fetching_step_M_; }
+    const bool get_is_fetching_step_M() { return is_fetching_step_M_; }
     void set_is_fetching_step_M(bool is_fetching_step_M) { is_fetching_step_M_ = is_fetching_step_M; }
-    bool get_is_fetching_step_H() { return is_fetching_step_H_; }
+    const bool get_is_fetching_step_H() { return is_fetching_step_H_; }
     void set_is_fetching_step_H(bool is_fetching_step_H) { is_fetching_step_H_ = is_fetching_step_H; }
     const bool get_is_placing_kfs_L() { return is_placing_kfs_L_; }
     void set_is_placing_kfs_L(bool is_placing_kfs_L) { is_placing_kfs_L_ = is_placing_kfs_L; }
-    bool get_is_placing_kfs_M() { return is_placing_kfs_M_; }
+    const bool get_is_placing_kfs_M() { return is_placing_kfs_M_; }
     void set_is_placing_kfs_M(bool is_placing_kfs_M) { is_placing_kfs_M_ = is_placing_kfs_M; }
-    bool get_is_placing_kfs_H() { return is_placing_kfs_H_; }
+    const bool get_is_placing_kfs_H() { return is_placing_kfs_H_; }
     void set_is_placing_kfs_H(bool is_placing_kfs_H) { is_placing_kfs_H_ = is_placing_kfs_H; }
-    bool get_is_placing_kfs_T() { return is_placing_kfs_T_; }
+    const bool get_is_placing_kfs_T() { return is_placing_kfs_T_; }
     void set_is_placing_kfs_T(bool is_placing_kfs_T) { is_placing_kfs_T_ = is_placing_kfs_T; }
-    bool get_is_place_releasing() { return is_place_releasing_; }
+    const bool get_is_place_releasing() { return is_place_releasing_; }
     void set_is_place_releasing(bool is_place_releasing) { is_place_releasing_ = is_place_releasing; }
-    bool get_is_raising_kfs() { return is_raising_kfs_; }
+    const bool get_is_raising_kfs() { return is_raising_kfs_; }
     void set_is_raising_kfs(bool is_raising_kfs) { is_raising_kfs_ = is_raising_kfs; }
-    bool get_is_kfs_raised() { return is_kfs_raised_; }
+    const bool get_is_kfs_raised() { return is_kfs_raised_; }
     void set_is_kfs_raised(bool is_kfs_raised) { is_kfs_raised_ = is_kfs_raised; }
-    bool get_is_holding_kfs() { return is_holding_kfs_; }
+    const bool get_is_holding_kfs() { return is_holding_kfs_; }
     void set_is_holding_kfs(bool is_holding_kfs) { is_holding_kfs_ = is_holding_kfs; }
     
 private:
     DM43xxMotor &arm_lift_;
-    MotorBase &arm_rotate_;
-    MotorBase &arm_expand_;
+    MotorPlanningUnit &arm_rotate_;
+    MotorPlanningUnit &arm_expand_;
     DM43xxMotor &arm_flip_;
 
     uint8_t kfs_num_{0};
