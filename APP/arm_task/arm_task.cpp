@@ -70,13 +70,14 @@ void reset_timeline() {
 
 
 void fetch_step(int8_t step) { 
-    if (arm.get_kfs_amount() == 3 || arm.get_is_kfs_raised()) return;
+    if (arm.get_kfs_amount() == 3) return;
     reset_timeline();
     switch (step) {
         case 1: { arm.set_is_fetching_step_M(true); break; }
         case 2: { arm.set_is_fetching_step_H(true); break; }
         case -1: { arm.set_is_fetching_step_L(true); break; }
         case 0: { arm.set_is_fetching_step_P(true); break; }
+        case 3: { if (arm.get_is_kfs_raised()) arm.set_is_fetching_step_T(true); break; }
     }
 }
 
@@ -127,9 +128,10 @@ void armTask(void *argument) {
             case 1: { delta_t = get_dt_by_kfs(step_M::kfs_0, step_M::kfs_1, step_M::kfs_2); setter = &Arm::set_is_fetching_step_M; break; }
             case -1: { delta_t = get_dt_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2); setter = &Arm::set_is_fetching_step_L; break; }
             case 0: { delta_t = get_dt_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2); setter = &Arm::set_is_fetching_step_P; break; }
+            case 3: { delta_t = get_dt_by_kfs(step_T::kfs_0, step_T::kfs_1, step_T::kfs_2); setter = &Arm::set_is_fetching_step_T; break; }
         }
         if (now_t > delta_t) {
-            if (arm.fetch_proceed(step, act_index++)) { (arm.*setter)(false); arm.addKFS(); }
+            if (arm.fetch_proceed(step, act_index++)) { (arm.*setter)(false); arm.addKFS(); arm.set_is_kfs_raised(false); }
             else last_t = DWT_GetTimeline_s();
         }
     };
@@ -206,9 +208,12 @@ void armTask(void *argument) {
                         raise_kfs();
                         break;
                     case 6:
-                        place_kfs();
+                        fetch_step(3);
                         break;
                     case 7:
+                        place_kfs();
+                        break;
+                    case 8:
                         place_release();
                         break;
                 }
