@@ -19,7 +19,7 @@
 #include "filters.hpp"
 #include "SmoothSPlanner.hpp"
 
-// MPS电机最大数量
+// MPS中托管电机的最大数量
 #define MAX_MOTOR_COUNT 16
 
 class MotorPlanningUnit {
