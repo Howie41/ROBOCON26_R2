@@ -81,7 +81,7 @@ void TailClawController::init_pid()
     move_speed_pid_.Kp = 400.0f;
     move_speed_pid_.Ki = 0.03f;
     move_speed_pid_.Kd = 0.02f;
-    move_speed_pid_.MaxOut = 3000.0f;
+    move_speed_pid_.MaxOut = 4000.0f;
     move_speed_pid_.IntegralLimit = 0.35f;
     move_speed_pid_.DeadBand = 0.3f;
     move_speed_pid_.Improve = NONE;

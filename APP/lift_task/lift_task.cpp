@@ -77,8 +77,8 @@ constexpr float LIFT_POS_TOLERANCE =  2.0f;   // 位置到达判定容差 (度)
 
 constexpr float LIFT_SPEED_RAMP = 10000.0f; // 速度斜坡 (RPM/s), 出力爬升速率
 
-constexpr float LIFT_LOW_POS = -60.0f;
-constexpr float LIFT_HIGH_POS = 470.0f;
+constexpr float LIFT_LOW_POS = -30.0f;
+constexpr float LIFT_HIGH_POS = 500.0f;
 
 constexpr float LIFT_2006_MOTOR1_DIR = 1.0f;
 constexpr float LIFT_2006_MOTOR2_DIR = -1.0f;
