@@ -252,13 +252,13 @@ public:
                 chassis_action::start_go_to_edge();
                 switch (executing_cmd) {
                     case path_cmd::code::grab_low_r2kfs:
-                        arm_action::load_kfs(-1);
+                        arm_action::load_kfs(LOAD_TYPE::LOW);
                         break;
                     case path_cmd::code::grab_mid_r2kfs:
-                        arm_action::load_kfs(1);
+                        arm_action::load_kfs(LOAD_TYPE::MEDIUM);
                         break;
                     case path_cmd::code::grab_high_r2kfs:
-                        arm_action::load_kfs(2);
+                        arm_action::load_kfs(LOAD_TYPE::HIGH);
                         break;
                     case path_cmd::code::drop_and_grab_new_kfs:
                         // 忽略这个指令
