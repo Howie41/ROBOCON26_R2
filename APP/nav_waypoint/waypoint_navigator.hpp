@@ -3,6 +3,7 @@
 #include <cstdint>
 
 void stairWaypointGoToFront();
+void stairWaypointGoToFrontTest();
 void stairWaypointRunUp();
 void stairWaypointRunUpR1();
 void stairWaypointRunDown();

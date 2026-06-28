@@ -57,6 +57,8 @@ extern volatile int32_t g_ozone_target_x;
 extern volatile int32_t g_ozone_current_x;
 extern volatile int32_t g_ozone_target_y;
 extern volatile int32_t g_ozone_current_y;
+extern volatile int32_t g_ozone_target_yaw;
+extern volatile int32_t g_ozone_current_yaw;
 
 extern volatile uint8_t g_ozone_merlin_cell_valid;
 extern volatile uint8_t g_ozone_merlin_row;
@@ -68,6 +70,22 @@ extern volatile int32_t g_ozone_merlin_query_y;
 extern volatile int32_t g_ozone_merlin_matched_center_x;
 extern volatile int32_t g_ozone_merlin_matched_center_y;
 extern volatile int32_t g_ozone_merlin_nearest_dist_sq;
+
+extern volatile float g_ozone_vofa_nav_dist_mm;
+extern volatile float g_ozone_vofa_nav_yaw_err_deg;
+extern volatile float g_ozone_vofa_nav_blend;
+extern volatile float g_ozone_vofa_nav_plan_speed_mps;
+extern volatile float g_ozone_vofa_nav_v_ref_mps;
+extern volatile float g_ozone_vofa_nav_pid_vx_mps;
+extern volatile float g_ozone_vofa_nav_pid_vy_mps;
+extern volatile float g_ozone_vofa_nav_pid_omega_radps;
+extern volatile float g_ozone_vofa_nav_vx_cmd_mps;
+extern volatile float g_ozone_vofa_nav_vy_cmd_mps;
+extern volatile float g_ozone_vofa_nav_omega_cmd_radps;
+extern volatile float g_ozone_vofa_nav_cmd_speed_mps;
+extern volatile float g_ozone_vofa_nav_brake_dist_mm;
+extern volatile uint8_t g_ozone_vofa_nav_arrive_hold_count;
+extern volatile uint8_t g_ozone_vofa_nav_arrived_flag;
 
 #ifdef __cplusplus
 }

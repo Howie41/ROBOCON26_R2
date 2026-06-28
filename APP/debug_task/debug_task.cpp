@@ -10,18 +10,12 @@
 #include "logger.hpp"
 #include "com_config.h"
 #include "merlin_map/merlin_map.h"
-#include "Motor.hpp"
 #include "NavProtocol.hpp"
-#include "lift_task.h"
 #include "stair_assist.h"
 #include "state_machine_task.h"
 #include "waypoint_navigator.hpp"
 
-extern C620Motor chassis_motor1, chassis_motor2, chassis_motor3, chassis_motor4;
-extern C610Motor lift_2006_motor1, lift_2006_motor2;
 extern Logger logger;
-extern float lift_2006_motor1_pid_out;
-extern float lift_2006_motor2_pid_out;
 
 osThreadId_t Debug_TaskHandle;
 
@@ -48,6 +42,8 @@ volatile int32_t g_ozone_target_x = 0;
 volatile int32_t g_ozone_current_x = 0;
 volatile int32_t g_ozone_target_y = 0;
 volatile int32_t g_ozone_current_y = 0;
+volatile int32_t g_ozone_target_yaw = 0;
+volatile int32_t g_ozone_current_yaw = 0;
 
 volatile uint8_t g_ozone_merlin_cell_valid = 0;
 volatile uint8_t g_ozone_merlin_row = 0;
@@ -59,6 +55,22 @@ volatile int32_t g_ozone_merlin_query_y = 0;
 volatile int32_t g_ozone_merlin_matched_center_x = 0;
 volatile int32_t g_ozone_merlin_matched_center_y = 0;
 volatile int32_t g_ozone_merlin_nearest_dist_sq = 0;
+
+volatile float g_ozone_vofa_nav_dist_mm = 0.0f;
+volatile float g_ozone_vofa_nav_yaw_err_deg = 0.0f;
+volatile float g_ozone_vofa_nav_blend = 0.0f;
+volatile float g_ozone_vofa_nav_plan_speed_mps = 0.0f;
+volatile float g_ozone_vofa_nav_v_ref_mps = 0.0f;
+volatile float g_ozone_vofa_nav_pid_vx_mps = 0.0f;
+volatile float g_ozone_vofa_nav_pid_vy_mps = 0.0f;
+volatile float g_ozone_vofa_nav_pid_omega_radps = 0.0f;
+volatile float g_ozone_vofa_nav_vx_cmd_mps = 0.0f;
+volatile float g_ozone_vofa_nav_vy_cmd_mps = 0.0f;
+volatile float g_ozone_vofa_nav_omega_cmd_radps = 0.0f;
+volatile float g_ozone_vofa_nav_cmd_speed_mps = 0.0f;
+volatile float g_ozone_vofa_nav_brake_dist_mm = 0.0f;
+volatile uint8_t g_ozone_vofa_nav_arrive_hold_count = 0U;
+volatile uint8_t g_ozone_vofa_nav_arrived_flag = 0U;
 
 void debugTask(void *argument) {
   (void)argument;
@@ -95,6 +107,8 @@ void debugTask(void *argument) {
     g_ozone_current_x = nav_control::current_x;
     g_ozone_target_y = nav_control::target_y;
     g_ozone_current_y = nav_control::current_y;
+    g_ozone_target_yaw = nav_control::target_yaw;
+    g_ozone_current_yaw = nav_control::current_yaw;
 
     g_ozone_merlin_cell_valid = map_debug.cell_valid ? 1U : 0U;
     g_ozone_merlin_row = map_debug.row;
@@ -107,54 +121,48 @@ void debugTask(void *argument) {
     g_ozone_merlin_matched_center_y = map_debug.matched_center_y;
     g_ozone_merlin_nearest_dist_sq = map_debug.nearest_dist_sq;
 
+    g_ozone_vofa_nav_dist_mm = g_ozone_nav_dist_mm;
+    g_ozone_vofa_nav_yaw_err_deg = g_ozone_nav_yaw_err_deg;
+    g_ozone_vofa_nav_blend = g_ozone_nav_blend;
+    g_ozone_vofa_nav_plan_speed_mps = g_ozone_nav_plan_speed_mps;
+    g_ozone_vofa_nav_v_ref_mps = g_ozone_nav_v_ref_mps;
+    g_ozone_vofa_nav_pid_vx_mps = g_ozone_nav_pid_vx_mps;
+    g_ozone_vofa_nav_pid_vy_mps = g_ozone_nav_pid_vy_mps;
+    g_ozone_vofa_nav_pid_omega_radps = g_ozone_nav_pid_omega_radps;
+    g_ozone_vofa_nav_vx_cmd_mps = g_ozone_nav_vx_cmd_mps;
+    g_ozone_vofa_nav_vy_cmd_mps = g_ozone_nav_vy_cmd_mps;
+    g_ozone_vofa_nav_omega_cmd_radps = g_ozone_nav_omega_cmd_radps;
+    g_ozone_vofa_nav_cmd_speed_mps = g_ozone_nav_cmd_speed_mps;
+    g_ozone_vofa_nav_brake_dist_mm = g_ozone_nav_brake_dist_mm;
+    g_ozone_vofa_nav_arrive_hold_count = g_ozone_nav_arrive_hold_count;
+    g_ozone_vofa_nav_arrived_flag = nav_control::arrived ? 1U : 0U;
+
     logger.log(
-        "%.1f,%.0f,%.1f,%.1f,"
-        "%.1f,%.0f,%.1f,%.1f,"
-        "%.1f,%.0f,%.1f,%.1f,"
-        "%.1f,%.0f,%.1f,%.1f,"
-        "%.1f,%.1f,%.1f,%.1f,"
-        "%d,%d,%d,%d,%d,%d,%d,"
-        "%ld,%d,%d,%d,%d,%d,%ld\n",
-        chassis_motor1.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor1.getRawCurrentTorque(),
-        chassis_motor1.getCurrentTemperature(),
-        chassis_motor1.cmd_,
-
-        chassis_motor2.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor2.getRawCurrentTorque(),
-        chassis_motor2.getCurrentTemperature(),
-        chassis_motor2.cmd_,
-
-        chassis_motor3.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor3.getRawCurrentTorque(),
-        chassis_motor3.getCurrentTemperature(),
-        chassis_motor3.cmd_,
-
-        chassis_motor4.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
-        chassis_motor4.getRawCurrentTorque(),
-        chassis_motor4.getCurrentTemperature(),
-        chassis_motor4.cmd_,
-
-        lift_2006_motor1.getRawCurrentSpeed(),
-        lift_2006_motor2.getRawCurrentSpeed(),
-        lift_2006_motor1_pid_out,
-        lift_2006_motor2_pid_out,
-
-        nav_control::target_x,
-        nav_control::current_x,
-        nav_control::target_y,
-        nav_control::current_y,
-        static_cast<int>(stairWaypointStep()),
-        static_cast<int>(stairWaypointLevel()),
-        stairWaypointArmed() ? 1 : 0,
-        assist_debug.laser2_mm,
-        assist_debug.laser2_fresh ? 1 : 0,
-        assist_debug.should_lower_after_descend ? 1 : 0,
-        map_debug.cell_valid ? 1 : 0,
-        static_cast<int>(map_debug.row),
-        static_cast<int>(map_debug.col),
-        static_cast<int>(map_debug.height_mm),
-        static_cast<int>(map_debug.heading),
-        static_cast<long>(map_debug.nearest_dist_sq));
+        "%ld,%ld,%ld,%ld,"
+        "%ld,%ld,%.1f,%.2f,"
+        "%.3f,%.3f,%.3f,%.3f,"
+        "%.3f,%.3f,%.3f,%.3f,"
+        "%.3f,%.3f,"
+        "%u,%u\n",
+        static_cast<long>(nav_control::target_x),
+        static_cast<long>(nav_control::current_x),
+        static_cast<long>(nav_control::target_y),
+        static_cast<long>(nav_control::current_y),
+        static_cast<long>(nav_control::target_yaw),
+        static_cast<long>(nav_control::current_yaw),
+        g_ozone_nav_dist_mm,
+        g_ozone_nav_yaw_err_deg,
+        g_ozone_nav_blend,
+        g_ozone_nav_plan_speed_mps,
+        g_ozone_nav_v_ref_mps,
+        g_ozone_nav_pid_vx_mps,
+        g_ozone_nav_pid_vy_mps,
+        g_ozone_nav_pid_omega_radps,
+        g_ozone_nav_vx_cmd_mps,
+        g_ozone_nav_cmd_speed_mps,
+        g_ozone_nav_brake_dist_mm,
+        g_ozone_nav_omega_cmd_radps,
+        static_cast<unsigned>(g_ozone_nav_arrive_hold_count),
+        static_cast<unsigned>(nav_control::arrived ? 1U : 0U));
   }
 }

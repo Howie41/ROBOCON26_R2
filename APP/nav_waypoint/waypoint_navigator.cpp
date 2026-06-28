@@ -32,6 +32,9 @@ constexpr float kGoToEdgeSeekSpeedMps = 0.2f;
 constexpr float kGoToEdgeLowPostTriggerSpeedMps = 0.1f;
 constexpr int16_t kR1ClimbYawDeg = -90;
 constexpr int16_t kR1PostLowAdvanceMm = 80;
+int16_t g_stair_front_test_x = 2160;
+int16_t g_stair_front_test_y = 1470;
+int16_t g_stair_front_test_yaw = 0;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
 constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
@@ -321,6 +324,18 @@ void stairWaypointGoToFront() {
   move_to_pose(front_pose, true);
   g_stair_waypoint_level.store(0U);
   g_stair_waypoint_armed.store(true);
+  g_stair_waypoint_step.store(0);
+  stop_auto_nav();
+}
+
+void stairWaypointGoToFrontTest() {
+  g_stair_waypoint_step.store(22);
+  const field::StairPose front_pose{
+      g_stair_front_test_x,
+      g_stair_front_test_y,
+      g_stair_front_test_yaw,
+  };
+  move_to_pose(front_pose, true);
   g_stair_waypoint_step.store(0);
   stop_auto_nav();
 }

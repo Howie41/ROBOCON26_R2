@@ -47,6 +47,7 @@ static bool xbox_rb_last = false;
 static bool xbox_x_last = false;
 static bool xbox_b_last = false;
 static bool xbox_rt_last = false;
+static bool xbox_lt_last = false;
 static bool xbox_ls_last = false;
 static bool xbox_rs_last = false;
 static bool xbox_y_last_for_stair = false;
@@ -54,6 +55,7 @@ static bool xbox_a_last_for_stair = false;
 static bool stair_assist_high_request_latched = false;
 static bool stair_assist_low_request_latched = false;
 constexpr uint16_t kR1TriggerThreshold = 1000U;
+constexpr uint16_t kFrontTestTriggerThreshold = 600U;
 
 void Xbox_Data_Process() {
   if (ABS(control_xbox_cmd.joyLVert - 32767) > 2300) {
@@ -278,6 +280,16 @@ void controlTask(void *argument) {
         const bool climb_r1_pressed =
             consumeButtonRisingEdge(
                 control_xbox_cmd.trigRT > kR1TriggerThreshold, &xbox_rt_last);
+        const bool front_test_pressed =
+            consumeButtonRisingEdge(
+                control_xbox_cmd.trigLT > kFrontTestTriggerThreshold,
+                &xbox_lt_last);
+
+        if (front_test_pressed && manualActionReady()) {
+          stairWaypointGoToFrontTest();
+          vTaskDelayUntil(&currentTime, 5);
+          continue;
+        }
 
         if (stairWaypointArmed() && manualActionReady()) {
           if (stair_y_pressed) {
