@@ -8,6 +8,8 @@
 #include "cmsis_os2.h"
 #include <atomic>
 #include <cstdint>
+#include <mutex>
+#include <sys/_pthreadtypes.h>
 
 #include "state_machine_task.h"
 #include "com_config.h"
@@ -152,6 +154,7 @@ enum class test_action {
 test_action action = test_action::unknown;
 
 int start=0;
+int flag=0;
 void stateMachineTask(void *argument) {
     //下面这个如果要调试武器就别注释
     weapon();
@@ -267,8 +270,24 @@ void weapon()
                 //里程计版本move_to_pos(400, -390, 90,5000);
                 //move_to_pos(193, -815, 90,5000);
                 //315，-825
-                move_to_pos(335, -830, 90,5000);
-                tail_claw_set_roll_target(-59.5);
+                if(flag==0)
+                {
+                    //move_to_pos(735, -830, 90,5000);
+                    move_to_pos(335, -830, 90,5000);
+                }
+                else {
+                    move_to_pos(300, -170, 90, 4000U);
+                    move_to_pos(735, -830, 90,5000);
+                }
+                tail_claw_set_weapon_claw(true);
+                constexpr float target = -59.5f;
+                tail_claw_set_roll_target(target);
+                wait_until_timeout_or([target]() -> bool {
+                tail_claw_update_status();
+                return tail_claw_status_valid &&
+                fabsf(tail_claw_status_cache.roll_target_deg - target) < 0.5f &&
+                tail_claw_status_cache.roll_arrived;
+                }, 3000U, 20U);
                 //第二个点位
                 //tail_claw_setAirPump(false);                    //关闭气泵
                 tail_claw_set_mode(TailClawMode::AutoAlign);//进入自动对齐模式
@@ -299,9 +318,17 @@ void weapon()
 
             case RobotState::catch_weapon: {
                 //里程计版本move_to_pos(400, -445, 90,5000);315，-890
-                move_to_pos(335, -910, 90,5000);
+                if(flag==0)
+                {
+                    move_to_pos(335, -910, 90,5000);
+                    //move_to_pos(735, -905, 90,5000);
+                }
+                else {
+                    move_to_pos(735, -905, 90,8000);
+                }
                 tail_claw_set_weapon_claw(false);         //闭合夹爪，夹紧武器头
                 osDelay(500);                            // 等待夹爪动作完成，具体时间待调试
+                flag++;
                 change_state_to(RobotState::rotate_weapon_claw);
                 break;
             }
@@ -342,22 +369,22 @@ void weapon()
                 clean_previous_cmd();
                 wait_until([&]() -> bool {
                     switch (get_cmd_from_r1()) {
-                        /*case 0x1A: // 夹取新的武器头
+                        case 0x1A: // 夹取新的武器头
                             change_state_to(RobotState::go_to_SHR);
                             return true;
-                        case 0x1B: // 进入梅林
+                            break;
+                       /* case 0x1B: // 进入梅林
                             change_state_to(RobotState::go_to_MF);
                             return true;*/
                             case 0x0A:
                                 tail_claw_set_weapon_claw(true);
                                 return true;
+                                break;
                         default:
                             return false;
                     }
                 });
-                change_state_to(RobotState::stop);
                 break;
-
             }
 
             case RobotState::stop:{
