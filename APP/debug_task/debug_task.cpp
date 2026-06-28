@@ -25,16 +25,18 @@ extern MotorPlanningUnit arm2006_motor_planner;
 
 
 uint8_t funfer;
+bool ret;
 
 void debugTask(void *argument) {
     funfer = 0;
+    ret = false;
 
     for (;;) {
 
         if (funfer) {
             funfer = 0;
             
-            arm2006_motor_planner.plan(2.0f, 360.0f, 10.0f);
+            ret = arm2006_motor_planner.plan(2.0f, 360.0f);
             
         }
 
