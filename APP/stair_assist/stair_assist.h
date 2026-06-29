@@ -21,6 +21,11 @@ enum class StairAssistMode : uint8_t {
   Descend,
 };
 
+enum class StairAssistLaser3Profile : uint8_t {
+  Center = 0,
+  Side,
+};
+
 struct StairAssistDebug {
   bool enabled{false};
   bool auto_lower_enabled{false};
@@ -40,6 +45,7 @@ struct StairAssistDebug {
   uint8_t laser1_state{static_cast<uint8_t>(StairAssistLaser1State::Invalid)};
   uint8_t laser2_state{static_cast<uint8_t>(StairAssistLaser2State::Invalid)};
   uint8_t laser3_state{static_cast<uint8_t>(StairAssistLaser1State::Invalid)};
+  uint8_t laser3_profile{static_cast<uint8_t>(StairAssistLaser3Profile::Center)};
 
   uint8_t laser1_near_count{0};
   uint8_t laser1_edge_count{0};
@@ -68,6 +74,9 @@ struct StairAssistDebug {
   bool suggest_descend_edge_ready{false};
   bool should_lower_after_climb{false};
   bool should_lower_after_descend{false};
+
+  int32_t laser3_near_min_used_mm{0};
+  int32_t laser3_near_max_used_mm{0};
 };
 
 void stairAssistInit();
@@ -75,6 +84,8 @@ void stairAssistSetEnabled(bool enabled);
 bool stairAssistEnabled();
 void stairAssistSetMode(StairAssistMode mode);
 StairAssistMode stairAssistMode();
+void stairAssistSetLaser3Profile(StairAssistLaser3Profile profile);
+StairAssistLaser3Profile stairAssistLaser3Profile();
 void stairAssistSetAutoLowerEnabled(bool enabled);
 bool stairAssistAutoLowerEnabled();
 void stairAssistUpdate();

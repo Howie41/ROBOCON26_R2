@@ -37,6 +37,7 @@ constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
 constexpr int16_t kDescendRetreatToLowerMm = 950;
 constexpr int16_t kGoToEdgeLowCoarseAdvanceMm = 200;
+constexpr int16_t kGroundCenterLaneToleranceMm = 80;
 constexpr float kPassDistanceMm = 200.0f;
 constexpr uint32_t kPassHoldMs = 1000U;
 constexpr TickType_t kPassFreshWindowTicks = pdMS_TO_TICKS(200);
@@ -92,6 +93,20 @@ uint8_t levelFromCellHeight(const merlin_map::Cell &cell) {
   }
   const uint8_t level = static_cast<uint8_t>(cell.height_mm / 200);
   return (level > field::kStairMaxLevel) ? field::kStairMaxLevel : level;
+}
+
+bool isGroundCenterLaneTargetY() {
+  return std::abs(static_cast<int32_t>(nav_control::target_y) -
+                  static_cast<int32_t>(field::kStairCenterPose.y)) <=
+         kGroundCenterLaneToleranceMm;
+}
+
+void updateLaser3ProfileForGroundTargetY() {
+  if (isGroundCenterLaneTargetY()) {
+    stairAssistSetLaser3Profile(StairAssistLaser3Profile::Center);
+  } else {
+    stairAssistSetLaser3Profile(StairAssistLaser3Profile::Side);
+  }
 }
 
 field::StairPose headingClosePoseForCell(const merlin_map::Cell &cell) {
@@ -361,6 +376,12 @@ void stairWaypointRunUp() {
         field::StairPose{next_cell.center_x, next_cell.center_y, headingYawDeg()};
   }
 
+  if (current_level == 0U) {
+    updateLaser3ProfileForGroundTargetY();
+  } else {
+    stairAssistSetLaser3Profile(StairAssistLaser3Profile::Center);
+  }
+
   stairAssistSetMode(StairAssistMode::ClimbUp);
   stairAssistSetAutoLowerEnabled(true);
   stairAssistSetEnabled(true);
@@ -448,6 +469,7 @@ void stairWaypointRunUp() {
 }
 
 void stairWaypointRunUpR1() {
+  stairAssistSetLaser3Profile(StairAssistLaser3Profile::Center);
   stairAssistSetMode(StairAssistMode::ClimbUp);
   stairAssistSetAutoLowerEnabled(true);
   stairAssistSetEnabled(true);
@@ -645,6 +667,12 @@ void stairWaypointRunDown() {
 }
 
 void stairWaypointRunGoToEdge() {
+  if (g_stair_waypoint_level.load() == 0U) {
+    updateLaser3ProfileForGroundTargetY();
+  } else {
+    stairAssistSetLaser3Profile(StairAssistLaser3Profile::Center);
+  }
+
   if (!refreshCurrentMerlinCell()) {
     g_stair_waypoint_step.store(0);
     stop_auto_nav();
