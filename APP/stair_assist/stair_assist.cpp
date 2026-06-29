@@ -24,8 +24,6 @@ constexpr int32_t kLaser1EdgeMinMm = 800;
 
 // Laser3 is another front-facing stair laser. It uses the same state logic as
 // laser1, but keeps its own thresholds so field tuning does not affect laser1.
-constexpr int32_t kLaser3NearMinMm = 400;
-constexpr int32_t kLaser3NearMaxMm = 470;
 constexpr int32_t kLaser3EdgeMinMm = 800;
 
 constexpr int32_t kLaser2ClimbHighMinMm = 210;
@@ -57,6 +55,7 @@ StairAssistLaser1State g_laser1_state{StairAssistLaser1State::Invalid};
 StairAssistLaser2State g_laser2_state{StairAssistLaser2State::Invalid};
 StairAssistLaser1State g_laser3_state{StairAssistLaser1State::Invalid};
 StairAssistMode g_mode{StairAssistMode::ClimbUp};
+StairAssistLaser3Profile g_laser3_profile{StairAssistLaser3Profile::Center};
 
 bool g_enabled{false};
 bool g_auto_lower_enabled{false};
@@ -64,6 +63,11 @@ bool g_saw_laser2_high_for_climb{false};
 bool g_saw_laser2_close_for_descend{false};
 bool g_rear_photogate_climb_lower_latched{false};
 bool g_rear_photogate_descend_high_latched{false};
+
+volatile int32_t g_laser3_center_near_min_mm = 400;
+volatile int32_t g_laser3_center_near_max_mm = 470;
+volatile int32_t g_laser3_side_near_min_mm = 400;
+volatile int32_t g_laser3_side_near_max_mm = 500;
 
 template <typename T>
 void saturatingIncrement(T &value) {
@@ -81,6 +85,18 @@ void clearIfNotMatch(T &value, bool matched) {
 
 bool inRangeInclusive(int32_t value, int32_t min_value, int32_t max_value) {
   return value >= min_value && value <= max_value;
+}
+
+int32_t laser3NearMinMm() {
+  return (g_laser3_profile == StairAssistLaser3Profile::Center)
+             ? g_laser3_center_near_min_mm
+             : g_laser3_side_near_min_mm;
+}
+
+int32_t laser3NearMaxMm() {
+  return (g_laser3_profile == StairAssistLaser3Profile::Center)
+             ? g_laser3_center_near_max_mm
+             : g_laser3_side_near_max_mm;
 }
 
 bool frameIsFresh(uint32_t now_tick, const SensorFrameTrack &track,
@@ -133,7 +149,7 @@ StairAssistLaser1State classifyLaser3(int32_t distance_mm, bool fresh) {
     return StairAssistLaser1State::EdgeOpen;
   }
 
-  if (inRangeInclusive(distance_mm, kLaser3NearMinMm, kLaser3NearMaxMm)) {
+  if (inRangeInclusive(distance_mm, laser3NearMinMm(), laser3NearMaxMm())) {
     return StairAssistLaser1State::NearStair;
   }
 
@@ -220,6 +236,9 @@ void updateLaser3Judge(uint32_t now_tick) {
   g_debug.laser3_fresh =
       result.valid && !result.is_error && g_laser3_track.last_frame_count != 0 &&
       ((now_tick - g_laser3_track.last_update_tick) <= kLaserDataTimeoutMs);
+  g_debug.laser3_profile = static_cast<uint8_t>(g_laser3_profile);
+  g_debug.laser3_near_min_used_mm = laser3NearMinMm();
+  g_debug.laser3_near_max_used_mm = laser3NearMaxMm();
 
   g_laser3_state = classifyLaser3(result.distance_mm, g_debug.laser3_fresh);
   g_debug.laser3_state = toDebugState(g_laser3_state);
@@ -372,6 +391,7 @@ void stairAssistInit() {
   g_enabled = false;
   g_auto_lower_enabled = false;
   g_mode = StairAssistMode::ClimbUp;
+  g_laser3_profile = StairAssistLaser3Profile::Center;
   g_saw_laser2_high_for_climb = false;
   g_saw_laser2_close_for_descend = false;
   g_rear_photogate_climb_lower_latched = false;
@@ -409,6 +429,21 @@ void stairAssistSetMode(StairAssistMode mode) {
 
 StairAssistMode stairAssistMode() {
   return g_mode;
+}
+
+void stairAssistSetLaser3Profile(StairAssistLaser3Profile profile) {
+  if (g_laser3_profile == profile) {
+    return;
+  }
+
+  g_laser3_profile = profile;
+  g_debug.laser3_profile = static_cast<uint8_t>(g_laser3_profile);
+  g_debug.laser3_near_count = 0;
+  g_debug.laser3_edge_count = 0;
+}
+
+StairAssistLaser3Profile stairAssistLaser3Profile() {
+  return g_laser3_profile;
 }
 
 void stairAssistSetAutoLowerEnabled(bool enabled) {
