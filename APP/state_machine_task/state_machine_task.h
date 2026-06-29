@@ -28,7 +28,7 @@ namespace path_cmd {
 enum class code: uint16_t {
     unknown = 0x0000,               // 无效指令
 
-    request = 0x0301,               // 下位机 -> 上位机: 请求下一个指令
+    request = 0x031D,               // 下位机 -> 上位机 根据索引请求指令
     move_forward = 0x0311,          // 前进
     move_backward = 0x0312,         // 后退
     turn_left_90 = 0x0313,          // 左转90°
@@ -43,7 +43,7 @@ enum class code: uint16_t {
     turn_around = 0x031C,           // 直接转180°
 }; // ! 记得改 is_path_cmd 的逻辑 !
 inline bool is_path_cmd(uint16_t code) {
-    return (code >= static_cast<uint16_t>(path_cmd::code::request)) && (code <= static_cast<uint16_t>(path_cmd::code::turn_around));
+    return (code & 0xFF00) == 0x0300;
 }
 } // namespace path_cmd
 
