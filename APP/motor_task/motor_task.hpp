@@ -52,9 +52,9 @@ public:
             },
             .speed_pid = {
                 .Kp = 1800.0f,
-                .Ki = 20.0f,
+                .Ki = 540.0f,
                 .Kd = 1.8f,
-                .MaxOut = 8000.0f,
+                .MaxOut = 10000.0f,
                 .DeadBand = 0.1f
             }
         };

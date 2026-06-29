@@ -6,6 +6,12 @@
  * @date 2026-05-26
  *
  * @copyright Copyright (c) 2026
+ *
+ * @note arm动作调用链:
+ *     上层执行arm.xxx(...);（对外动作接口），对应arm属性is_xxxing变为true；
+ *      arm_task任务大循环里轮询arm的is_xxxing属性，并执行arm.run_xxxing(...)；
+ *      arm.run_xxxing(...)中按config中的时间序列执行arm.xxx_proceed(...)；
+ *      arm.xxx_proceed(...);中调用arm.set_pose(...)设定到对应姿态。
  */
 
 #pragma once
@@ -85,15 +91,17 @@ public:
     }
     void place_release() { reset_timeline(); set_is_place_releasing(true); }
     void raise_kfs() { reset_timeline(); set_is_raising_kfs(true); }
+    void start() { reset_timeline(); set_is_starting(true); }
 
+    
     // 重置计时器
     void reset_timeline() { act_index_ = 0; last_t_ = DWT_GetTimeline_s(); }
 
 
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(-24.0f + pos_deg, speed_deg); }
-    void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(10.0f + pos_deg, speed_deg); }
+    void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos + 70.0f, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
     
@@ -147,6 +155,8 @@ public:
     bool place_release_proceed(uint8_t index) { return set_pose(arm_actions_config::place_release_proceed[index]); }
     // 吸取平地KFS并举高高
     bool raise_kfs_proceed(uint8_t index) { return set_pose(arm_actions_config::raise_kfs_proceed[index]); }
+    // 启动时初始化
+    bool start_proceed(uint8_t index) { return set_pose(arm_actions_config::start_proceed[index]); }
 
     // KFS数量控制类接口
     void addKFS() { kfs_num_++; }
@@ -216,7 +226,7 @@ public:
     void run_place_releasing() {
         set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
         if (get_now_t() > arm_actions_config::place_release_proceed[act_index_].delta_t) {
-            if (place_proceed(act_index_++)) set_is_place_releasing(false);
+            if (place_release_proceed(act_index_++)) set_is_place_releasing(false);
             else set_last_t(DWT_GetTimeline_s());
         }
     }
@@ -224,7 +234,16 @@ public:
     void run_raising_kfs() {
         set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
         if (get_now_t() > arm_actions_config::raise_kfs_proceed[act_index_].delta_t) {
-            if (place_proceed(act_index_++)) { set_is_raising_kfs(false); set_is_kfs_raised(true); }
+            if (raise_kfs_proceed(act_index_++)) { set_is_raising_kfs(false); set_is_kfs_raised(true); }
+            else set_last_t(DWT_GetTimeline_s());
+        }
+    }
+
+    // 启动时初始化
+    void run_starting() {
+        set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
+        if (get_now_t() > arm_actions_config::start_proceed[act_index_].delta_t) {
+            if (start_proceed(act_index_++)) { set_is_starting(false); }
             else set_last_t(DWT_GetTimeline_s());
         }
     }
@@ -256,6 +275,8 @@ public:
     void set_is_place_releasing(bool is_place_releasing) { is_place_releasing_ = is_place_releasing; }
     inline const bool get_is_raising_kfs() { return is_raising_kfs_; }
     void set_is_raising_kfs(bool is_raising_kfs) { is_raising_kfs_ = is_raising_kfs; }
+    inline const bool get_is_starting() { return is_starting_; }
+    void set_is_starting(bool is_starting) { is_starting_ = is_starting; }
     inline const bool get_is_kfs_raised() { return is_kfs_raised_; }
     void set_is_kfs_raised(bool is_kfs_raised) { is_kfs_raised_ = is_kfs_raised; }
     inline const bool get_is_holding_kfs() { return is_holding_kfs_; }
@@ -273,20 +294,23 @@ private:
 
     uint8_t kfs_num_{0};
 
+    // 吸取KFS
     bool is_fetching_step_L_{false};
     bool is_fetching_step_P_{false};
     bool is_fetching_step_M_{false};
     bool is_fetching_step_H_{false};
     bool is_fetching_step_T_{false};
-
+    // 取出KFS
     bool is_placing_kfs_L_{false};
     bool is_placing_kfs_M_{false};
     bool is_placing_kfs_H_{false};
     bool is_placing_kfs_T_{false};
-
+    // 释放KFS并复位
     bool is_place_releasing_{false};
-
+    // 举高高KFS
     bool is_raising_kfs_{false};
+    // 启动时初始化
+    bool is_starting_{false};
 
     bool is_kfs_raised_{false};
     bool is_holding_kfs_{false};

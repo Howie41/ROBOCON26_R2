@@ -166,7 +166,7 @@ public:
             end_buffer_pos_ = end_buffer_pos;
             end_buffer_rate_ = fabsf(end_buffer_pos_ / (tar_sum_pos_ - ini_sum_pos_));
         }
-        ini_speed_ = ini_speed < 0.6f ? (ini_speed == 0.0 ? (getCurrentSpeed() < 0.6f ? 0.6f : getCurrentSpeed()) : 0.6f) : ini_speed;
+        ini_speed_ = ini_speed < 2.0f ? (ini_speed == 2.0 ? (getCurrentSpeed() < 2.0f ? 2.0f : getCurrentSpeed()) : 2.0f) : ini_speed;
         end_speed_ = end_speed;
         pos_process_ = 0.0f;
     };
