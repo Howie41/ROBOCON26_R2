@@ -179,7 +179,7 @@ void PcCom::ProcessTx() {
   }
 
   // 请求路径规划步骤
-  bool request_path_cmd{};
+  uint16_t request_path_cmd{};
   if (pc_path_cmd_request_sub_.TryGet(&request_path_cmd)) {
     send(static_cast<uint16_t>(path_cmd::code::request), request_path_cmd);
   }

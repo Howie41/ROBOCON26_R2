@@ -80,6 +80,6 @@ private:
   TypedTopicPublisher<pub_qr_code_parsed> pc_qr_code_pub_{"qr_code_parsed"};
 
     // 请求路径规划动作
-    TypedTopicSubscriber<bool> pc_path_cmd_request_sub_{"pc_path_cmd_request", 1};
+    TypedTopicSubscriber<uint16_t> pc_path_cmd_request_sub_{"pc_path_cmd_request", 1};
     TypedTopicPublisher<path_cmd::code> pc_path_cmd_pub_{"pc_path_cmd"};
 };

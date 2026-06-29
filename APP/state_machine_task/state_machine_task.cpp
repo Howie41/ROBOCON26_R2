@@ -7,7 +7,6 @@
 
 #include "arm_task.hpp"
 #include "cmsis_os2.h"
-#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <mutex>
@@ -77,7 +76,7 @@ public:
             return;
         }
         
-        switch (current_state_.load()) {
+        switch (current_state_) {
 
             case robot_state::begin: {
                 // change_state_to(robot_state::wait_for_decision_cmd);
@@ -193,16 +192,22 @@ public:
             }
 
             case robot_state::request_for_path_cmd: {
-                path_cmd_request_pub_.Publish(true); // 发一次 path_cmd::code::request
-                logger_queue.log("SM request path cmd\n");
+                path_cmd_request_pub_.Publish(current_path_cmd_index_); // 发一次 request
+                logger_queue.log("SM path cmd requested No.%d...\n", current_path_cmd_index_);
 
                 path_cmd::code cmd;
-                wait_until([&]() -> bool {
+                auto if_received = wait_until_timeout_or([&]() -> bool {
                     return path_cmd_sub_.TryGet(&cmd);
-                });
+                }, 3000); // 3秒超时
 
-                logger_queue.log("SM path cmd: 0x%02X\n", static_cast<uint8_t>(cmd));
-                current_path_cmd_.store(cmd); // 给其他后续状态读取
+                if (!if_received) {
+                    logger_queue.log("SM path cmd timeout!\n");
+                    break; // 超时未收到指令，重发
+                }
+
+                logger_queue.log("SM path cmd received No.%d 0x%02X\n", current_path_cmd_index_, static_cast<uint8_t>(cmd));
+                current_path_cmd_index_ += 1;
+                current_path_cmd_ = cmd; // 给其他后续状态读取
 
                 switch (cmd) {
                     case path_cmd::code::move_forward:
@@ -221,7 +226,7 @@ public:
                         change_state_to(robot_state::execute_arm_action);
                         break;
                     case path_cmd::code::no_more_commands:
-                        logger_queue.log("SM no more commands\n");
+                        logger_queue.log("SM path cmd end\n");
                         change_state_to(robot_state::go_to_mf_exit);
                         break;
                     default:
@@ -232,7 +237,7 @@ public:
             }
 
             case robot_state::execute_chassis_action: {
-                path_cmd::code executing_cmd = current_path_cmd_.load();
+                path_cmd::code executing_cmd = current_path_cmd_;
                 // chassis_action 是耗时函数 内含阻塞等待逻辑
                 switch (executing_cmd) {
                     case path_cmd::code::move_forward:
@@ -260,13 +265,13 @@ public:
                     default:
                         break;
                 }
-                current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
+                current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
                 change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
 
             case robot_state::execute_arm_action: {
-                path_cmd::code executing_cmd = current_path_cmd_.load();
+                path_cmd::code executing_cmd = current_path_cmd_;
 
                 chassis_action::start_go_to_edge();
                 switch (executing_cmd) {
@@ -293,7 +298,7 @@ public:
 
                 chassis_action::start_return_to_center();
 
-                current_path_cmd_.store(path_cmd::code::unknown); // 清空当前命令
+                current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
                 change_state_to(robot_state::request_for_path_cmd);
                 break;
             }
@@ -318,7 +323,7 @@ public:
         if constexpr (MATCH_TYPE != match_type::JGCB) {
             return;
         }
-        switch (current_state_.load()) {
+        switch (current_state_) {
             case robot_state::begin: {
                 logger_queue.log("SM ======== BEGIN ========\n");
                 wait_until([this]() -> bool {
@@ -381,8 +386,9 @@ private:
         release_kfs,                   // 释放KFS
     };
 
-    std::atomic<robot_state> current_state_{robot_state::begin};
-    std::atomic<path_cmd::code> current_path_cmd_{path_cmd::code::unknown}; // 初始值对下位机来说没有意义
+    robot_state current_state_{robot_state::begin};
+    uint16_t current_path_cmd_index_{0};
+    path_cmd::code current_path_cmd_{path_cmd::code::unknown}; // 初始值对下位机来说没有意义
 
     TypedTopicSubscriber<pub_qr_code_parsed> qr_code_sub_{"qr_code_parsed", 1};
     // 尾爪武器事件发布（通知上位机发送距离数据）
@@ -391,7 +397,7 @@ private:
     TypedTopicSubscriber<pub_tail_claw_status> tail_claw_status_sub_{"tail_claw_status", 4};
 
     TypedTopicSubscriber<path_cmd::code> path_cmd_sub_{"pc_path_cmd", 1}; // 接收路径规划cmd
-    TypedTopicPublisher<bool> path_cmd_request_pub_{"pc_path_cmd_request"}; // 请求路径规划cmd
+    TypedTopicPublisher<uint16_t> path_cmd_request_pub_{"pc_path_cmd_request"}; // 请求路径规划cmd
 
     pub_tail_claw_status tail_claw_status_cache_{};
     bool tail_claw_status_valid_{};
@@ -429,8 +435,8 @@ private:
     }
 
     void change_state_to(robot_state new_state) {
-        logger_queue.log("SM %d -> %d\n", static_cast<int>(current_state_.load()), static_cast<int>(new_state));
-        current_state_.store(new_state);
+        logger_queue.log("SM %d -> %d\n", static_cast<int>(current_state_), static_cast<int>(new_state));
+        current_state_ = new_state;
     }
 
     // 这个函数必须在任务环境里调用
