@@ -309,287 +309,287 @@ uint8_t comServiceInit() {
 
 // 回调函数
 void onUart2RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-  if (data != nullptr && len > 0 && uart2_rx_semphore != NULL) {
-    (void)osSemaphoreRelease(uart2_rx_semphore);
-  }
+    (void)user;
+    if (data != nullptr && len > 0 && uart2_rx_semphore != NULL) {
+        (void)osSemaphoreRelease(uart2_rx_semphore);
+    }
 }
 
 
 void onUart3RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-  if (data != nullptr && len > 0 && uart3_rx_semphore != NULL) {
-    (void)osSemaphoreRelease(uart3_rx_semphore);
-  }
+    (void)user;
+    if (data != nullptr && len > 0 && uart3_rx_semphore != NULL) {
+        (void)osSemaphoreRelease(uart3_rx_semphore);
+    }
 }
 
 void onUart7RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-#if LASER_MEASURE_ENABLE
-  if (data != nullptr && len > 0 && uart7_rx_semphore != NULL) {
-    (void)osSemaphoreRelease(uart7_rx_semphore);
-  }
-#else
-  (void)data;
-  (void)len;
-#endif
+    (void)user;
+    #if LASER_MEASURE_ENABLE
+    if (data != nullptr && len > 0 && uart7_rx_semphore != NULL) {
+        (void)osSemaphoreRelease(uart7_rx_semphore);
+    }
+    #else
+    (void)data;
+    (void)len;
+    #endif
 }
 
 void onUart8RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-#if LASER_MEASURE_ENABLE
-  if (data != nullptr && len > 0 && uart8_rx_semphore != NULL) {
-    (void)osSemaphoreRelease(uart8_rx_semphore);
-  }
-#else
-  (void)data;
-  (void)len;
-#endif
+    (void)user;
+    #if LASER_MEASURE_ENABLE
+    if (data != nullptr && len > 0 && uart8_rx_semphore != NULL) {
+        (void)osSemaphoreRelease(uart8_rx_semphore);
+    }
+    #else
+    (void)data;
+    (void)len;
+    #endif
 }
 
 void onUart1RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-#if LASER_MEASURE_ENABLE
-  if (data != nullptr && len > 0 && uart1_rx_semphore != NULL) {
-    (void)osSemaphoreRelease(uart1_rx_semphore);
-  }
-#else
-  (void)data;
-  (void)len;
-#endif
+    (void)user;
+    #if LASER_MEASURE_ENABLE
+    if (data != nullptr && len > 0 && uart1_rx_semphore != NULL) {
+        (void)osSemaphoreRelease(uart1_rx_semphore);
+    }
+    #else
+    (void)data;
+    (void)len;
+    #endif
 }
 
 // 红外模块回调
 void onUart6RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-  infrared_module_uart6.UartPortRxCbHandler(data, len);
+    (void)user;
+    infrared_module_uart6.UartPortRxCbHandler(data, len);
 }
 void onUart5RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-  infrared_module_uart5.UartPortRxCbHandler(data, len);
+    (void)user;
+    infrared_module_uart5.UartPortRxCbHandler(data, len);
 }
 void onUart9RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-  infrared_module_uart9.UartPortRxCbHandler(data, len);
+    (void)user;
+    infrared_module_uart9.UartPortRxCbHandler(data, len);
 }
 void onUart4RxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-  infrared_module_uart4.UartPortRxCbHandler(data, len);
+    (void)user;
+    infrared_module_uart4.UartPortRxCbHandler(data, len);
 }
 
 void onUsbRxCb(const uint8_t *data, size_t len, void *user) {
-  (void)user;
-  if (data != nullptr && len > 0 && usbcdc_rx_semphore != NULL) {
-    (void)osSemaphoreRelease(usbcdc_rx_semphore);
-  }
+    (void)user;
+    if (data != nullptr && len > 0 && usbcdc_rx_semphore != NULL) {
+        (void)osSemaphoreRelease(usbcdc_rx_semphore);
+    }
 }
 
 
 // CAN 发送任务
 void can1SendTask(void *argument) {
-  TickType_t currentTime = xTaskGetTickCount();
-  CanBus::ClassicPack pack;
-  pack.type = CanBus::Type::STANDARD;
-  uint8_t len = 8;  
-  const uint32_t lift_motor_ids[4] = {0x201, 0x202, 0x203, 0x204};
+    TickType_t currentTime = xTaskGetTickCount();
+    CanBus::ClassicPack pack;
+    pack.type = CanBus::Type::STANDARD;
+    uint8_t len = 8;  
+    const uint32_t lift_motor_ids[4] = {0x201, 0x202, 0x203, 0x204};
 
-  for (;;) {
-    // 一帧固定打包 4 个槽位：0x201~0x204
-    pack.id = 0x200; // DJI Group 2
+    for (;;) {
+        // 一帧固定打包 4 个槽位：0x201~0x204
+        pack.id = 0x200; // DJI Group 2
 
-    int16_t commands[4] = {0};
-    commands[0] = static_cast<int16_t>(lift_2006_motor1.cmdTrans()); // 0x201
-    commands[1] = static_cast<int16_t>(lift_2006_motor2.cmdTrans()); // 0x202
-    commands[2] = static_cast<int16_t>(lift_3508_motor1.cmdTrans()); // 0x203
-    commands[3] = static_cast<int16_t>(lift_3508_motor2.cmdTrans()); // 0x204
-    packDJIMotorCanMsg(pack.id,lift_motor_ids, commands, 4, pack.data, len);
-    fdcan1_bus.addCanMsg(pack);
-    vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
-  }
+        int16_t commands[4] = {0};
+        commands[0] = static_cast<int16_t>(lift_2006_motor1.cmdTrans()); // 0x201
+        commands[1] = static_cast<int16_t>(lift_2006_motor2.cmdTrans()); // 0x202
+        commands[2] = static_cast<int16_t>(lift_3508_motor1.cmdTrans()); // 0x203
+        commands[3] = static_cast<int16_t>(lift_3508_motor2.cmdTrans()); // 0x204
+        packDJIMotorCanMsg(pack.id,lift_motor_ids, commands, 4, pack.data, len);
+        fdcan1_bus.addCanMsg(pack);
+        vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
+    }
 }
 
 
 void can2SendTask(void *argument) {
-  TickType_t currentTime = xTaskGetTickCount();
-  CanBus::ClassicPack pack;
-  pack.type = CanBus::Type::STANDARD;
-  uint8_t len = 8;
-  const uint32_t arm_motor_ids[4] = {0x201, 0x202, 0x203, 0x204};
-  for (;;) {
-    pack.id = 0x200; // DJI Group 2
-    // 按 0x201~0x204 顺序组帧
-    int16_t commands[4] = {0};
+    TickType_t currentTime = xTaskGetTickCount();
+    CanBus::ClassicPack pack;
+    pack.type = CanBus::Type::STANDARD;
+    uint8_t len = 8;
+    const uint32_t arm_motor_ids[4] = {0x201, 0x202, 0x203, 0x204};
+    for (;;) {
+        pack.id = 0x200; // DJI Group 2
+        // 按 0x201~0x204 顺序组帧
+        int16_t commands[4] = {0};
 
-    // tail / arm motors
-    commands[0] = static_cast<int16_t>(tail_claw_move_motor.cmdTrans()); // 0x201
-    commands[1] = static_cast<int16_t>(tail_claw_roll_motor.cmdTrans()); // 0x202
-    commands[2] = static_cast<int16_t>(arm2006_motor.cmdTrans()); // 0x203
-    commands[3] = static_cast<int16_t>(arm3508_motor.cmdTrans()); // 0x204
-    packDJIMotorCanMsg(pack.id, arm_motor_ids, commands, 4, pack.data, len);
-    fdcan2_bus.addCanMsg(pack);
+        // tail / arm motors
+        commands[0] = static_cast<int16_t>(tail_claw_move_motor.cmdTrans()); // 0x201
+        commands[1] = static_cast<int16_t>(tail_claw_roll_motor.cmdTrans()); // 0x202
+        commands[2] = static_cast<int16_t>(arm2006_motor.cmdTrans()); // 0x203
+        commands[3] = static_cast<int16_t>(arm3508_motor.cmdTrans()); // 0x204
+        packDJIMotorCanMsg(pack.id, arm_motor_ids, commands, 4, pack.data, len);
+        fdcan2_bus.addCanMsg(pack);
 
-    vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
-  }
+        vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
+    }
 }
 
 
 void can3SendTask(void *argument) {
-  TickType_t currentTime = xTaskGetTickCount();
-  CanBus::ClassicPack pack;
-  pack.type = CanBus::Type::STANDARD;
+    TickType_t currentTime = xTaskGetTickCount();
+    CanBus::ClassicPack pack;
+    pack.type = CanBus::Type::STANDARD;
 
-  uint8_t len = 8;  
-  const uint32_t chassis_motor_ids[4] = {0x201, 0x202, 0x203, 0x204};
+    uint8_t len = 8;  
+    const uint32_t chassis_motor_ids[4] = {0x201, 0x202, 0x203, 0x204};
 
-  for (;;) {
-    // 一帧固定打包 4 个槽位：0x201~0x204
-    pack.id = 0x200; // DJI Group 2
+    for (;;) {
+        // 一帧固定打包 4 个槽位：0x201~0x204
+        pack.id = 0x200; // DJI Group 2
 
-    // 按 0x201~0x204 顺序组帧
-    int16_t commands[4] = {0};
-    commands[0] = static_cast<int16_t>(chassis_motor1.cmdTrans()); // 0x201
-    commands[1] = static_cast<int16_t>(chassis_motor2.cmdTrans()); // 0x202
-    commands[2] = static_cast<int16_t>(chassis_motor3.cmdTrans()); // 0x203  
-    commands[3] = static_cast<int16_t>(chassis_motor4.cmdTrans()); // 0x204
-    packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
-    // arm3508_motor.manager_->addCanMsg(pack);
-     fdcan3_bus.addCanMsg(pack);
-    vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
-  }
+        // 按 0x201~0x204 顺序组帧
+        int16_t commands[4] = {0};
+        commands[0] = static_cast<int16_t>(chassis_motor1.cmdTrans()); // 0x201
+        commands[1] = static_cast<int16_t>(chassis_motor2.cmdTrans()); // 0x202
+        commands[2] = static_cast<int16_t>(chassis_motor3.cmdTrans()); // 0x203  
+        commands[3] = static_cast<int16_t>(chassis_motor4.cmdTrans()); // 0x204
+        packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
+        // arm3508_motor.manager_->addCanMsg(pack);
+        fdcan3_bus.addCanMsg(pack);
+        vTaskDelayUntil(&currentTime, 1); // 每 1 ms 执行一次发送任务
+    }
 }
 
 // 接收并处理任务
 void uart2RxProcessTask(void *argument){
-  (void)argument;
-  for (;;) {
-  (void)osSemaphoreAcquire(uart2_rx_semphore, osWaitForever);
+    (void)argument;
+    for (;;) {
+    (void)osSemaphoreAcquire(uart2_rx_semphore, osWaitForever);
 
-   UartPort::Packet packet{};
-    while (uart2_port.Read(packet)) {
-      for (uint16_t i = 0; i < packet.len; ++i) {
-        if (hwt101_parser.processByte(packet.data[i])) {
-          //g_hwt101_roll_deg = hwt101_parser.rollDeg();
-          //g_hwt101_pitch_deg = hwt101_parser.pitchDeg();
-          g_hwt101_yaw_deg = hwt101_parser.yawDeg();
-          g_hwt101_frame_count = hwt101_parser.frameCount();
+    UartPort::Packet packet{};
+        while (uart2_port.Read(packet)) {
+        for (uint16_t i = 0; i < packet.len; ++i) {
+            if (hwt101_parser.processByte(packet.data[i])) {
+            //g_hwt101_roll_deg = hwt101_parser.rollDeg();
+            //g_hwt101_pitch_deg = hwt101_parser.pitchDeg();
+            g_hwt101_yaw_deg = hwt101_parser.yawDeg();
+            g_hwt101_frame_count = hwt101_parser.frameCount();
+            }
         }
-      }
+        }
     }
-  }
 }
 
 void uart3RxProcessTask(void *argument) {
-  (void)argument;
-  if(!xbox_data_pub.IsValid()) {
-    return;
-  }
-  for (;;) {
-    (void)osSemaphoreAcquire(uart3_rx_semphore, osWaitForever);
-
-    UartPort::Packet packet{};
-    while (uart3_port.Read(packet)) {
-      // 逐字节送入 Xbox 协议解析器
-      for (uint16_t i = 0; i < packet.len; ++i) {
-        uint8_t frame_id = xbox_remote.processByte(packet.data[i]);
-        if (frame_id != 0) {
-          // 帧解析完成后，获取控制器数据并发布
-          const auto &ctrl_data = xbox_remote.getControllerData();
-          xbox_msg.btnY = ctrl_data.btnY;
-          xbox_msg.btnA = ctrl_data.btnA;
-          xbox_msg.btnShare = ctrl_data.btnShare;
-          xbox_msg.btnView = ctrl_data.btnSelect;
-          xbox_msg.btnMenu = ctrl_data.btnStart;
-          xbox_msg.btnXbox = ctrl_data.btnXbox;
-          xbox_msg.btnLB = ctrl_data.btnLB;
-          xbox_msg.btnRB = ctrl_data.btnRB;
-          xbox_msg.btnLS = ctrl_data.btnLS;
-          xbox_msg.btnRS = ctrl_data.btnRS;
-          xbox_msg.trigLT = ctrl_data.trigLT;
-          xbox_msg.trigRT = ctrl_data.trigRT;
-          xbox_msg.btnDirUp = ctrl_data.btnDirUp;
-          xbox_msg.btnDirDown = ctrl_data.btnDirDown;
-          xbox_msg.btnDirLeft = ctrl_data.btnDirLeft;
-          xbox_msg.btnDirRight = ctrl_data.btnDirRight;
-          xbox_msg.btnB = ctrl_data.btnB;
-          xbox_msg.btnX = ctrl_data.btnX;
-          xbox_msg.joyLHori = ctrl_data.joyLHori;
-          xbox_msg.joyLVert = ctrl_data.joyLVert;
-          xbox_msg.joyRHori = ctrl_data.joyRHori;
-          xbox_msg.joyRVert = ctrl_data.joyRVert;
-          xbox_data_pub.Publish(xbox_msg);
-        }
-      }
+    (void)argument;
+    if(!xbox_data_pub.IsValid()) {
+        return;
     }
-  }
+    for (;;) {
+        (void)osSemaphoreAcquire(uart3_rx_semphore, osWaitForever);
+
+        UartPort::Packet packet{};
+        while (uart3_port.Read(packet)) {
+            // 逐字节送入 Xbox 协议解析器
+            for (uint16_t i = 0; i < packet.len; ++i) {
+                uint8_t frame_id = xbox_remote.processByte(packet.data[i]);
+                if (frame_id != 0) {
+                    // 帧解析完成后，获取控制器数据并发布
+                    const auto &ctrl_data = xbox_remote.getControllerData();
+                    xbox_msg.btnY = ctrl_data.btnY;
+                    xbox_msg.btnA = ctrl_data.btnA;
+                    xbox_msg.btnShare = ctrl_data.btnShare;
+                    xbox_msg.btnView = ctrl_data.btnSelect;
+                    xbox_msg.btnMenu = ctrl_data.btnStart;
+                    xbox_msg.btnXbox = ctrl_data.btnXbox;
+                    xbox_msg.btnLB = ctrl_data.btnLB;
+                    xbox_msg.btnRB = ctrl_data.btnRB;
+                    xbox_msg.btnLS = ctrl_data.btnLS;
+                    xbox_msg.btnRS = ctrl_data.btnRS;
+                    xbox_msg.trigLT = ctrl_data.trigLT;
+                    xbox_msg.trigRT = ctrl_data.trigRT;
+                    xbox_msg.btnDirUp = ctrl_data.btnDirUp;
+                    xbox_msg.btnDirDown = ctrl_data.btnDirDown;
+                    xbox_msg.btnDirLeft = ctrl_data.btnDirLeft;
+                    xbox_msg.btnDirRight = ctrl_data.btnDirRight;
+                    xbox_msg.btnB = ctrl_data.btnB;
+                    xbox_msg.btnX = ctrl_data.btnX;
+                    xbox_msg.joyLHori = ctrl_data.joyLHori;
+                    xbox_msg.joyLVert = ctrl_data.joyLVert;
+                    xbox_msg.joyRHori = ctrl_data.joyRHori;
+                    xbox_msg.joyRVert = ctrl_data.joyRVert;
+                    xbox_data_pub.Publish(xbox_msg);
+                }
+            }
+        }
+    }
 }
 
 void laserMeasureTask(void *argument) {
-  (void)argument;
+    (void)argument;
 
-  uint32_t laser1_tick = osKernelGetTickCount();
-  uint32_t laser2_tick = laser1_tick + 25U;
-  uint32_t laser3_tick = laser1_tick + 40U;
+    uint32_t laser1_tick = osKernelGetTickCount();
+    uint32_t laser2_tick = laser1_tick + 25U;
+    uint32_t laser3_tick = laser1_tick + 40U;
 
-  for (;;) {
-    const uint32_t now_tick = osKernelGetTickCount();
+    for (;;) {
+        const uint32_t now_tick = osKernelGetTickCount();
 
-    if ((now_tick - laser1_tick) >= 50U) {
-      (void)laser1.triggerSingleMeasure();
-      laser1_tick = now_tick;
+        if ((now_tick - laser1_tick) >= 50U) {
+            (void)laser1.triggerSingleMeasure();
+            laser1_tick = now_tick;
+        }
+
+        if ((now_tick - laser2_tick) >= 50U) {
+            (void)laser2.triggerSingleMeasure();
+            laser2_tick = now_tick;
+        }
+
+        if ((now_tick - laser3_tick) >= 50U) {
+            (void)laser3.triggerSingleMeasure();
+            laser3_tick = now_tick;
+        }
+
+        if (uart7_rx_semphore != NULL &&
+            osSemaphoreAcquire(uart7_rx_semphore, 0) == osOK) {
+            UartPort::Packet packet{};
+            while (uart7_port.Read(packet)) {
+                (void)laser1.processFrame(packet.data, packet.len);
+            }
+        }
+
+        if (uart8_rx_semphore != NULL &&
+            osSemaphoreAcquire(uart8_rx_semphore, 0) == osOK) {
+            UartPort::Packet packet{};
+            while (uart8_port.Read(packet)) {
+                (void)laser2.processFrame(packet.data, packet.len);
+            }
+        }
+
+        if (uart1_rx_semphore != NULL &&
+            osSemaphoreAcquire(uart1_rx_semphore, 0) == osOK) {
+            UartPort::Packet packet{};
+            while (uart1_port.Read(packet)) {
+                (void)laser3.processFrame(packet.data, packet.len);
+            }
+        }
+
+        osDelay(5);
     }
-
-    if ((now_tick - laser2_tick) >= 50U) {
-      (void)laser2.triggerSingleMeasure();
-      laser2_tick = now_tick;
-    }
-
-    if ((now_tick - laser3_tick) >= 50U) {
-      (void)laser3.triggerSingleMeasure();
-      laser3_tick = now_tick;
-    }
-
-    if (uart7_rx_semphore != NULL &&
-        osSemaphoreAcquire(uart7_rx_semphore, 0) == osOK) {
-      UartPort::Packet packet{};
-      while (uart7_port.Read(packet)) {
-        (void)laser1.processFrame(packet.data, packet.len);
-      }
-    }
-
-    if (uart8_rx_semphore != NULL &&
-        osSemaphoreAcquire(uart8_rx_semphore, 0) == osOK) {
-      UartPort::Packet packet{};
-      while (uart8_port.Read(packet)) {
-        (void)laser2.processFrame(packet.data, packet.len);
-      }
-    }
-
-    if (uart1_rx_semphore != NULL &&
-        osSemaphoreAcquire(uart1_rx_semphore, 0) == osOK) {
-      UartPort::Packet packet{};
-      while (uart1_port.Read(packet)) {
-        (void)laser3.processFrame(packet.data, packet.len);
-      }
-    }
-
-    osDelay(5);
-  }
 
 }
 
 
 // 上下位机协议解析与收发任务
 void PcComTask(void *argument) {
-  (void)argument;
-  pc_com.init();
+    (void)argument;
+    pc_com.init();
 
-  TickType_t currentTime = xTaskGetTickCount();
+    TickType_t currentTime = xTaskGetTickCount();
 
-  for (;;) {
-    osSemaphoreAcquire(usbcdc_rx_semphore, 1);
-    pc_com.ProcessRx();
+    for (;;) {
+        osSemaphoreAcquire(usbcdc_rx_semphore, 1);
+        pc_com.ProcessRx();
 
-    pc_com.ProcessTx();
-    vTaskDelayUntil(&currentTime, 1);
-  }
+        pc_com.ProcessTx();
+        vTaskDelayUntil(&currentTime, 1);
+    }
 }

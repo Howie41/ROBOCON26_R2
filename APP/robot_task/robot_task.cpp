@@ -83,7 +83,7 @@ static const osThreadAttr_t sym##Handle_attributes = { \
 DECLARE_STATIC_TASK(CAN1_SendTask, 256 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(CAN2_SendTask, 256 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(CAN3_SendTask, 256 * 4, osPriorityNormal);
-DECLARE_STATIC_TASK(DebugTask, 512 * 4, osPriorityNormal);
+DECLARE_STATIC_TASK(DebugTask, 512 * 4, osPriorityBelowNormal);
 DECLARE_STATIC_TASK(motorTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(armTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(ChassisTask, 512 * 4, osPriorityNormal);
