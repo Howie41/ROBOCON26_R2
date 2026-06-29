@@ -13,9 +13,34 @@ osThreadId_t Debug_TaskHandle;
 
 void debugTask(void *argument) {
 
-    for (;;) {
+  for (;;) {
+    osDelay(50);
+    logger_queue.trySend();
+    // logger.log(
+    //     "%.1f|%.0f|%.1f|%.1f/"
+    //     "%.1f|%.0f|%.1f|%.1f/"
+    //     "%.1f|%.0f|%.1f|%.1f/"
+    //     "%.1f|%.0f|%.1f|%.1f/"
+    //     "\n",
+    //     chassis_motor1.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
+    //     chassis_motor1.getRawCurrentTorque(),
+    //     chassis_motor1.getCurrentTemperature(),
+    //     chassis_motor1.cmd_,
 
+    //     chassis_motor2.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
+    //     chassis_motor2.getRawCurrentTorque(),
+    //     chassis_motor2.getCurrentTemperature(),
+    //     chassis_motor2.cmd_,
 
-        osDelay(1);
-    }
+    //     chassis_motor3.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
+    //     chassis_motor3.getRawCurrentTorque(),
+    //     chassis_motor3.getCurrentTemperature(),
+    //     chassis_motor3.cmd_,
+
+    //     chassis_motor4.getCurrentSpeed() / RPM_2_RAD_PER_SEC,
+    //     chassis_motor4.getRawCurrentTorque(),
+    //     chassis_motor4.getCurrentTemperature(),
+    //     chassis_motor4.cmd_
+    // );
+  }
 }

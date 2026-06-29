@@ -35,13 +35,6 @@ namespace waypoint {
     };
 
     constexpr point init{-550, 150, 0};
-    constexpr point before_mf{2280, 1600, 0};
-    constexpr point corridor{2050, 4000, 0};
-    constexpr point before_uphill{7967, 3760, 0};
-    constexpr point after_uphill{10837, 3840, 0};
-    constexpr point before_rotate{11830, 1980, 0};
-    constexpr point after_rotate{11350, 1860, -90};
-    constexpr point grid{11170, -980, -90};
 
     constexpr point mf_entrance_mid{2060, 1500, 0};
     constexpr point mf_entrance_left{2060, 1500+1200, 0};
@@ -51,12 +44,21 @@ namespace waypoint {
     constexpr point mf_entrance_left_close{2085, mf_entrance_left.y, 0};
     constexpr point mf_entrance_right_close{2085, mf_entrance_right.y, 0};
 
+    // ======== 三区 ========
+    constexpr point before_uphill{8000, 3650, 0};
+    constexpr point after_uphill{10725, 3650, 0};
     // TODO: 赛中装填 KFS 点位
-    constexpr point load_kfs{0,0,0};
+    constexpr point load_kfs{10210,970,0};
 
-    constexpr point grid_left{10517, -480, -90};
-    constexpr point grid_mid{9979, -480, -90};
-    constexpr point grid_right{9443, -480, -90};
+    constexpr int16_t grid_y = -140;
+    constexpr point grid_mid{10000, grid_y, -90};
+    constexpr point grid_left{grid_mid.x + 540, grid_y, -90};
+    constexpr point grid_right{grid_mid.x - 540, grid_y, -90};
+
+    constexpr int16_t grid_close_y = -500;
+    constexpr point grid_mid_close{grid_mid.x, grid_close_y, -90};
+    constexpr point grid_left_close{grid_left.x, grid_close_y, -90};
+    constexpr point grid_right_close{grid_right.x, grid_close_y, -90};
 
     // TODO: R1 R2 合体预备姿势
     constexpr point combination_area{0, 0, 0};
