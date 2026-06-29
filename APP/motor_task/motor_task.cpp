@@ -20,14 +20,9 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-
 osThreadId_t Motor_TaskHandle;
 
 extern MotorPlanningSystem motor_planning_system;
-
-extern C620Motor arm3508_motor;
-extern C610Motor arm2006_motor;
-
 
 /** @brief 电机任务函数
  *  @param argument 任务参数
@@ -39,6 +34,5 @@ void motorTask(void *argument) {
         motor_planning_system.update();
 
         osDelay(1);
-
     }
 }

@@ -68,6 +68,15 @@ C620Motor chassis_motor2(&fdcan3_bus, 0x202, 0, 0x200, 0);
 C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
 
+//尾部的电机
+C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
+C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
+
+// 抬升电机
+C610Motor lift_2006_motor1(&fdcan1_bus, 0x201, 0, 0x200, 0);
+C610Motor lift_2006_motor2(&fdcan1_bus, 0x202, 0, 0x200, 0);
+C620Motor lift_3508_motor1(&fdcan1_bus, 0x203, 0, 0x200, 0);
+C620Motor lift_3508_motor2(&fdcan1_bus, 0x204, 0, 0x200, 0);
 
 // 取矿电机
 C610Motor arm2006_motor(&fdcan2_bus, 0x203, 0, 0x200, 0);  // 伸缩
@@ -78,20 +87,14 @@ DM43xxMotor arm4340_motor(&fdcan2_bus, 0x302, 0, 0x02, 0, // 抬升
                          DM43xxMotor::PosWithSpeed, true);
 
 
+MotorPlanningUnit arm2006_motor_planner(arm2006_motor);
+MotorPlanningUnit arm3508_motor_planner(arm3508_motor);
+
+// Motor 速度规划相关
+MotorPlanningSystem motor_planning_system;
+
 // 取矿机构
-Arm arm(arm4340_motor, arm3508_motor, arm2006_motor, arm4310_motor);
-
-
-//尾部的电机
-C610Motor tail_claw_move_motor(&fdcan2_bus, 0x201, 0, 0x200, 0);
-C620Motor tail_claw_roll_motor(&fdcan2_bus, 0x202, 0, 0x200, 0);
-
-
-// 抬升电机
-C610Motor lift_2006_motor1(&fdcan1_bus, 0x201, 0, 0x200, 0);
-C610Motor lift_2006_motor2(&fdcan1_bus, 0x202, 0, 0x200, 0);
-C620Motor lift_3508_motor1(&fdcan1_bus, 0x203, 0, 0x200, 0);
-C620Motor lift_3508_motor2(&fdcan1_bus, 0x204, 0, 0x200, 0);
+Arm arm(arm4340_motor, arm3508_motor_planner, arm2006_motor_planner, arm4310_motor);
 
 
 // 串口外设（回调中释放信号量，唤醒处理线程解包）
@@ -204,9 +207,6 @@ ROSProtocol ros_protocol(nullptr, &UsbPort::Instance());
 
 // 上下位机通信
 PcCom pc_com(UsbPort::Instance());
-// Motor 速度规划相关
-MotorPlanningSystem motor_planning_system;
-
 
 /** @brief 通信系统初始化函数，负责初始化 CAN 设备、串口设备、协议解析器等
  *  @return 初始化结果，0 表示成功，非 0 表示失败
@@ -233,24 +233,24 @@ uint8_t comServiceInit() {
     chassis_motor3.init();
     chassis_motor4.init();
 
-  arm2006_motor.init();
-  arm3508_motor.init(158.0f, 20000.0f);  // 减速比 P100
-  arm4310_motor.init();
-  arm4340_motor.init();
+    arm2006_motor.init();
+    arm3508_motor.init(158.0f, 20000.0f);  // 减速比 P100
+    arm4310_motor.init();
+    arm4340_motor.init();
 
-// 尾部电机初始化
-  tail_claw_move_motor.init();
-  tail_claw_roll_motor.init();
-  
-  lift_2006_motor1.init();
-  lift_2006_motor2.init();
-  lift_3508_motor1.init();
-  lift_3508_motor2.init();
+    // 尾部电机初始化
+    tail_claw_move_motor.init();
+    tail_claw_roll_motor.init();
 
-  fdcan3_bus.registerDevice(&chassis_motor1);
-  fdcan3_bus.registerDevice(&chassis_motor2);
-  fdcan3_bus.registerDevice(&chassis_motor3);
-  fdcan3_bus.registerDevice(&chassis_motor4);
+    lift_2006_motor1.init();
+    lift_2006_motor2.init();
+    lift_3508_motor1.init();
+    lift_3508_motor2.init();
+
+    fdcan3_bus.registerDevice(&chassis_motor1);
+    fdcan3_bus.registerDevice(&chassis_motor2);
+    fdcan3_bus.registerDevice(&chassis_motor3);
+    fdcan3_bus.registerDevice(&chassis_motor4);
 
 
     fdcan2_bus.registerDevice(&arm2006_motor);
@@ -258,42 +258,42 @@ uint8_t comServiceInit() {
     fdcan2_bus.registerDevice(&arm4310_motor);
     fdcan2_bus.registerDevice(&arm4340_motor);
 
-  // 注册尾部电机
-  fdcan2_bus.registerDevice(&tail_claw_move_motor);
-  fdcan2_bus.registerDevice(&tail_claw_roll_motor);
+    // 注册尾部电机
+    fdcan2_bus.registerDevice(&tail_claw_move_motor);
+    fdcan2_bus.registerDevice(&tail_claw_roll_motor);
 
-  fdcan1_bus.registerDevice(&lift_2006_motor1);
-  fdcan1_bus.registerDevice(&lift_2006_motor2);
-  fdcan1_bus.registerDevice(&lift_3508_motor1);
-  fdcan1_bus.registerDevice(&lift_3508_motor2);
-  
+    fdcan1_bus.registerDevice(&lift_2006_motor1);
+    fdcan1_bus.registerDevice(&lift_2006_motor2);
+    fdcan1_bus.registerDevice(&lift_3508_motor1);
+    fdcan1_bus.registerDevice(&lift_3508_motor2);
 
-  fdcan1_bus.registerDevice(&lift_2006_motor1);
-  fdcan1_bus.registerDevice(&lift_2006_motor2);
-  fdcan1_bus.registerDevice(&lift_3508_motor1);
-  fdcan1_bus.registerDevice(&lift_3508_motor2);
 
-  // 串口外设初始化
-  #if LASER_MEASURE_ENABLE
-  uart7_rx_semphore = osSemaphoreNew(1, 0, NULL);
-  uart7_port.startRxDmaIdle();
-  laser1.init();
-  uart8_rx_semphore = osSemaphoreNew(1, 0, NULL);
-  uart8_port.startRxDmaIdle();
-  laser2.init();
-  uart1_rx_semphore = osSemaphoreNew(1, 0, NULL);
-  uart1_port.startRxDmaIdle();
-  laser3.init();
-  #endif
-  uart2_rx_semphore = osSemaphoreNew(1, 0, NULL);
-  uart2_port.startRxDmaIdle();
-  uart3_rx_semphore = osSemaphoreNew(1, 0, NULL);
-  uart3_port.startRxDmaIdle();
-  uart6_port.startRxDmaIdle();
-  uart5_port.startRxDmaIdle();
+    fdcan1_bus.registerDevice(&lift_2006_motor1);
+    fdcan1_bus.registerDevice(&lift_2006_motor2);
+    fdcan1_bus.registerDevice(&lift_3508_motor1);
+    fdcan1_bus.registerDevice(&lift_3508_motor2);
+
+    // 串口外设初始化
+    #if LASER_MEASURE_ENABLE
+    uart7_rx_semphore = osSemaphoreNew(1, 0, NULL);
+    uart7_port.startRxDmaIdle();
+    laser1.init();
+    uart8_rx_semphore = osSemaphoreNew(1, 0, NULL);
+    uart8_port.startRxDmaIdle();
+    laser2.init();
+    uart1_rx_semphore = osSemaphoreNew(1, 0, NULL);
+    uart1_port.startRxDmaIdle();
+    laser3.init();
+    #endif
+    uart2_rx_semphore = osSemaphoreNew(1, 0, NULL);
+    uart2_port.startRxDmaIdle();
+    uart3_rx_semphore = osSemaphoreNew(1, 0, NULL);
+    uart3_port.startRxDmaIdle();
+    uart6_port.startRxDmaIdle();
+    uart5_port.startRxDmaIdle();
  
-  // Xbox 控制器初始化
-  xbox_remote.init();
+    // Xbox 控制器初始化
+    xbox_remote.init();
 
     // USB 外设初始化
     usbcdc_rx_semphore = osSemaphoreNew(1, 0, NULL);
@@ -301,8 +301,7 @@ uint8_t comServiceInit() {
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
 
     // Motor速度规划系统注册电机
-    motor_planning_system.registerMotor(arm3508_motor);
-    motor_planning_system.registerMotor(arm2006_motor);
+    motor_planning_system.register_motor(arm2006_motor_planner);
 
     return 0;
 }

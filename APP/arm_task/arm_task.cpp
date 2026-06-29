@@ -47,7 +47,7 @@ bool load_kfs(LOAD_TYPE step) { return arm.fetch_step(step); }
 /**
  * @brief 取出kfs，自动识别当前kfs数量，从对应的高度取出(取最外层)
  * @note 抬起、伸入储存区、吸取、抬起、伸出、kfs_amount-1
- * @param std::nullopt:自动识别高度，UNLOAD_TYPE::LOW, UNLOAD_TYPE::MEDIUM, UNLOAD_TYPE::HIGH, UNLOAD_TYPE::TOP : 指定高度
+ * @param 默认std::nullopt:自动识别高度，UNLOAD_TYPE::LOW, UNLOAD_TYPE::MEDIUM, UNLOAD_TYPE::HIGH, UNLOAD_TYPE::TOP : 指定高度
  */
 bool unload_kfs(std::optional<UNLOAD_TYPE> level = std::nullopt) { return arm.place_kfs(level); }
 /**

@@ -17,6 +17,7 @@
 #pragma once
 
 #include "Motor.hpp"
+#include "motor_task.hpp"
 #include "stm32h723xx.h"
 #include "stm32h7xx_hal_gpio.h"
 #include <cmath>
@@ -289,8 +290,8 @@ public:
     
 private:
     DM43xxMotor &arm_lift_;
-    MotorBase &arm_rotate_;
-    MotorBase &arm_expand_;
+    MotorPlanningUnit &arm_rotate_;
+    MotorPlanningUnit &arm_expand_;
     DM43xxMotor &arm_flip_;
 
     uint8_t kfs_num_{0};

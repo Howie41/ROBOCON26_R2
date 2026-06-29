@@ -26,7 +26,7 @@ inline bool isZero(float x) { return fabsf(x) < EPSILON; }
 class MotionState {
 public:
     // x可正可负，a和v取绝对值
-    MotionState(float x, float v, float a) :
+    MotionState(float x = 0.0f, float v = 0.0f, float a = 0.0f) :
         x_(x), v_(v), a_(a) {}
     ~MotionState() {}
 
@@ -42,7 +42,7 @@ public:
     void add_a(float da) { a_ += da; }
     const inline float get_a() { return a_; }
 
-    void set_params(std::optional<float> x, std::optional<float> v, std::optional<float> a) {
+    void set_params(std::optional<float> x = std::nullopt, std::optional<float> v = std::nullopt, std::optional<float> a = std::nullopt) {
         if (x.has_value()) set_x(x.value());
         if (v.has_value()) set_v(v.value());
         if (a.has_value()) set_a(a.value());
@@ -52,10 +52,11 @@ private:
     float x_;
     float v_;
     float a_;
-}
+};
 
 class SmoothSPlanner {  // 该规划器下，急动度最大值: j = π/2 * a²/v，且j自动平滑变化
 public:
+    SmoothSPlanner() = default;
     SmoothSPlanner(float x, float v = 0.0f, float a = 0.0f) {
         cur_state_.set_params(x, v, a);
         cur_t_ = DWT_GetTimeline_s();
@@ -64,41 +65,42 @@ public:
 
     // 缓冲段v-t曲线
     inline float smooth_curve(float t) {
-        return tar_state_.get_a() / 2 * t - tar_state_.get_v() / (2 * PI) * sin(tar_state_.get_a() / tar_state_.get_v() * PI * t);
+        return tar_state_.get_a() / 2 * t - tar_state_.get_v() / (2 * M_PI) * sin(tar_state_.get_a() / tar_state_.get_v() * M_PI * t);
     }
     // 缓冲段x-t曲线
     inline float integral_smooth_curve(float t) {
-        return tar_state_.get_a() / 4 * t * t + tar_state_.get_v() * tar_state_.get_v() / (4 * PI * PI * tar_state_.get_a()) * cos(tar_state_.get_a() / tar_state_.get_v() * PI * t);
+        return tar_state_.get_a() / 4 * t * t + tar_state_.get_v() * tar_state_.get_v() / (4 * M_PI * M_PI * tar_state_.get_a()) * cos(tar_state_.get_a() / tar_state_.get_v() * M_PI * t);
     }
 
     /**
-     * @brief 以指定参数开始速度规划
+     * @brief 以指定参数开始速度规划。此处未加is_planning_判断！（主要用于始规划，一般不可用于中断规划/重规划）
      * @param t 目标时间（所需时间）
      * @param x 目标位置
-     * @param v 最大速度；默认-1.0f，传入负值表示不限制
-     * @param a 最大加速度；默认-1.0f，传入负值表示不限制
+     * @param v 最大速度（绝对值）；默认std::nullopt，传入std::nullopt表示不限制
+     * @param a 最大加速度（绝对值）；默认std::nullopt，传入std::nullopt表示不限制
      * @return true 规划成功，开始速度规划
      * @return false 指定参数下无解，规划失败
      */
-    bool init(float t, float x, float v = -1.0f, float a = -1.0f) {
-        if (isZero(x) || isZero(v) || isZero(a) || t <= 0.0f) return false;  // 判断参数合理性: x可正可负，a和v取绝对值
-        if (v < 0.0f) v = std::numeric_limits<float>::max();
-        if (a < 0.0f) a = std::numeric_limits<float>::max();
+    bool init(float t, float x, std::optional<float> v = std::nullopt, std::optional<float> a = std::nullopt) {
+        if (!v.has_value()) v.emplace(std::numeric_limits<float>::max());
+        if (!a.has_value()) a.emplace(std::numeric_limits<float>::max());
+        // 判断参数合理性: x可正可负，a和v取绝对值
+        if (t <= 0.0f || isZero(x) || v.value() <= 0.0f || a.value() <= 0.0f) return false;
         // 此处共有两个约束：x = v(t - 2v/a) 且 2v/a < t/2，进行数学建模
         float p = fabsf(x - cur_state_.get_x());  // 距离差
-        if (v >= 2 * p / t) {  // 区间1
+        if (v.value() >= 2 * p / t) {  // 区间1
             float a_temp = 8 * p / (t * t);
-            if (a >= a_temp) a = a_temp;
+            if (a.value() >= a_temp) a.value() = a_temp;
             else return false;  // 无解
-        } else if (v > p / t) {  // 区间2
-            float a_temp = 2 * v * v / (t * v - p);
-            if (a >= a_temp) a = a_temp;
+        } else if (v.value() > p / t) {  // 区间2
+            float a_temp = 2.0f * v.value() * v.value() / (t * v.value() - p);
+            if (a.value() >= a_temp) a.value() = a_temp;
             else return false;  // 无解
         } else return false;  // 区间3，无解
 
         // 有解，开始规划
         ini_state_.set_x(cur_state_.get_x());
-        tar_state_.set_params(x, v, a);
+        tar_state_.set_params(x, v.value(), a.value());
         ini_t_ = DWT_GetTimeline_s();
         tar_t_ = ini_t_ + t;
 
@@ -145,20 +147,24 @@ public:
         }
     }
 
+    const inline bool is_finished() { return !is_planning_; }
+
+    // 属性的getter
     const inline bool get_is_planning() { return is_planning_; }
     const inline float get_process() { return process_; }
+    const inline MotionState get_cur_state() { return cur_state_; }
 
 private:
     MotionState ini_state_{0.0f, 0.0f, 0.0f};  // 初始运动学状态
     MotionState tar_state_{0.0f, 0.0f, 0.0f};  // 目标运动学状态
-    float ini_t_, tar_t_;  // 初始时刻，目标时刻
+    float ini_t_{0.0f}, tar_t_{0.0f};  // 初始时刻，目标时刻
 
     MotionState cur_state_{0.0f, 0.0f, 0.0f};  // 当前运动学状态
-    float cur_t_;  // 当前时刻
+    float cur_t_{0.0f};  // 当前时刻
 
-    float T_buf_, T_vel_;  // 缓冲时间段，匀速时间段
-    float process_;  // 规划进度: 0% -> 100%
-    int8_t is_towards_positive_;  // 当前移动方向: 1 -> 正向；-1 -> 反向
+    float T_buf_{0.0f}, T_vel_{0.0f};  // 缓冲时间段，匀速时间段
+    float process_{0.0f};  // 规划进度: 0% -> 100%
+    int8_t is_towards_positive_{1};  // 当前移动方向: 1 -> 正向；-1 -> 反向
     bool is_planning_{false};  // 当前是否完成规划进度
 
-}
+};
