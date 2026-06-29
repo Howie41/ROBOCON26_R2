@@ -234,7 +234,7 @@ uint8_t comServiceInit() {
     chassis_motor4.init();
 
   arm2006_motor.init();
-  arm3508_motor.init(158.0f, 20000.0f);  // 减速比 P100
+  arm3508_motor.init(134.0f, 20000.0f);  // 减速比 P100，加减速齿轮
   arm4310_motor.init();
   arm4340_motor.init();
 
