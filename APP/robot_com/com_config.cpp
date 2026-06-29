@@ -301,7 +301,7 @@ uint8_t comServiceInit() {
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
 
     // Motor速度规划系统注册电机
-    motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
+    motor_planning_system.registerMotor(arm3508_motor);
     motor_planning_system.registerMotor(arm2006_motor);
 
     return 0;
