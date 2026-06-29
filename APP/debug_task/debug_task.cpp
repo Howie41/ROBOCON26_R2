@@ -6,9 +6,12 @@
 
 #include "task.h"
 #include "cmsis_os2.h"
+#include "logger.hpp"
+#include "com_config.h"
 
 
 osThreadId_t Debug_TaskHandle;
+extern LoggerQueue logger_queue;
 
 
 void debugTask(void *argument) {
