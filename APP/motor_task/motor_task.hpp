@@ -12,6 +12,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include "Motor.hpp"
 #include "pid_controller.h"
 #include "filters.hpp"
@@ -32,7 +33,9 @@ struct MotorPlanningUnit {
     uint16_t wait_num1{100};
     uint16_t wait_num2{10};
     float output{0.0f};
+    float speed_pid_integral_deadband{1.0f};
 };
+
 
 class MotorPlanningSystem {
 public:
@@ -46,19 +49,19 @@ public:
             .pos_pid = {
                 .Kp = 45.0f,
                 .Ki = 0.0f,
-                .Kd = 2.5f,
+                .Kd = 2.0f,
                 .MaxOut = 60.0f,
-                .DeadBand = 0.01f
+                .DeadBand = 0.5f
             },
             .speed_pid = {
-                .Kp = 1800.0f,
-                .Ki = 540.0f,
-                .Kd = 1.8f,
+                .Kp = 3600.0f,
+                .Ki = 210000.0f,
+                .Kd = 0.0f,
                 .MaxOut = 10000.0f,
-                .DeadBand = 0.1f
+                .DeadBand = 0.0f,
+                .Improve = IMCREATEMENT_OF_OUT
             }
         };
-
         PID_Init(&motor_planning_units_[motor_count_]->pos_pid);
         PID_Init(&motor_planning_units_[motor_count_]->speed_pid);
         

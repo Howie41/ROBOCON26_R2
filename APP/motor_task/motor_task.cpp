@@ -33,12 +33,12 @@ extern C610Motor arm2006_motor;
  *  @param argument 任务参数
  */
 void motorTask(void *argument) {
-  TickType_t currentTime;
-  currentTime = xTaskGetTickCount();
 
-  for (;;) {
-    motor_planning_system.update();
-    vTaskDelayUntil(&currentTime, 1);
+    for (;;) {
 
-  }
+        motor_planning_system.update();
+
+        osDelay(1);
+
+    }
 }

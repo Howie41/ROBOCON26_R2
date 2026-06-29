@@ -21,6 +21,7 @@
 #include "stm32h7xx_hal_gpio.h"
 #include <cmath>
 #include <stdint.h>
+#include <algorithm>
 #include <stdio.h>
 #include <optional>
 #include "arm_actions_config.hpp"
@@ -102,7 +103,7 @@ public:
     // 电机控制类行为基，为电机角度控制提供相对的基准值
     void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(215.0f + pos_deg, speed_deg); }
     void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos + 70.0f, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
-    void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-pos, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
+    void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-std::clamp(pos, 120.0f, 960.0f), speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
