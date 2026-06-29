@@ -13,7 +13,7 @@
  *      arm.run_xxxing(...)中按config中的时间序列执行arm.xxx_proceed(...)；
  *      arm.xxx_proceed(...);中调用arm.set_pose(...)设定到对应姿态。
  */
- 
+
 #include "arm_task.hpp"
 #include <optional>
 #include "Motor.hpp"
@@ -63,7 +63,7 @@ void raise_kfs_top() { arm.raise_kfs(); }
 
 
 void armTask(void *argument) {
-    arm.reset();
+    arm.start();
 
     // 任务大循环
     for (;;) {
