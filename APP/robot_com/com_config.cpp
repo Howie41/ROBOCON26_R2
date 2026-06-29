@@ -234,7 +234,7 @@ uint8_t comServiceInit() {
     chassis_motor4.init();
 
   arm2006_motor.init();
-  arm3508_motor.init(142.0f, 20000.0f);  // 减速比 P100
+  arm3508_motor.init(158.0f, 20000.0f);  // 减速比 P100
   arm4310_motor.init();
   arm4340_motor.init();
 
@@ -301,7 +301,7 @@ uint8_t comServiceInit() {
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
 
     // Motor速度规划系统注册电机
-    motor_planning_system.registerMotor(arm3508_motor)->speed_pid.Ki = 1000.0f;
+    motor_planning_system.registerMotor(arm3508_motor);
     motor_planning_system.registerMotor(arm2006_motor);
 
     return 0;

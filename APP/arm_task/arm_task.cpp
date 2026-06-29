@@ -7,10 +7,13 @@
  *
  * @copyright Copyright (c) 2026
  *
- * @attention :
- * @note :
- * @versioninfo :
+ * @note arm动作调用链:
+ *     上层执行arm.xxx(...);（对外动作接口），对应arm属性is_xxxing变为true；
+ *      arm_task任务大循环里轮询arm的is_xxxing属性，并执行arm.run_xxxing(...)；
+ *      arm.run_xxxing(...)中按config中的时间序列执行arm.xxx_proceed(...)；
+ *      arm.xxx_proceed(...);中调用arm.set_pose(...)设定到对应姿态。
  */
+
 #include "arm_task.hpp"
 #include <optional>
 #include "Motor.hpp"
@@ -60,7 +63,7 @@ void raise_kfs_top() { arm.raise_kfs(); }
 
 
 void armTask(void *argument) {
-    arm.reset();
+    arm.start();
 
     // 任务大循环
     for (;;) {
@@ -79,9 +82,11 @@ void armTask(void *argument) {
         else if (arm.get_is_place_releasing()) arm.run_place_releasing();  // 释放KFS，回归默认姿态
         // raising_kfs 类
         else if (arm.get_is_raising_kfs()) arm.run_raising_kfs();  // 举高高KFS
+        // starting 类
+        else if (arm.get_is_starting()) arm.run_starting();  // 启动时初始化
 
 
-        
+
         // 测试用（Xbox手柄）
         if (arm_cmd_sub.TryGet(&arm_cmd) || test_flag) {
             if (arm_cmd.update) flag++;
