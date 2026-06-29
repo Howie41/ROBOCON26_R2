@@ -52,8 +52,32 @@ namespace arm_action {
 
 class Arm {
 public:
-    Arm(DM43xxMotor &arm_lift, MotorBase &arm_rotate, MotorBase &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
+    Arm(DM43xxMotor &arm_lift, MotorPlanningUnit &arm_rotate, MotorPlanningUnit &arm_expand, DM43xxMotor &arm_flip, uint8_t kfs_num = 0) : arm_lift_(arm_lift), arm_rotate_(arm_rotate), arm_expand_(arm_expand), arm_flip_(arm_flip), kfs_num_(kfs_num) {}
     ~Arm() {}
+
+
+
+    // 电机控制类行为基，为电机角度控制提供相对的基准值
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(215.0f + pos_deg, speed_deg); }
+    void setRotate(float pos, float t) { arm_rotate_.plan(t, pos + 70.0f); }
+    void setExpand(float pos, float t) { arm_expand_.plan(t, -std::clamp(pos, 120.0f, 960.0f)); }
+    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
+    
+    // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
+    bool set_pose(arm_pose pose) {
+        if (!(pose.special_operations & SKIP_MOTOR_CONTROL_)) {
+            setHeight(pose.h.pos, pose.h.speed);
+            setFlip(pose.f.pos, pose.f.speed);
+            setRotate(pose.r.pos, pose.r.t);
+            setExpand(pose.e.pos, pose.e.t);
+        }
+        if (pose.special_operations & RESET_) reset();
+        if (pose.special_operations & FETCH_) fetch();
+        if (pose.special_operations & PLACE_RELEASE_START_) place_release_start();
+        if (pose.special_operations & PLACE_RELEASE_STOP_) place_release_stop();
+        return pose.is_end;
+    }
+
 
 
     // 对外KFS控制接口
@@ -99,28 +123,6 @@ public:
     // 重置计时器
     void reset_timeline() { act_index_ = 0; last_t_ = DWT_GetTimeline_s(); }
 
-
-
-    // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(215.0f + pos_deg, speed_deg); }
-    void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos + 70.0f, speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
-    void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-std::clamp(pos, 120.0f, 960.0f), speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
-    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
-    
-    // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
-    bool set_pose(arm_pose pose) {
-        if (!(pose.special_operations & SKIP_MOTOR_CONTROL_)) {
-            setHeight(pose.h.pos, pose.h.speed);
-            setFlip(pose.f.pos, pose.f.speed);
-            setRotate(pose.r.pos, pose.r.speed, pose.r.ip, pose.r.ep);
-            setExpand(pose.e.pos, pose.e.speed, pose.e.ip, pose.e.ep);
-        }
-        if (pose.special_operations & RESET_) reset();
-        if (pose.special_operations & FETCH_) fetch();
-        if (pose.special_operations & PLACE_RELEASE_START_) place_release_start();
-        if (pose.special_operations & PLACE_RELEASE_STOP_) place_release_stop();
-        return pose.is_end;
-    }
 
     // 吸取KFS入储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool fetch_proceed(LOAD_TYPE step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
@@ -290,8 +292,8 @@ public:
     
 private:
     DM43xxMotor &arm_lift_;
-    MotorPlanningUnit &arm_rotate_;
-    MotorPlanningUnit &arm_expand_;
+    MotorPlanningUnit arm_rotate_;
+    MotorPlanningUnit arm_expand_;
     DM43xxMotor &arm_flip_;
 
     uint8_t kfs_num_{0};

@@ -87,8 +87,8 @@ DM43xxMotor arm4340_motor(&fdcan2_bus, 0x302, 0, 0x02, 0, // 抬升
                          DM43xxMotor::PosWithSpeed, true);
 
 
-MotorPlanningUnit arm2006_motor_planner(arm2006_motor);
 MotorPlanningUnit arm3508_motor_planner(arm3508_motor);
+MotorPlanningUnit arm2006_motor_planner(arm2006_motor);
 
 // Motor 速度规划相关
 MotorPlanningSystem motor_planning_system;
@@ -301,6 +301,7 @@ uint8_t comServiceInit() {
     UsbPort::Instance().SetRxCallback(onUsbRxCb, NULL);
 
     // Motor速度规划系统注册电机
+    motor_planning_system.register_motor(arm3508_motor_planner);
     motor_planning_system.register_motor(arm2006_motor_planner);
 
     return 0;

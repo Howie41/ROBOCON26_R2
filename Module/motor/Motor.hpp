@@ -118,11 +118,7 @@ public:
     float getRawCurrentTorque(void) const { return raw_torque_; }
 
 
-<<<<<<< Updated upstream
     // offline 检测
-=======
-      // offline 检测
->>>>>>> Stashed changes
     void setOfflineDeadline(const uint32_t offline_deadline) {
         offline_wd_.setTimeout(offline_deadline);
     }

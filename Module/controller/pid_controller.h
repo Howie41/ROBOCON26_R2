@@ -28,9 +28,9 @@ extern "C"{
 #include <math.h>
 
 
-#ifndef abs
-#define abs(x) ((x > 0) ? x : -x)
-#endif
+// #ifndef abs
+// #define abs(x) ((x > 0) ? x : -x)
+// #endif
 
 #if defined(__GNUC__)
 #define PID_ITCM_FUNC __attribute__((section(".itcm_text"), noinline))
