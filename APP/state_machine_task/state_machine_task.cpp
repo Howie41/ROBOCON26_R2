@@ -47,7 +47,7 @@ namespace waypoint {
     // ======== 三区 ========
     constexpr point before_uphill{8000, 3650, 0};
     constexpr point after_uphill{10725, 3650, 0};
-    // TODO: 赛中装填 KFS 点位
+    /** @brief 赛中装填 KFS 点位 */
     constexpr point load_kfs{10210,970,0};
 
     constexpr int16_t grid_y = -140;
@@ -60,8 +60,12 @@ namespace waypoint {
     constexpr point grid_left_close{grid_left.x, grid_close_y, -90};
     constexpr point grid_right_close{grid_right.x, grid_close_y, -90};
 
-    // TODO: R1 R2 合体预备姿势
-    constexpr point combination_area{0, 0, 0};
+    /** @brief 贴左侧围栏、近九宫格点位 */
+    constexpr point left_fence_front{grid_left.x + 300, grid_y, -90};
+    /** @brief 贴左侧围栏、后侧点位 */
+    constexpr point left_fence_back{grid_left.x + 300, 680, -90};
+    /** @brief R1 R2 合体预备点 */
+    constexpr point combination_area{grid_right.x, 680, -90};
 }
 
 volatile bool begin_signal{false};
@@ -337,9 +341,11 @@ public:
             case robot_state::begin: {
                 logger_queue.log("SM ======== BEGIN ========\n");
                 clean_previous_cmd();
-                wait_until([this]() -> bool {
-                    return (get_cmd_from_r1() == 0x2A);
-                });
+                // wait_until([this]() -> bool {
+                //     return (get_cmd_from_r1() == 0x2A);
+                // });
+                paused = true;
+                wait_until([]() -> bool { return !paused; });
                 logger_queue.log("SM begin signal\n");
                 change_state_to(robot_state::go_to_arena);
                 break;
@@ -352,6 +358,8 @@ public:
             }
 
             case robot_state::go_to_load_kfs: {
+                move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y - 1500, waypoint::after_uphill.yaw);
+                // 防止卡到斜坡上
                 move_to_pos(waypoint::load_kfs);
                 change_state_to(robot_state::load_kfs);
                 break;
@@ -362,36 +370,38 @@ public:
                 arm_action::raise_kfs_top();
                 osDelay(10*1000);
                 arm_action::unload_kfs(UNLOAD_TYPE::TOP);
-                change_state_to(robot_state::wait_for_place_mid_kfs_cmd);
+                change_state_to(robot_state::wait_and_place_kfs);
                 break;
             }
 
-            case robot_state::wait_for_place_mid_kfs_cmd: {
+            case robot_state::wait_and_place_kfs: {
+                move_to_pos(waypoint::grid_left);
                 clean_previous_cmd();
-                wait_until([this]() -> bool {
-                    switch (get_cmd_from_r1()) {
-                        case 0x3A:
-                            move_to_pos(waypoint::grid_left);
-                            return true;
-                            break;
-                        case 0x3B:
-                            move_to_pos(waypoint::grid_mid);
-                            return true;
-                            break;
-                        case 0x3C:
-                            move_to_pos(waypoint::grid_right);
-                            return true;
-                            break;
-                        default:
-                            return false;
-                            break;
-                    }
-                });
-                change_state_to(robot_state::place_kfs);
-                break;
-            }
-
-            case robot_state::place_kfs: {
+                // wait_until([this]() -> bool {
+                //     switch (get_cmd_from_r1()) {
+                //         case 0x3A:
+                //             move_to_pos(waypoint::grid_left_close);
+                //             return true;
+                //             break;
+                //         case 0x3B:
+                //             move_to_pos(waypoint::grid_mid);
+                //             move_to_pos(waypoint::grid_mid_close);
+                //             return true;
+                //             break;
+                //         case 0x3C:
+                //             move_to_pos(waypoint::grid_right);
+                //             move_to_pos(waypoint::grid_right_close);
+                //             return true;
+                //             break;
+                //         default:
+                //             return false;
+                //             break;
+                //     }
+                // });
+                paused = true;
+                wait_until([]() -> bool { return !paused; });
+                move_to_pos(waypoint::grid_right);
+                move_to_pos(waypoint::grid_right_close);
                 arm_action::release_kfs();
                 osDelay(3*1000);
                 change_state_to(robot_state::go_to_combination_area);
@@ -399,6 +409,10 @@ public:
             }
 
             case robot_state::go_to_combination_area: {
+                // 慢慢退后到 R1 后面，准备合体
+                move_to_pos(waypoint::grid_left);
+                move_to_pos(waypoint::left_fence_front);
+                move_to_pos(waypoint::left_fence_back);
                 move_to_pos(waypoint::combination_area);
                 change_state_to(robot_state::wait_for_combination_cmd);
                 break;
@@ -406,15 +420,17 @@ public:
 
             case robot_state::wait_for_combination_cmd: {
                 clean_previous_cmd();
-                wait_until([this]() -> bool {
-                    return (get_cmd_from_r1() == 0x4A);
-                });
+                // wait_until([this]() -> bool {
+                //     return (get_cmd_from_r1() == 0x4A);
+                // });
+                paused = true;
+                wait_until([]() -> bool { return !paused; });
                 change_state_to(robot_state::begin_combination);
                 break;
             }
 
             case robot_state::begin_combination: {
-                chassis_action::start_climb_R1();
+                // chassis_action::start_climb_R1();
                 change_state_to(robot_state::unload_kfs);
                 break;
             }
@@ -422,25 +438,26 @@ public:
             case robot_state::unload_kfs: {
                 arm_action::release_kfs();
                 arm_action::unload_kfs(UNLOAD_TYPE::LOW);
-                osDelay(7*1000);
                 change_state_to(robot_state::unload_kfs);
                 break;
             }
 
             case robot_state::wait_for_place_hi_kfs_cmd: {
                 clean_previous_cmd();
-                wait_until([this]() -> bool {
-                    switch (get_cmd_from_r1()) {
-                        case 0x5B: // 释放 KFS
-                            change_state_to(robot_state::release_kfs);
-                            return true;
-                        case 0x5A: // 重试取出KFS
-                            change_state_to(robot_state::unload_kfs);
-                            return true;
-                        default:
-                            return false;
-                    }
-                });
+                // wait_until([this]() -> bool {
+                //     switch (get_cmd_from_r1()) {
+                //         case 0x5B: // 释放 KFS
+                //             change_state_to(robot_state::release_kfs);
+                //             return true;
+                //         case 0x5A: // 重试取出KFS
+                //             change_state_to(robot_state::unload_kfs);
+                //             return true;
+                //         default:
+                //             return false;
+                //     }
+                // });
+                paused = true;
+                wait_until([]() -> bool { return !paused; });
                 break;
             }
 
@@ -485,8 +502,7 @@ private:
         go_to_arena,                   // 上坡、前往竞技场
         go_to_load_kfs,                // 前往距斜坡最近的KFS前
         load_kfs,                      // 装载KFS
-        wait_for_place_mid_kfs_cmd,    // 等待放置中层KFS的指令
-        place_kfs,                     // 放置KFS
+        wait_and_place_kfs,            // 等待指令，然后放置中层KFS
         go_to_combination_area,        // 前往合体点位
         wait_for_combination_cmd,      // 等待合体指令
         begin_combination,             // 合体
