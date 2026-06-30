@@ -25,6 +25,7 @@ UsbPort &UsbPort::Instance() {
 }
 
 bool UsbPort::WriteAsync(const uint8_t *data, size_t len) {
+  PumpTx();
   if (data == nullptr || len == 0) {
     return false;
   }
@@ -41,8 +42,11 @@ bool UsbPort::WriteAsync(const uint8_t *data, size_t len) {
 
     // 塞入发送队列
     if (tx_queue_.TryPush(pkt) != Algorithm::QueueError::OK) {
-      stats_.tx_drop_packets++;
-      return false;
+      PumpTx();
+      if (tx_queue_.TryPush(pkt) != Algorithm::QueueError::OK) {
+        stats_.tx_drop_packets++;
+        return false;
+      }
     }
 
     offset += chunk;

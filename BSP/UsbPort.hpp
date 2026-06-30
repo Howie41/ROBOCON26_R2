@@ -85,8 +85,8 @@ private:
   PacketQueue tx_queue_;
 
   Packet tx_staging_{};
-  bool tx_staging_valid_{false};
-  volatile bool tx_inflight_{false};
+  alignas(32) std::atomic<bool> tx_staging_valid_{false};
+  alignas(32) std::atomic<bool> tx_inflight_{false};
 
   RxCallback rx_callback_ = nullptr;
   void *rx_user_ = nullptr;
