@@ -139,7 +139,7 @@ PID_ITCM_FUNC float PID_Calculate(PID_t *pid, float measure, float ref)
     else
     {
         pid->Output = 0;
-        pid->Iout = 0;
+        if (!(pid->Improve & DEADBAND_REMAIN_IOUT)) pid->Iout = 0;
     }
     pid->Eriler_Measure = pid->Last_Measure;
     pid->Last_Measure = pid->Measure;

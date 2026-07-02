@@ -47,15 +47,16 @@ public:
         motor_planning_units_[motor_count_] = new MotorPlanningUnit{
             .motor = &motor,
             .pos_pid = {
-                .Kp = 42.0f,
+                .Kp = 0.07f,
                 .Ki = 0.0f,
-                .Kd = 1.6f,
+                .Kd = 0.0f,
                 .MaxOut = 60.0f,
                 .DeadBand = 0.3f
+                // .Improve = DEADBAND_REMAIN_IOUT
             },
             .speed_pid = {
-                .Kp = 3600.0f,
-                .Ki = 210000.0f,
+                .Kp = 3500.0f,
+                .Ki = 200000.0f,
                 .Kd = 0.0f,
                 .MaxOut = 10000.0f,
                 .DeadBand = 0.0f,
@@ -73,8 +74,8 @@ public:
      */
     void update() {
         for (uint8_t i = 0; i < motor_count_; i++) {
-            float v = motor_planning_units_[i]->motor->updateSpeedProcess();
-            motor_planning_units_[i]->pos_pid.MaxOut = v;
+            // float v = motor_planning_units_[i]->motor->updateSpeedProcess();
+            // motor_planning_units_[i]->pos_pid.MaxOut = v;
             if (motor_planning_units_[i]->wait_num1++ > -1) {
                 motor_planning_units_[i]->wait_num1 = 0;
                 PID_Calculate(&motor_planning_units_[i]->pos_pid, motor_planning_units_[i]->motor->getCurrentSumPos(), motor_planning_units_[i]->motor->tar_sum_pos_);
