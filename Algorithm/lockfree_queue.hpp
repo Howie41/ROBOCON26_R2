@@ -59,6 +59,8 @@ public:
   MpscQueue(const MpscQueue &) = delete;
   MpscQueue &operator=(const MpscQueue &) = delete;
 
+  ~MpscQueue() = default;
+
   template <typename T> QueueError TryPush(T &&item) noexcept {
     size_t pos = enqueue_pos_.load(std::memory_order_relaxed);
 
@@ -70,7 +72,7 @@ public:
 
       if (diff == 0) {
         if (enqueue_pos_.compare_exchange_weak(pos, pos + 1,
-                                               std::memory_order_relaxed,
+                                               std::memory_order_release,
                                                std::memory_order_relaxed)) {
           slot.data = std::forward<T>(item);
           slot.sequence.store(pos + 1, std::memory_order_release);
@@ -85,7 +87,7 @@ public:
   }
 
   QueueError TryPop(Data &out) noexcept {
-    const size_t pos = dequeue_pos_.load(std::memory_order_relaxed);
+    const size_t pos = dequeue_pos_.load(std::memory_order_acquire);
     Slot &slot = slots_[pos & kMask];
     const size_t seq = slot.sequence.load(std::memory_order_acquire);
     const intptr_t diff =
@@ -94,7 +96,7 @@ public:
     if (diff == 0) {
       out = std::move(slot.data);
       slot.sequence.store(pos + Capacity, std::memory_order_release);
-      dequeue_pos_.store(pos + 1, std::memory_order_relaxed);
+      dequeue_pos_.store(pos + 1, std::memory_order_release);
       return QueueError::OK;
     }
 
