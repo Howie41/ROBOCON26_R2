@@ -47,6 +47,10 @@ inline bool is_path_cmd(uint16_t code) {
 }
 } // namespace path_cmd
 
+enum class area_type : int16_t {
+    blue = 0,
+    red = 1,
+};
 
 #endif // __cplusplus
 

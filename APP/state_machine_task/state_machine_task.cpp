@@ -7,6 +7,7 @@
 
 #include "arm_task.hpp"
 #include "cmsis_os2.h"
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <mutex>
@@ -70,8 +71,8 @@ namespace waypoint {
 
 volatile bool begin_signal{false};
 
-static TypedTopicPublisher<pub_chassis_cmd> chassis_stop_cmd_pub("chassis_cmd");
-volatile bool paused{false};
+
+std::atomic<area_type> g_area_type{area_type::blue};
 
 class StateMachine {
 
@@ -89,17 +90,15 @@ public:
         }
         
         switch (current_state_) {
+            case robot_state::ready: {
+                logger_queue.log("SM ======== CWTY-READY ========\n");
+                handle_area_type();
+                change_state_to(robot_state::begin);
+                break;
+            }
 
             case robot_state::begin: {
-                // change_state_to(robot_state::wait_for_decision_cmd);
-                // break;
-                logger_queue.log("SM ======== BEGIN ========\n");
-                wait_until([]() -> bool {
-                    return begin_signal;
-                });
-                logger_queue.log("SM begin signal\n");
-                change_state_to(robot_state::go_to_mf_entrance);
-                break;
+                logger_queue.log("SM ======== CWTY-BEGIN ========\n");
 
                 tail_claw_set_weapon_claw(true);            // 打开夹爪，夹紧武器头
                 move_to_pos(-180, -115, 0, 5000);
@@ -322,8 +321,6 @@ public:
             }
 
             case robot_state::stop: {
-                logger_queue.log("SM ======== STOP ========\n");
-                // chassis_stop();
                 break;
             }
 
@@ -338,15 +335,19 @@ public:
             return;
         }
         switch (current_state_) {
+            case robot_state::ready: {
+                logger_queue.log("SM ======== JGCB-READY ========\n");
+                handle_area_type();
+                change_state_to(robot_state::begin);
+                break;
+            }
+
             case robot_state::begin: {
-                logger_queue.log("SM ======== BEGIN ========\n");
+                logger_queue.log("SM ======== JGCB-BEGIN ========\n");
                 clean_previous_cmd();
-                // wait_until([this]() -> bool {
-                //     return (get_cmd_from_r1() == 0x2A);
-                // });
-                paused = true;
-                wait_until([]() -> bool { return !paused; });
-                logger_queue.log("SM begin signal\n");
+                wait_until([this]() -> bool {
+                    return (get_cmd_from_r1() == 0x2A);
+                });
                 change_state_to(robot_state::go_to_arena);
                 break;
             }
@@ -377,29 +378,27 @@ public:
             case robot_state::wait_and_place_kfs: {
                 move_to_pos(waypoint::grid_left);
                 clean_previous_cmd();
-                // wait_until([this]() -> bool {
-                //     switch (get_cmd_from_r1()) {
-                //         case 0x3A:
-                //             move_to_pos(waypoint::grid_left_close);
-                //             return true;
-                //             break;
-                //         case 0x3B:
-                //             move_to_pos(waypoint::grid_mid);
-                //             move_to_pos(waypoint::grid_mid_close);
-                //             return true;
-                //             break;
-                //         case 0x3C:
-                //             move_to_pos(waypoint::grid_right);
-                //             move_to_pos(waypoint::grid_right_close);
-                //             return true;
-                //             break;
-                //         default:
-                //             return false;
-                //             break;
-                //     }
-                // });
-                paused = true;
-                wait_until([]() -> bool { return !paused; });
+                wait_until([this]() -> bool {
+                    switch (get_cmd_from_r1()) {
+                        case 0x3A:
+                            move_to_pos(waypoint::grid_left_close);
+                            return true;
+                            break;
+                        case 0x3B:
+                            move_to_pos(waypoint::grid_mid);
+                            move_to_pos(waypoint::grid_mid_close);
+                            return true;
+                            break;
+                        case 0x3C:
+                            move_to_pos(waypoint::grid_right);
+                            move_to_pos(waypoint::grid_right_close);
+                            return true;
+                            break;
+                        default:
+                            return false;
+                            break;
+                    }
+                });
                 move_to_pos(waypoint::grid_right);
                 move_to_pos(waypoint::grid_right_close);
                 arm_action::release_kfs();
@@ -420,17 +419,15 @@ public:
 
             case robot_state::wait_for_combination_cmd: {
                 clean_previous_cmd();
-                // wait_until([this]() -> bool {
-                //     return (get_cmd_from_r1() == 0x4A);
-                // });
-                paused = true;
-                wait_until([]() -> bool { return !paused; });
+                wait_until([this]() -> bool {
+                    return (get_cmd_from_r1() == 0x4A);
+                });
                 change_state_to(robot_state::begin_combination);
                 break;
             }
 
             case robot_state::begin_combination: {
-                // chassis_action::start_climb_R1();
+                chassis_action::start_climb_R1();
                 change_state_to(robot_state::unload_kfs);
                 break;
             }
@@ -438,26 +435,24 @@ public:
             case robot_state::unload_kfs: {
                 arm_action::release_kfs();
                 arm_action::unload_kfs(UNLOAD_TYPE::LOW);
-                change_state_to(robot_state::unload_kfs);
+                change_state_to(robot_state::wait_for_place_hi_kfs_cmd);
                 break;
             }
 
             case robot_state::wait_for_place_hi_kfs_cmd: {
                 clean_previous_cmd();
-                // wait_until([this]() -> bool {
-                //     switch (get_cmd_from_r1()) {
-                //         case 0x5B: // 释放 KFS
-                //             change_state_to(robot_state::release_kfs);
-                //             return true;
-                //         case 0x5A: // 重试取出KFS
-                //             change_state_to(robot_state::unload_kfs);
-                //             return true;
-                //         default:
-                //             return false;
-                //     }
-                // });
-                paused = true;
-                wait_until([]() -> bool { return !paused; });
+                wait_until([this]() -> bool {
+                    switch (get_cmd_from_r1()) {
+                        case 0x5B: // 释放 KFS
+                            change_state_to(robot_state::release_kfs);
+                            return true;
+                        case 0x5A: // 重试取出KFS
+                            change_state_to(robot_state::unload_kfs);
+                            return true;
+                        default:
+                            return false;
+                    }
+                });
                 break;
             }
 
@@ -468,7 +463,6 @@ public:
             }
 
             case robot_state::stop: {
-                logger_queue.log("SM ======== STOP ========\n");
                 break;
             }
 
@@ -480,7 +474,8 @@ public:
 private:
 
     enum class robot_state: uint8_t {
-        begin = 0,                     // 启动
+        ready = 0,                     // 上电后就绪等待开始
+        begin = 1,                     // 启动
         stop,                          // 停止
 
         // 崇武探幽
@@ -511,7 +506,7 @@ private:
         release_kfs,                   // 释放KFS
     };
 
-    robot_state current_state_{robot_state::begin};
+    robot_state current_state_{robot_state::ready};
     uint16_t current_path_cmd_index_{0};
     path_cmd::code current_path_cmd_{path_cmd::code::unknown}; // 初始值对下位机来说没有意义
 
@@ -524,9 +519,26 @@ private:
     TypedTopicSubscriber<path_cmd::code> path_cmd_sub_{"pc_path_cmd", 1}; // 接收路径规划cmd
     TypedTopicPublisher<uint16_t> path_cmd_request_pub_{"pc_path_cmd_request"}; // 请求路径规划cmd
 
+    TypedTopicSubscriber<int16_t> red_or_blue_area_sub_{"pc_red_or_blue_area", 2}; // 红蓝决定信息（也是开始信号）
+    TypedTopicPublisher<bool> red_or_blue_area_ack_pub_{"pc_red_or_blue_area_ack"}; // 红蓝决定信息回应
+
     pub_tail_claw_status tail_claw_status_cache_{};
     bool tail_claw_status_valid_{};
     bool state_machine_view_last_{};
+
+    /**
+     * @brief 处理红蓝半场区域类型
+     */
+    void handle_area_type() {
+        logger_queue.log("SM area type waiting...\n");
+        int16_t area_code{};
+        wait_until([&]() -> bool {
+            return red_or_blue_area_sub_.TryGet(&area_code);
+        });
+        logger_queue.log("SM area type received %d\n", area_code);
+        red_or_blue_area_ack_pub_.Publish(true); // 发送应答给上位机
+        g_area_type.store(static_cast<area_type>(area_code));
+    }
 
     /**
     * @brief 等待直到条件满足
@@ -595,26 +607,6 @@ private:
 
     bool move_to_pos(const waypoint::point &wp, uint32_t timeout_ms = 0) {
         return move_to_pos(wp.x, wp.y, wp.yaw, timeout_ms);
-    }
-
-    /**
-     * @brief 强制停止底盘导航
-     *
-     * 禁用自动导航并发布零速度指令，立即刹停底盘。
-     * 可在任何任务上下文中安全调用。
-     */
-    void chassis_stop() {
-        taskENTER_CRITICAL();
-        nav_control::auto_enabled = false;
-        nav_control::arrived = false;
-        nav_control::target_active = false;
-        nav_control::arrival_reported = false;
-        taskEXIT_CRITICAL();
-
-        // 发布零速度指令，确保底盘物理停止
-        pub_chassis_cmd cmd{};
-        cmd.nav_mode_ = true;
-        chassis_stop_cmd_pub.Publish(cmd);
     }
 
     /**

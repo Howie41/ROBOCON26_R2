@@ -156,6 +156,16 @@ void PcCom::OnPacket(Packet packet) {
       break;
     }
 
+    case static_cast<uint16_t>(PcCmd::red_or_blue_area): {
+      if (packet.body_size() != sizeof(int16_t)) {
+        return;
+      }
+      int16_t area{};
+      std::memcpy(&area, packet.body_data(), sizeof(area));
+      pc_red_or_blue_area_pub_.Publish(area);
+      break;
+    }
+
     default: {
       // 路径规划指令
       if (path_cmd::is_path_cmd(packet.code())) {
@@ -187,9 +197,11 @@ void PcCom::ProcessTx() {
   if (tail_claw_weapon_event_sub_.TryGet(&claw_start_msg)) {
       send(static_cast<uint16_t>(PcCmd::tail_claw_weapon_start), claw_start_msg);
   }
-  /*if (tail_claw_rod_event_sub_.TryGet(&claw_start_msg)) {
-    bool ok=send(static_cast<uint16_t>(PcCmd::tail_claw_rod_start), claw_start_msg);
-  }*/
+  // 回应红蓝半场决定
+  bool red_or_blue_area_ack{};
+  if (pc_red_or_blue_area_ack_sub_.TryGet(&red_or_blue_area_ack)) {
+    send(static_cast<uint16_t>(PcCmd::red_or_blue_area_ack), red_or_blue_area_ack);
+  }
 }
 
 template <typename T>

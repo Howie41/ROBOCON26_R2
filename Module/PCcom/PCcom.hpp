@@ -37,6 +37,9 @@ enum class PcCmd : uint16_t {
   nav_stair_cd_done = 0x020A, // 去中心驱动到达
 
   qr_code_parsed = 0xAA00,// 上位机解析到二维码指令
+
+  red_or_blue_area = 0x0000, // 上位机决定红蓝半场
+  red_or_blue_area_ack = 0x000A, // 下位机确认红蓝半场
 };
 class PcCom {
 public:
@@ -82,4 +85,7 @@ private:
     // 请求路径规划动作
     TypedTopicSubscriber<uint16_t> pc_path_cmd_request_sub_{"pc_path_cmd_request", 1};
     TypedTopicPublisher<path_cmd::code> pc_path_cmd_pub_{"pc_path_cmd"};
+
+    TypedTopicSubscriber<bool> pc_red_or_blue_area_ack_sub_{"pc_red_or_blue_area_ack", 1};
+    TypedTopicPublisher<int16_t> pc_red_or_blue_area_pub_{"pc_red_or_blue_area"};
 };
