@@ -69,8 +69,7 @@ namespace waypoint {
     constexpr point combination_area{grid_right.x, 680, -90};
 }
 
-volatile bool begin_signal{false};
-
+volatile bool debug_pause{false};
 
 std::atomic<area_type> g_area_type{area_type::blue};
 
@@ -572,6 +571,7 @@ private:
     }
 
     void change_state_to(robot_state new_state) {
+        do_debug_pause("change_state");
         logger_queue.log("SM %d -> %d\n", static_cast<int>(current_state_), static_cast<int>(new_state));
         current_state_ = new_state;
     }
@@ -685,6 +685,19 @@ private:
             move_to_pos(waypoint::mf_entrance_mid_close);
         } else {
             return; // 已经在最右边了，不能再右移
+        }
+    }
+
+    /**
+     * @brief 调试用的暂停函数，只有在 ENABLE_DEBUG_PAUSE 为 true 时才会生效
+     * @param msg 日志信息，用于标识暂停的原因
+     */
+    void do_debug_pause(const char *msg) {
+        if constexpr (ENABLE_DEBUG_PAUSE) {
+            debug_pause = true;
+            logger_queue.log("DEBUG pause: %s\n", msg);
+            wait_until([]() -> bool { return !debug_pause; });
+            logger_queue.log("DEBUG resume: %s\n", msg);
         }
     }
 };

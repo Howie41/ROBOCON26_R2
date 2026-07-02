@@ -18,9 +18,10 @@ enum class match_type : uint8_t {
     JGCB  // “九宫藏宝”
 };
 
-/** ========== 比赛类型 ========== */
+/** ========== 比赛配置 ========== */
 
 constexpr match_type MATCH_TYPE = match_type::JGCB;
+constexpr bool ENABLE_DEBUG_PAUSE = false;
 
 /** ============================= */
 
