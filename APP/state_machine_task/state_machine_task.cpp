@@ -121,11 +121,6 @@ public:
                         && fabsf(tail_claw_status_cache_.roll_target_deg - target) < 0.5f
                         && tail_claw_status_cache_.roll_arrived;
                 }, 3000U, 20U);
-                change_state_to(robot_state::aim_at_weapon);
-                break;
-            }
-
-            case robot_state::aim_at_weapon: {
                 change_state_to(robot_state::catch_weapon);
                 break;
             }
@@ -162,11 +157,6 @@ public:
                 break;
             }
 
-            case robot_state::wait_for_claw_cmd: {
-                change_state_to(robot_state::wait_for_decision_cmd);
-                break;
-            }
-
             case robot_state::wait_for_decision_cmd: {
                 clean_previous_cmd();
                 wait_until([this]() -> bool {
@@ -174,23 +164,16 @@ public:
                         case 0x0A: // 松开夹爪
                             tail_claw_set_weapon_claw(true);
                             return false;
-                            break;
                         case 0x1A: // 夹取新的武器头
                             change_state_to(robot_state::go_to_shr);
                             return true;
-                            break;
                         case 0x1B: // 进梅林
                             change_state_to(robot_state::go_to_mf_entrance);
                             return true;
-                            break;
                         default:
                             return false;
-                            break;
                     }
                 }, 25);
-                // tail_claw_set_weapon_claw(true);
-                // osDelay(3000);
-                change_state_to(robot_state::go_to_mf_entrance);
                 break;
             }
 
@@ -382,24 +365,18 @@ public:
                         case 0x3A:
                             move_to_pos(waypoint::grid_left_close);
                             return true;
-                            break;
                         case 0x3B:
                             move_to_pos(waypoint::grid_mid);
                             move_to_pos(waypoint::grid_mid_close);
                             return true;
-                            break;
                         case 0x3C:
                             move_to_pos(waypoint::grid_right);
                             move_to_pos(waypoint::grid_right_close);
                             return true;
-                            break;
                         default:
                             return false;
-                            break;
                     }
                 });
-                move_to_pos(waypoint::grid_right);
-                move_to_pos(waypoint::grid_right_close);
                 arm_action::release_kfs();
                 osDelay(3*1000);
                 change_state_to(robot_state::go_to_combination_area);
@@ -479,11 +456,9 @@ private:
 
         // 崇武探幽
         go_to_shr,                     // 前往端头架
-        aim_at_weapon,                 // 夹爪对准对应武器头
         catch_weapon,                  // 夹爪夹取武器
         rotate_weapon_claw,            // 夹爪反转
         match_rod,                     // 端头架对齐武器杆
-        wait_for_claw_cmd,             // 等待R1指令 决定继续夹取or前往梅林
         wait_for_decision_cmd,         // 等待操作手决策，决定是否拼装新的武器
 
         go_to_mf_entrance,             // 前往梅林入口
