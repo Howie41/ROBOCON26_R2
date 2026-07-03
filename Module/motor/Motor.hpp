@@ -132,7 +132,7 @@ public:
      *  @return y 0~1
      */
     float f_vx_buffer(float x) {
-        return (31.0f * x - 14.0f + sqrtf(196.0f + 29884.0f * x - 18507.0f * x * x)) / 124.0f * 0.996f;
+        return 0.8f * x;
     }
 
     /** @brief 位置与速度控制
@@ -179,7 +179,7 @@ public:
         is_finished_ = getIsFinished();
         pos_process_ = (getCurrentSumPos() - ini_sum_pos_) / (tar_sum_pos_ - ini_sum_pos_);
         if (pos_process_ > 1.0f - end_buffer_rate_) {  // 减速阶段：速度从max_speed_平滑过渡到end_speed_
-            v_ = end_speed_ + (max_speed_ - end_speed_) * f_vx_buffer((1.0f - pos_process_) / end_buffer_rate_);
+            v_ = max_speed_;  // end_speed_ + (max_speed_ - end_speed_) * f_vx_buffer((1.0f - pos_process_) / end_buffer_rate_);
         } else if (pos_process_ < ini_buffer_rate_) {  // 加速阶段：速度从ini_speed_平滑过渡到max_speed_
             v_ = ini_speed_ + (max_speed_ - ini_speed_) * f_vx_buffer(pos_process_ / ini_buffer_rate_);
         } else {  // 匀速阶段：保持在max_speed_
