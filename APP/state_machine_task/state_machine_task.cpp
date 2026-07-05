@@ -43,9 +43,9 @@ namespace waypoint {
     constexpr point after_rotate{11350, 1860, -90};
     constexpr point grid{11170, -980, -90};
 
-    constexpr point mf_entrance_mid{2060, 1500, 0};
-    constexpr point mf_entrance_left{2060, 1500+1200, 0};
-    constexpr point mf_entrance_right{2060, 1500-1200, 0};
+    constexpr point mf_entrance_mid{2060, 1770, 0};
+    constexpr point mf_entrance_left{2060, 1770+1200, 0};
+    constexpr point mf_entrance_right{2060, 1770-1200, 0};
 
     constexpr point mf_entrance_mid_close{2085, mf_entrance_mid.y, 0};
     constexpr point mf_entrance_left_close{2085, mf_entrance_left.y, 0};

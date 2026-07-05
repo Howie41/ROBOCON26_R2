@@ -5,8 +5,8 @@
 namespace merlin_map {
 namespace {
 
-constexpr int16_t kAnchorX = 3100;
-constexpr int16_t kAnchorY = 1500;
+constexpr int16_t kAnchorX = 3255;
+constexpr int16_t kAnchorY = 1770;
 constexpr int16_t kPitchMm = 1200;
 constexpr int32_t kIdentifyMaxDistSq = 1000 * 1000;
 
