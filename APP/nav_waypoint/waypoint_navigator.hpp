@@ -9,6 +9,10 @@ void stairWaypointRunDown();
 void stairWaypointRunGoToEdge();
 void stairWaypointRunReturnToCenter();
 
+extern volatile int32_t g_ozone_xbox_target_x;
+extern volatile int32_t g_ozone_xbox_target_y;
+extern volatile int32_t g_ozone_xbox_target_yaw;
+
 uint8_t stairWaypointStep();
 uint8_t stairWaypointLevel();
 bool stairWaypointArmed();
