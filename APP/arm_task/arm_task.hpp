@@ -57,9 +57,9 @@ public:
     
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(215.0f + pos_deg, speed_deg); }
-    void setRotate(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_rotate_.posWithSpeedControl(pos + 80.0f, 0.5 * speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
-    void setExpand(float pos, float speed, float ini_buffer_pos, float end_buffer_pos) { arm_expand_.posWithSpeedControl(-std::clamp(pos, 30.0f, 1050.0f), 0.86 * speed, ini_buffer_pos, end_buffer_pos, 0.0f, 0.0f); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(214.0f + pos_deg, speed_deg); }
+    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 85.0f, 1.2f * speed); }
+    void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1080.0f), 2.0f * speed); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
@@ -67,8 +67,8 @@ public:
         if (!(pose.special_operations & SKIP_MOTOR_CONTROL_)) {
             setHeight(pose.h.pos, pose.h.speed);
             setFlip(pose.f.pos, pose.f.speed);
-            setRotate(pose.r.pos, pose.r.speed, pose.r.ip, pose.r.ep);
-            setExpand(pose.e.pos, pose.e.speed, pose.e.ip, pose.e.ep);
+            setRotate(pose.r.pos, pose.r.speed);
+            setExpand(pose.e.pos, pose.e.speed);
         }
         if (pose.special_operations & RESET_) reset();
         if (pose.special_operations & FETCH_) fetch();

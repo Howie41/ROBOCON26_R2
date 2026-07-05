@@ -67,7 +67,7 @@ bool g_rear_photogate_descend_high_latched{false};
 volatile int32_t g_laser3_center_near_min_mm = 400;
 volatile int32_t g_laser3_center_near_max_mm = 470;
 volatile int32_t g_laser3_side_near_min_mm = 400;
-volatile int32_t g_laser3_side_near_max_mm = 500;
+volatile int32_t g_laser3_side_near_max_mm = 510;
 
 template <typename T>
 void saturatingIncrement(T &value) {

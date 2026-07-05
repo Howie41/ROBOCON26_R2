@@ -52,6 +52,7 @@ typedef enum pid_Improvement_e
     ErrorHandle = 0x80,                 //1000 0000 错误处理（电机堵转）
     IMCREATEMENT_OF_OUT = 0x100,        //0001 0000 0000 启用增量式输出
     Feedforward_CONTROLL = 0x200,       //0010 0000 0000 前馈控制
+    DEADBAND_REMAIN_IOUT = 0x400,        //0100 0000 0000 死区内保持积分输出（不清零）
 } PID_Improvement_e;
 
 /**

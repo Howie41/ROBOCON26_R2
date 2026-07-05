@@ -37,6 +37,7 @@ constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
 constexpr int16_t kDescendRetreatToLowerMm = 950;
 constexpr int16_t kGoToEdgeLowCoarseAdvanceMm = 200;
+constexpr int16_t kGroundGoToEdgeTargetX = 2060;
 constexpr int16_t kGroundCenterLaneToleranceMm = 80;
 constexpr float kPassDistanceMm = 200.0f;
 constexpr uint32_t kPassHoldMs = 1000U;
@@ -330,9 +331,17 @@ bool move_to_pose_until_trigger(const field::StairPose &pose, bool allow_pass,
 
 }  // namespace
 
+volatile int32_t g_ozone_xbox_target_x = field::kStairFrontPose.x;
+volatile int32_t g_ozone_xbox_target_y = field::kStairFrontPose.y;
+volatile int32_t g_ozone_xbox_target_yaw = field::kStairFrontPose.yaw;
+
 void stairWaypointGoToFront() {
   g_stair_waypoint_step.store(21);
-  const field::StairPose front_pose = stairStandbyPoseForLevel(0U);
+  const field::StairPose front_pose{
+      static_cast<int16_t>(g_ozone_xbox_target_x),
+      static_cast<int16_t>(g_ozone_xbox_target_y),
+      static_cast<int16_t>(g_ozone_xbox_target_yaw),
+  };
   move_to_pose(front_pose, true);
   g_stair_waypoint_level.store(0U);
   g_stair_waypoint_armed.store(true);
@@ -669,9 +678,38 @@ void stairWaypointRunDown() {
 void stairWaypointRunGoToEdge() {
   if (g_stair_waypoint_level.load() == 0U) {
     updateLaser3ProfileForGroundTargetY();
-  } else {
-    stairAssistSetLaser3Profile(StairAssistLaser3Profile::Center);
+    stairAssistSetMode(StairAssistMode::ClimbUp);
+    stairAssistSetAutoLowerEnabled(false);
+    stairAssistSetEnabled(true);
+
+    g_stair_waypoint_step.store(44);
+    const field::StairPose coarse_pose{
+        kGroundGoToEdgeTargetX,
+        static_cast<int16_t>(nav_control::target_y),
+        static_cast<int16_t>(nav_control::target_yaw),
+    };
+    const bool triggered =
+        move_to_pose_until_trigger(coarse_pose, false, []() {
+          return stairAssistSuggestGoToEdgeHigh();
+        });
+
+    stop_auto_nav();
+    if (!triggered) {
+      publishManualChassisCmd(kGoToEdgeSeekSpeedMps, 0.0f, 0.0f);
+      wait_until([]() {
+        stairAssistUpdate();
+        return stairAssistSuggestGoToEdgeHigh();
+      }, 10U);
+      stop_manual_chassis_motion();
+    }
+    stairAssistSetEnabled(false);
+    stairAssistSetAutoLowerEnabled(false);
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
   }
+
+  stairAssistSetLaser3Profile(StairAssistLaser3Profile::Center);
 
   if (!refreshCurrentMerlinCell()) {
     g_stair_waypoint_step.store(0);
@@ -753,6 +791,12 @@ void stairWaypointRunGoToEdge() {
 }
 
 void stairWaypointRunReturnToCenter() {
+  if (g_stair_waypoint_level.load() == 0U) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
   g_stair_waypoint_step.store(43);
 
   if (g_saved_center_pose.valid) {
