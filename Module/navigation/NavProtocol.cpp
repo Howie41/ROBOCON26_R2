@@ -12,6 +12,41 @@
 
 extern volatile float g_chassis_yaw_deg;
 
+volatile float g_nav_cruise_speed_mps = 3.00f;
+volatile float g_nav_brake_safety_scale = 6.00f;
+volatile float g_nav_max_accel_mps2 = 3.00f;
+volatile float g_nav_max_decel_mps2 = 13.00f;
+volatile float g_nav_blend_dist_mm = 30.0f;
+volatile float g_nav_pid_max_xy_speed_mps = 0.85f;
+volatile float g_nav_pid_max_omega_radps = 0.10f;
+volatile float g_nav_max_omega_radps = 3.00f;
+volatile float g_nav_min_omega_radps = 0.15f;
+volatile float g_nav_omega_slowdown_deg = 10.0f;
+volatile float g_nav_max_omega_accel_radps2 = 30.00f;
+volatile float g_nav_yaw_slowdown_start_deg = 12.0f;
+volatile float g_nav_yaw_slowdown_min_scale = 0.40f;
+volatile float g_nav_arrive_dist_mm = 20.0f;
+volatile float g_nav_arrive_yaw_deg = 0.50f;
+volatile uint8_t g_nav_arrive_hold_count_target = 3U;
+
+volatile float g_ozone_nav_dist_mm = 0.0f;
+volatile float g_ozone_nav_yaw_err_deg = 0.0f;
+volatile float g_ozone_nav_blend = 0.0f;
+volatile float g_ozone_nav_plan_speed_mps = 0.0f;
+volatile float g_ozone_nav_v_ref_mps = 0.0f;
+volatile float g_ozone_nav_vx_ref_mps = 0.0f;
+volatile float g_ozone_nav_vy_ref_mps = 0.0f;
+volatile float g_ozone_nav_omega_ref_radps = 0.0f;
+volatile float g_ozone_nav_pid_vx_mps = 0.0f;
+volatile float g_ozone_nav_pid_vy_mps = 0.0f;
+volatile float g_ozone_nav_pid_omega_radps = 0.0f;
+volatile float g_ozone_nav_vx_cmd_mps = 0.0f;
+volatile float g_ozone_nav_vy_cmd_mps = 0.0f;
+volatile float g_ozone_nav_omega_cmd_radps = 0.0f;
+volatile float g_ozone_nav_cmd_speed_mps = 0.0f;
+volatile float g_ozone_nav_brake_dist_mm = 0.0f;
+volatile uint8_t g_ozone_nav_arrive_hold_count = 0U;
+
 PID_t pid_x = {
     .Kp = 2.8f,
     .Ki = 0.30f,
@@ -42,7 +77,6 @@ PID_t pid_yaw = {
     .Improve = Integral_Limit,
 };
 
-// Phase 2: 高位2006导航 — 距离→速度PID
 PID_t pid_high_distance = {
     .Kp = 0.16f,
     .Ki = 0.05f,
@@ -53,7 +87,6 @@ PID_t pid_high_distance = {
     .Improve = Integral_Limit,
 };
 
-// Phase 2: 高位2006导航 — yaw锁角PID (输出2006 RPM)
 PID_t pid_high_yaw = {
     .Kp = 2.0f,
     .Ki = 0.02f,
@@ -66,9 +99,11 @@ PID_t pid_high_yaw = {
 
 static TypedTopicPublisher<pub_chassis_cmd> chassis_cmd_pub("chassis_cmd");
 static TypedTopicPublisher<pub_high_nav_cmd> high_nav_pub("high_nav_cmd");
-
-// PcCom 导航事件发布者: 全局可见，lift_task 也可使用
 TypedTopicPublisher<pc_nav_event_t> pc_nav_event_pub("pc_nav_event_pub");
+
+namespace {
+void resetLowNavRuntime();
+}
 
 namespace nav_control {
 int16_t current_x = 0;
@@ -83,8 +118,6 @@ bool arrived = false;
 bool target_active = false;
 bool arrival_reported = false;
 bool high_mode_active = false;
-
-// 位置更新时间戳: PcCom 收到位置上报时刷新，NavControlTask 用于超时检测
 TickType_t g_last_position_update_tick = 0;
 
 void updatePositionTimestamp() {
@@ -97,6 +130,7 @@ void resetAllPIDs() {
   PID_Init(&pid_yaw);
   PID_Init(&pid_high_distance);
   PID_Init(&pid_high_yaw);
+  resetLowNavRuntime();
 }
 
 }  // namespace nav_control
@@ -107,10 +141,18 @@ constexpr TickType_t kPositionTimeoutTicks = pdMS_TO_TICKS(1000);
 constexpr float kHighCruiseSpeedRpm = 500.0f;
 constexpr float kHighCrawlSpeedRpm = 100.0f;
 constexpr float kHighSlowdownDistMm = 70.0f;
+constexpr float kNavControlDtSec = 0.01f;
+constexpr float kMmToM = 0.001f;
+
+float s_nav_vx_cmd = 0.0f;
+float s_nav_vy_cmd = 0.0f;
+float s_nav_omega_cmd = 0.0f;
+uint8_t s_nav_arrive_hold_count = 0U;
 
 bool isPositionFresh(TickType_t now) {
   return (nav_control::g_last_position_update_tick != 0U) &&
-         ((now - nav_control::g_last_position_update_tick) <= kPositionTimeoutTicks);
+         ((now - nav_control::g_last_position_update_tick) <=
+          kPositionTimeoutTicks);
 }
 
 float normalizeDeg(float angle_deg) {
@@ -123,10 +165,135 @@ float normalizeDeg(float angle_deg) {
   return angle_deg;
 }
 
+float clampf(float value, float min_value, float max_value) {
+  if (value < min_value) {
+    return min_value;
+  }
+  if (value > max_value) {
+    return max_value;
+  }
+  return value;
+}
+
+void resetLowNavRuntime() {
+  s_nav_vx_cmd = 0.0f;
+  s_nav_vy_cmd = 0.0f;
+  s_nav_omega_cmd = 0.0f;
+  s_nav_arrive_hold_count = 0U;
+
+  g_ozone_nav_dist_mm = 0.0f;
+  g_ozone_nav_yaw_err_deg = 0.0f;
+  g_ozone_nav_blend = 0.0f;
+  g_ozone_nav_plan_speed_mps = 0.0f;
+  g_ozone_nav_v_ref_mps = 0.0f;
+  g_ozone_nav_vx_ref_mps = 0.0f;
+  g_ozone_nav_vy_ref_mps = 0.0f;
+  g_ozone_nav_omega_ref_radps = 0.0f;
+  g_ozone_nav_pid_vx_mps = 0.0f;
+  g_ozone_nav_pid_vy_mps = 0.0f;
+  g_ozone_nav_pid_omega_radps = 0.0f;
+  g_ozone_nav_vx_cmd_mps = 0.0f;
+  g_ozone_nav_vy_cmd_mps = 0.0f;
+  g_ozone_nav_omega_cmd_radps = 0.0f;
+  g_ozone_nav_cmd_speed_mps = 0.0f;
+  g_ozone_nav_brake_dist_mm = 0.0f;
+  g_ozone_nav_arrive_hold_count = 0U;
+}
+
+float calcBlendFactor(float dist_mm) {
+  const float denom = g_nav_blend_dist_mm - g_nav_arrive_dist_mm;
+  if (denom <= 1e-3f) {
+    return (dist_mm > g_nav_arrive_dist_mm) ? 1.0f : 0.0f;
+  }
+
+  const float t =
+      clampf((dist_mm - g_nav_arrive_dist_mm) / denom, 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
+
+float calcBrakeLimitedSpeed(float dist_mm) {
+  const float remain_mm = dist_mm - g_nav_arrive_dist_mm;
+  if (remain_mm <= 0.0f) {
+    return 0.0f;
+  }
+
+  const float safety =
+      (g_nav_brake_safety_scale < 1.0f) ? 1.0f : g_nav_brake_safety_scale;
+  const float decel =
+      (g_nav_max_decel_mps2 <= 1e-3f) ? 1e-3f : g_nav_max_decel_mps2;
+  const float remain_m = remain_mm * kMmToM;
+  const float effective_decel = decel / safety;
+  const float v_allow = sqrtf(2.0f * effective_decel * remain_m);
+  return clampf(v_allow, 0.0f, g_nav_cruise_speed_mps);
+}
+
+float calcBrakeDistanceMm(float speed_mps) {
+  const float safety =
+      (g_nav_brake_safety_scale < 1.0f) ? 1.0f : g_nav_brake_safety_scale;
+  const float decel =
+      (g_nav_max_decel_mps2 <= 1e-3f) ? 1e-3f : g_nav_max_decel_mps2;
+  return 1000.0f * speed_mps * speed_mps * safety / (2.0f * decel);
+}
+
+float calcYawSlowdownScale(float yaw_error_deg) {
+  const float abs_yaw = fabsf(yaw_error_deg);
+
+  if (abs_yaw <= g_nav_yaw_slowdown_start_deg) {
+    return 1.0f;
+  }
+  if (abs_yaw >= 90.0f) {
+    return g_nav_yaw_slowdown_min_scale;
+  }
+
+  const float denom = 90.0f - g_nav_yaw_slowdown_start_deg;
+  if (denom <= 1e-3f) {
+    return g_nav_yaw_slowdown_min_scale;
+  }
+
+  const float t = clampf(
+      (abs_yaw - g_nav_yaw_slowdown_start_deg) / denom, 0.0f, 1.0f);
+  return 1.0f - t * (1.0f - g_nav_yaw_slowdown_min_scale);
+}
+
+float calcOmegaPlan(float yaw_error_deg) {
+  const float abs_yaw = fabsf(yaw_error_deg);
+
+  if (abs_yaw <= g_nav_arrive_yaw_deg) {
+    return 0.0f;
+  }
+
+  float omega = g_nav_max_omega_radps;
+  if (abs_yaw < g_nav_omega_slowdown_deg) {
+    const float denom = g_nav_omega_slowdown_deg;
+    const float t =
+        (denom <= 1e-3f) ? 1.0f : clampf(abs_yaw / denom, 0.0f, 1.0f);
+    omega = g_nav_min_omega_radps +
+            t * (g_nav_max_omega_radps - g_nav_min_omega_radps);
+  }
+
+  return (yaw_error_deg >= 0.0f) ? omega : -omega;
+}
+
+float rampToward(float current, float target, float accel_step,
+                 float decel_step) {
+  if (target > current) {
+    const float step = (target >= 0.0f) ? accel_step : decel_step;
+    return ((target - current) > step) ? (current + step) : target;
+  }
+
+  if (target < current) {
+    const float step = (target <= 0.0f) ? accel_step : decel_step;
+    return ((current - target) > step) ? (current - step) : target;
+  }
+
+  return target;
+}
+
 void publishAutoStopCmd() {
   pub_chassis_cmd cmd{};
   cmd.nav_mode_ = true;
   chassis_cmd_pub.Publish(cmd);
+  resetLowNavRuntime();
 }
 
 void reportArrivalOnce() {
@@ -134,13 +301,10 @@ void reportArrivalOnce() {
     return;
   }
 
-  // 先设标志，防止重复发布
   nav_control::arrival_reported = true;
 
-  // 发布到达事件到 PcCom topic → ProcessTx 用二进制协议发送
   pc_nav_event_t evt{0x0201};
   pc_nav_event_pub.Publish(evt);
-
 }
 
 }  // namespace
@@ -159,7 +323,8 @@ bool NavProtocol::processByte(uint8_t byte, NavCmd &out_cmd) {
     int16_t p3 = 0;
 
     if (cmd_char == 'T') {
-      const int num_read = sscanf(line_buf_, "%*c %hd %hd %hd", &p1, &p2, &p3);
+      const int num_read =
+          sscanf(line_buf_, "%*c %hd %hd %hd", &p1, &p2, &p3);
       if (num_read >= 2) {
         out_cmd.type = CmdType::TARGET;
         out_cmd.param1 = p1;
@@ -228,13 +393,13 @@ void NavProtocol::buildResponse(const NavCmd &cmd, char *buf, size_t buf_size) {
       break;
 
     case CmdType::QUERY:
-      snprintf(buf, buf_size,
-               "STATE X=%hd Y=%hd YAW=%hd AUTO=%d POS_FRESH=%d ARRIVED=%d TARGET=%d\n",
-               nav_control::current_x, nav_control::current_y, nav_control::current_yaw,
-               nav_control::auto_enabled ? 1 : 0,
-               isPositionFresh(now) ? 1 : 0,
-               nav_control::arrived ? 1 : 0,
-               nav_control::target_active ? 1 : 0);
+      snprintf(
+          buf, buf_size,
+          "STATE X=%hd Y=%hd YAW=%hd AUTO=%d POS_FRESH=%d ARRIVED=%d TARGET=%d\n",
+          nav_control::current_x, nav_control::current_y,
+          nav_control::current_yaw, nav_control::auto_enabled ? 1 : 0,
+          isPositionFresh(now) ? 1 : 0, nav_control::arrived ? 1 : 0,
+          nav_control::target_active ? 1 : 0);
       break;
 
     case CmdType::STOP:
@@ -242,6 +407,7 @@ void NavProtocol::buildResponse(const NavCmd &cmd, char *buf, size_t buf_size) {
       nav_control::arrived = false;
       nav_control::target_active = false;
       nav_control::arrival_reported = false;
+      resetLowNavRuntime();
       snprintf(buf, buf_size, "STOP OK\n");
       break;
 
@@ -257,18 +423,13 @@ void NavControlTask(void *argument) {
   (void)argument;
   TickType_t lastWakeTime = xTaskGetTickCount();
 
-  PID_Init(&pid_x);
-  PID_Init(&pid_y);
-  PID_Init(&pid_yaw);
-  PID_Init(&pid_high_distance);
-  PID_Init(&pid_high_yaw);
+  nav_control::resetAllPIDs();
 
   for (;;) {
     const TickType_t now = xTaskGetTickCount();
 
     nav_control::current_yaw = static_cast<int16_t>(g_chassis_yaw_deg);
 
-    // ---- 楼梯状态机: 接管导航 ----
     if (nav_control::auto_enabled) {
       if (!isPositionFresh(now)) {
         nav_control::arrived = false;
@@ -277,28 +438,28 @@ void NavControlTask(void *argument) {
         continue;
       }
 
-      // ===== Phase 2: 高位2006导航分支 =====
       if (nav_control::high_mode_active) {
-        const float error_x = static_cast<float>(nav_control::target_x - nav_control::current_x);
-        const float error_y = static_cast<float>(nav_control::target_y - nav_control::current_y);
-        [[maybe_unused]] const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
+        const float error_x =
+            static_cast<float>(nav_control::target_x - nav_control::current_x);
+        const float error_y =
+            static_cast<float>(nav_control::target_y - nav_control::current_y);
 
-        // 用现有车身坐标转换，得到目标在车体坐标系中的方向
         const float yaw_rad =
             static_cast<float>(nav_control::current_yaw) * 3.14159f / 180.0f;
-        const float error_x_body =  error_x * cosf(yaw_rad) + error_y * sinf(yaw_rad);
-        const float error_y_body = error_x * sinf(yaw_rad) - error_y * cosf(yaw_rad);
+        const float error_x_body =
+            error_x * cosf(yaw_rad) + error_y * sinf(yaw_rad);
+        const float error_y_body =
+            error_x * sinf(yaw_rad) - error_y * cosf(yaw_rad);
 
-        // 车体坐标系：前进时锁前向，后退时反转180°锁后向
         const float raw_heading =
             atan2f(error_y_body, error_x_body) * 180.0f / 3.14159f;
         const float heading_error =
-            (error_x_body >= 0) ? raw_heading : normalizeDeg(raw_heading - 180.0f);
+            (error_x_body >= 0) ? raw_heading
+                                : normalizeDeg(raw_heading - 180.0f);
 
         pub_high_nav_cmd high_cmd{};
         high_cmd.active = true;
 
-        // 目标在车体前方→前进300RPM, 后方→后退400RPM
         const float abs_error_x_body = fabsf(error_x_body);
         const float base_speed =
             (abs_error_x_body <= kHighSlowdownDistMm) ? kHighCrawlSpeedRpm
@@ -306,9 +467,9 @@ void NavControlTask(void *argument) {
         high_cmd.forward_speed = (error_x_body >= 0) ? base_speed : -base_speed;
         high_cmd.omega = PID_Calculate(&pid_high_yaw, 0.0f, heading_error);
 
-        // 限幅
         if (high_cmd.forward_speed > 500.0f) high_cmd.forward_speed = 500.0f;
-        if (high_cmd.forward_speed < -500.0f) high_cmd.forward_speed = -500.0f;
+        if (high_cmd.forward_speed < -500.0f)
+          high_cmd.forward_speed = -500.0f;
         if (high_cmd.omega > 500.0f) high_cmd.omega = 500.0f;
         if (high_cmd.omega < -500.0f) high_cmd.omega = -500.0f;
 
@@ -325,33 +486,85 @@ void NavControlTask(void *argument) {
         continue;
       }
 
-      // ===== 低位: 全向轮导航（现有逻辑） =====
-      const float error_x = static_cast<float>(nav_control::target_x - nav_control::current_x);
-      const float error_y = static_cast<float>(nav_control::target_y - nav_control::current_y);
-      const float error_yaw = normalizeDeg(static_cast<float>(nav_control::target_yaw - nav_control::current_yaw));
+      const float error_x =
+          static_cast<float>(nav_control::target_x - nav_control::current_x);
+      const float error_y =
+          static_cast<float>(nav_control::target_y - nav_control::current_y);
+      const float error_yaw = normalizeDeg(static_cast<float>(
+          nav_control::target_yaw - nav_control::current_yaw));
 
       const float yaw_rad =
           static_cast<float>(nav_control::current_yaw) * 3.14159f / 180.0f;
+      const float error_x_body =
+          error_x * cosf(yaw_rad) + error_y * sinf(yaw_rad);
+      const float error_y_body =
+          error_x * sinf(yaw_rad) - error_y * cosf(yaw_rad);
+      const float dist_error =
+          sqrtf(error_x_body * error_x_body + error_y_body * error_y_body);
 
-      // 坐标映射调整：
-      // - 世界 X+ → 车体向前
-      // - 世界 Y+ → 车体向左
-      const float error_x_body =  error_x * cosf(yaw_rad) + error_y * sinf(yaw_rad);
-      const float error_y_body = error_x * sinf(yaw_rad) - error_y * cosf(yaw_rad);
+      float dir_x = 0.0f;
+      float dir_y = 0.0f;
+      if (dist_error > 1e-3f) {
+        dir_x = error_x_body / dist_error;
+        dir_y = error_y_body / dist_error;
+      }
 
-      const float vx = PID_Calculate(&pid_x, 0.0f, error_x_body);
-      const float vy = PID_Calculate(&pid_y, 0.0f, error_y_body);
-      const float omega = PID_Calculate(&pid_yaw, 0.0f, error_yaw);
+      const float blend = calcBlendFactor(dist_error);
+      const float brake_speed = calcBrakeLimitedSpeed(dist_error);
+      const float yaw_scale = calcYawSlowdownScale(error_yaw);
+      const float plan_speed = brake_speed * yaw_scale;
+      const float vx_plan = plan_speed * dir_x;
+      const float vy_plan = plan_speed * dir_y;
+      const float omega_plan = calcOmegaPlan(error_yaw);
+
+      const float vx_pid_raw =
+          PID_Calculate(&pid_x, 0.0f, error_x_body) / 1000.0f;
+      const float vy_pid_raw =
+          PID_Calculate(&pid_y, 0.0f, error_y_body) / 1000.0f;
+      const float omega_pid_raw = PID_Calculate(&pid_yaw, 0.0f, error_yaw);
+
+      const float vx_pid = clampf(
+          vx_pid_raw, -g_nav_pid_max_xy_speed_mps, g_nav_pid_max_xy_speed_mps);
+      const float vy_pid = clampf(
+          vy_pid_raw, -g_nav_pid_max_xy_speed_mps, g_nav_pid_max_xy_speed_mps);
+      const float omega_pid = clampf(omega_pid_raw, -g_nav_pid_max_omega_radps,
+                                     g_nav_pid_max_omega_radps);
+
+      const float vx_ref = blend * vx_plan + (1.0f - blend) * vx_pid;
+      const float vy_ref = blend * vy_plan + (1.0f - blend) * vy_pid;
+      const float omega_ref =
+          blend * omega_plan + (1.0f - blend) * omega_pid;
+
+      s_nav_vx_cmd = rampToward(
+          s_nav_vx_cmd, vx_ref, g_nav_max_accel_mps2 * kNavControlDtSec,
+          g_nav_max_decel_mps2 * kNavControlDtSec);
+      s_nav_vy_cmd = rampToward(
+          s_nav_vy_cmd, vy_ref, g_nav_max_accel_mps2 * kNavControlDtSec,
+          g_nav_max_decel_mps2 * kNavControlDtSec);
+      s_nav_omega_cmd = rampToward(
+          s_nav_omega_cmd, omega_ref,
+          g_nav_max_omega_accel_radps2 * kNavControlDtSec,
+          g_nav_max_omega_accel_radps2 * kNavControlDtSec);
 
       pub_chassis_cmd cmd{};
-      cmd.linear_x_ = vx / 1000.0f;
-      cmd.linear_y_ = vy / 1000.0f;
-      cmd.omega_ = omega;
+      cmd.linear_x_ = s_nav_vx_cmd;
+      cmd.linear_y_ = s_nav_vy_cmd;
+      cmd.omega_ = s_nav_omega_cmd;
       cmd.nav_mode_ = true;
       chassis_cmd_pub.Publish(cmd);
 
-      const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
-      const bool reached = (dist_error < 30.0f) && (fabsf(error_yaw) < 1.0f);
+      const bool pose_ok = dist_error < g_nav_arrive_dist_mm;
+      const bool yaw_ok = fabsf(error_yaw) < g_nav_arrive_yaw_deg;
+      if (pose_ok && yaw_ok) {
+        if (s_nav_arrive_hold_count < g_nav_arrive_hold_count_target) {
+          ++s_nav_arrive_hold_count;
+        }
+      } else {
+        s_nav_arrive_hold_count = 0U;
+      }
+
+      const bool reached =
+          (s_nav_arrive_hold_count >= g_nav_arrive_hold_count_target);
 
       nav_control::arrived = reached;
       if (reached) {
@@ -359,6 +572,26 @@ void NavControlTask(void *argument) {
       } else {
         nav_control::arrival_reported = false;
       }
+
+      g_ozone_nav_dist_mm = dist_error;
+      g_ozone_nav_yaw_err_deg = error_yaw;
+      g_ozone_nav_blend = blend;
+      g_ozone_nav_plan_speed_mps = plan_speed;
+      g_ozone_nav_v_ref_mps = sqrtf(vx_ref * vx_ref + vy_ref * vy_ref);
+      g_ozone_nav_vx_ref_mps = vx_ref;
+      g_ozone_nav_vy_ref_mps = vy_ref;
+      g_ozone_nav_omega_ref_radps = omega_ref;
+      g_ozone_nav_pid_vx_mps = vx_pid;
+      g_ozone_nav_pid_vy_mps = vy_pid;
+      g_ozone_nav_pid_omega_radps = omega_pid;
+      g_ozone_nav_vx_cmd_mps = s_nav_vx_cmd;
+      g_ozone_nav_vy_cmd_mps = s_nav_vy_cmd;
+      g_ozone_nav_omega_cmd_radps = s_nav_omega_cmd;
+      g_ozone_nav_cmd_speed_mps =
+          sqrtf(s_nav_vx_cmd * s_nav_vx_cmd + s_nav_vy_cmd * s_nav_vy_cmd);
+      g_ozone_nav_brake_dist_mm =
+          calcBrakeDistanceMm(g_ozone_nav_cmd_speed_mps);
+      g_ozone_nav_arrive_hold_count = s_nav_arrive_hold_count;
     }
 
     vTaskDelayUntil(&lastWakeTime, 10);
