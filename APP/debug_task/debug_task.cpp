@@ -21,9 +21,6 @@ volatile uint8_t debug_r1_cmd{0x00};
 TypedTopicPublisher<pub_qr_code_parsed> qr_code_pub{"qr_code_parsed"};
 
 void debugTask(void *argument) {
-  (void)argument;
-  TickType_t lastWake = xTaskGetTickCount();
-
   for (;;) {
     osDelay(50);
     logger_queue.trySend();
