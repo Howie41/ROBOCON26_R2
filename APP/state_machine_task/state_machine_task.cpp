@@ -29,49 +29,52 @@ extern Arm arm;  // 取矿机构实例
 extern LoggerQueue logger_queue;
 
 namespace waypoint {
-    struct point{
-        int16_t x;
-        int16_t y;
-        int16_t yaw;
-    };
+class location{
+public:
+    int16_t x;
+    int16_t y;
+    int16_t yaw;
+};
 
-    constexpr point init{-550, 150, 0};
+constexpr location init{-550, 150, 0};
 
-    constexpr point mf_entrance_mid{2060, 1500, 0};
-    constexpr point mf_entrance_left{2060, 1500+1200, 0};
-    constexpr point mf_entrance_right{2060, 1500-1200, 0};
+constexpr location mf_entrance_mid{2060, 1500, 0};
+constexpr location mf_entrance_left{2060, 1500+1200, 0};
+constexpr location mf_entrance_right{2060, 1500-1200, 0};
 
-    constexpr point mf_entrance_mid_close{2085, mf_entrance_mid.y, 0};
-    constexpr point mf_entrance_left_close{2085, mf_entrance_left.y, 0};
-    constexpr point mf_entrance_right_close{2085, mf_entrance_right.y, 0};
+constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0};
+constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0};
+constexpr location mf_entrance_right_close{2085, mf_entrance_right.y, 0};
 
-    // ======== 三区 ========
-    constexpr point before_uphill{8000, 3650, 0};
-    constexpr point after_uphill{10725, 3650, 0};
-    /** @brief 赛中装填 KFS 点位 */
-    constexpr point load_kfs{10210,970,0};
+// ======== 三区 ========
+constexpr location before_uphill{8000, 3650, 0};
+constexpr location after_uphill{10725, 3650, 0};
+/** @brief 赛中装填 KFS 点位 */
+constexpr location load_kfs{10210,970,0};
 
-    constexpr int16_t grid_y = -140;
-    constexpr point grid_mid{10000, grid_y, -90};
-    constexpr point grid_left{grid_mid.x + 540, grid_y, -90};
-    constexpr point grid_right{grid_mid.x - 540, grid_y, -90};
+constexpr int16_t grid_y = -140;
+constexpr location grid_mid{10000, grid_y, -90};
+constexpr location grid_left{grid_mid.x + 540, grid_y, -90};
+constexpr location grid_right{grid_mid.x - 540, grid_y, -90};
 
-    constexpr int16_t grid_close_y = -500;
-    constexpr point grid_mid_close{grid_mid.x, grid_close_y, -90};
-    constexpr point grid_left_close{grid_left.x, grid_close_y, -90};
-    constexpr point grid_right_close{grid_right.x, grid_close_y, -90};
+constexpr int16_t grid_close_y = -500;
+constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90};
+constexpr location grid_left_close{grid_left.x, grid_close_y, -90};
+constexpr location grid_right_close{grid_right.x, grid_close_y, -90};
 
-    /** @brief 贴左侧围栏、近九宫格点位 */
-    constexpr point left_fence_front{grid_left.x + 300, grid_y, -90};
-    /** @brief 贴左侧围栏、后侧点位 */
-    constexpr point left_fence_back{grid_left.x + 300, 680, -90};
-    /** @brief R1 R2 合体预备点 */
-    constexpr point combination_area{grid_right.x, 680, -90};
-}
+/** @brief 贴左侧围栏、近九宫格点位 */
+constexpr location left_fence_front{grid_left.x + 300, grid_y, -90};
+/** @brief 贴左侧围栏、后侧点位 */
+constexpr location left_fence_back{grid_left.x + 300, 680, -90};
+/** @brief R1 R2 合体预备点 */
+constexpr location combination_area{grid_right.x, 680, -90};
+} // namespace waypoint
 
 volatile bool debug_pause{false};
-
-std::atomic<area_type> g_area_type{area_type::blue};
+std::atomic<bool> g_config_valid{false};
+std::atomic<int16_t> g_config_origin_x{0};
+std::atomic<int16_t> g_config_origin_y{0};
+std::atomic<area_type> g_config_area_type{area_type::blue};
 
 class StateMachine {
 public:
@@ -110,7 +113,7 @@ public:
         } else {
             logger_queue.log("SM ======== JGCB-READY ========\n");
         }
-        sm.handle_area_type();
+        sm.wait_for_startup_config();
         if constexpr (MATCH_TYPE == match_type::CWTY) {
             sm.change_state_to(begin_cwty::instance());
         } else {
@@ -459,6 +462,8 @@ private:
     int8_t moved_left_right_{0}; // 左右移动计数
     int flag_{0};                 // 武器夹取计数，0=第一次夹取，非0=后续夹取
 
+    startup_config current_startup_config_{};
+    std::optional<waypoint::location> current_origin_location_{};
     state* current_state_{&ready::instance()};
     uint16_t current_path_cmd_index_{0};
     path_cmd::code current_path_cmd_{path_cmd::code::unknown}; // 初始值对下位机来说没有意义
@@ -472,25 +477,36 @@ private:
     TypedTopicSubscriber<path_cmd::code> path_cmd_sub_{"pc_path_cmd", 1}; // 接收路径规划cmd
     TypedTopicPublisher<uint16_t> path_cmd_request_pub_{"pc_path_cmd_request"}; // 请求路径规划cmd
 
-    TypedTopicSubscriber<int16_t> red_or_blue_area_sub_{"pc_red_or_blue_area", 2}; // 红蓝决定信息（也是开始信号）
-    TypedTopicPublisher<bool> red_or_blue_area_ack_pub_{"pc_red_or_blue_area_ack"}; // 红蓝决定信息回应
+    TypedTopicSubscriber<startup_config> startup_config_sub_{"pc_startup_config", 1}; // 启动配置接收（也是开始信号）
+    TypedTopicPublisher<bool> startup_config_ack_pub_{"pc_startup_config_ack"}; // 启动配置接收回应
 
     pub_tail_claw_status tail_claw_status_cache_{};
     bool tail_claw_status_valid_{};
     bool state_machine_view_last_{};
 
     /**
-     * @brief 处理红蓝半场区域类型
+     * @brief 等待上位机发送启动配置
      */
-    void handle_area_type() {
-        logger_queue.log("SM area type waiting...\n");
-        int16_t area_code{};
+    void wait_for_startup_config() {
+        logger_queue.log("SM startup config waiting...\n");
+        startup_config config{};
         wait_until([&]() -> bool {
-            return red_or_blue_area_sub_.TryGet(&area_code);
+            return startup_config_sub_.TryGet(&config);
         });
-        logger_queue.log("SM area type received %d\n", area_code);
-        red_or_blue_area_ack_pub_.Publish(true); // 发送应答给上位机
-        g_area_type.store(static_cast<area_type>(area_code));
+        logger_queue.log("SM startup config received:\n");
+        logger_queue.log("  area=%d begin=%d O(%d,%d)\n",
+            static_cast<int>(config.area_type_value),
+            static_cast<int>(config.begin_type_value),
+            config.origin_x,
+            config.origin_y
+        );
+        current_startup_config_ = config;
+        current_origin_location_.emplace(waypoint::location{config.origin_x, config.origin_y, 0});
+        g_config_origin_x.store(config.origin_x);
+        g_config_origin_y.store(config.origin_y);
+        g_config_area_type.store(config.area_type_value);
+        g_config_valid.store(true);
+        startup_config_ack_pub_.Publish(true); // 发送应答给上位机
     }
 
     /**
@@ -532,6 +548,11 @@ private:
 
     // 这个函数必须在任务环境里调用
     bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0) {
+        if (current_origin_location_.has_value()) {
+            x += current_origin_location_->x;
+            y += current_origin_location_->y;
+        }
+
         taskENTER_CRITICAL();
         nav_control::target_x = x;
         nav_control::target_y = y;
@@ -559,8 +580,8 @@ private:
              && delta_y < LOOSE_ARRIVED_THRESHOLD && delta_y > -LOOSE_ARRIVED_THRESHOLD);
     }
 
-    bool move_to_pos(const waypoint::point &wp, uint32_t timeout_ms = 0) {
-        return move_to_pos(wp.x, wp.y, wp.yaw, timeout_ms);
+    bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0) {
+        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms);
     }
 
     /**

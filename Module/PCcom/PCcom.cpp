@@ -156,13 +156,13 @@ void PcCom::OnPacket(Packet packet) {
       break;
     }
 
-    case static_cast<uint16_t>(PcCmd::red_or_blue_area): {
-      if (packet.body_size() != sizeof(int16_t)) {
+    case static_cast<uint16_t>(PcCmd::startup_config): {
+      if (packet.body_size() != sizeof(startup_config)) {
         return;
       }
-      int16_t area{};
-      std::memcpy(&area, packet.body_data(), sizeof(area));
-      pc_red_or_blue_area_pub_.Publish(area);
+      startup_config config{};
+      std::memcpy(&config, packet.body_data(), sizeof(config));
+      pc_startup_config_pub_.Publish(config);
       break;
     }
 
@@ -197,10 +197,10 @@ void PcCom::ProcessTx() {
   if (tail_claw_weapon_event_sub_.TryGet(&claw_start_msg)) {
       send(static_cast<uint16_t>(PcCmd::tail_claw_weapon_start), claw_start_msg);
   }
-  // 回应红蓝半场决定
-  bool red_or_blue_area_ack{};
-  if (pc_red_or_blue_area_ack_sub_.TryGet(&red_or_blue_area_ack)) {
-    send(static_cast<uint16_t>(PcCmd::red_or_blue_area_ack), red_or_blue_area_ack);
+  // 回应上位机启动配置
+  bool startup_config_ack{};
+  if (pc_startup_config_ack_sub_.TryGet(&startup_config_ack)) {
+    send(static_cast<uint16_t>(PcCmd::startup_config_ack), startup_config_ack);
   }
 }
 

@@ -53,6 +53,13 @@ enum class area_type : int16_t {
     red = 1,
 };
 
+enum class begin_type : int16_t {
+    mc = 0,                    // 一区
+    mf = 1,                    // 二区
+    arena_before_uphill = 2,   // 三区 斜坡前
+    arena_retry_zone = 3,      // 三区 斜坡后 重试区
+};
+
 #endif // __cplusplus
 
 static_assert(MATCH_TYPE == match_type::CWTY || MATCH_TYPE == match_type::JGCB,

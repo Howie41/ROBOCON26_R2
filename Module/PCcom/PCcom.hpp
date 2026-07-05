@@ -38,8 +38,8 @@ enum class PcCmd : uint16_t {
 
   qr_code_parsed = 0xAA00,// 上位机解析到二维码指令
 
-  red_or_blue_area = 0x0000, // 上位机决定红蓝半场
-  red_or_blue_area_ack = 0x000A, // 下位机确认红蓝半场
+  startup_config = 0x0000, // 上位机启动配置
+  startup_config_ack = 0x000A, // 下位机回复配置
 };
 class PcCom {
 public:
@@ -86,6 +86,6 @@ private:
     TypedTopicSubscriber<uint16_t> pc_path_cmd_request_sub_{"pc_path_cmd_request", 1};
     TypedTopicPublisher<path_cmd::code> pc_path_cmd_pub_{"pc_path_cmd"};
 
-    TypedTopicSubscriber<bool> pc_red_or_blue_area_ack_sub_{"pc_red_or_blue_area_ack", 1};
-    TypedTopicPublisher<int16_t> pc_red_or_blue_area_pub_{"pc_red_or_blue_area"};
+    TypedTopicSubscriber<bool> pc_startup_config_ack_sub_{"pc_startup_config_ack", 1};
+    TypedTopicPublisher<startup_config> pc_startup_config_pub_{"pc_startup_config"};
 };
