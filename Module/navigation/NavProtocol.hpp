@@ -12,6 +12,41 @@ extern osThreadId_t NavControlTaskHandle;
 
 void NavControlTask(void *argument);
 
+extern volatile float g_nav_cruise_speed_mps;
+extern volatile float g_nav_brake_safety_scale;
+extern volatile float g_nav_max_accel_mps2;
+extern volatile float g_nav_max_decel_mps2;
+extern volatile float g_nav_blend_dist_mm;
+extern volatile float g_nav_pid_max_xy_speed_mps;
+extern volatile float g_nav_pid_max_omega_radps;
+extern volatile float g_nav_max_omega_radps;
+extern volatile float g_nav_min_omega_radps;
+extern volatile float g_nav_omega_slowdown_deg;
+extern volatile float g_nav_max_omega_accel_radps2;
+extern volatile float g_nav_yaw_slowdown_start_deg;
+extern volatile float g_nav_yaw_slowdown_min_scale;
+extern volatile float g_nav_arrive_dist_mm;
+extern volatile float g_nav_arrive_yaw_deg;
+extern volatile uint8_t g_nav_arrive_hold_count_target;
+
+extern volatile float g_ozone_nav_dist_mm;
+extern volatile float g_ozone_nav_yaw_err_deg;
+extern volatile float g_ozone_nav_blend;
+extern volatile float g_ozone_nav_plan_speed_mps;
+extern volatile float g_ozone_nav_v_ref_mps;
+extern volatile float g_ozone_nav_vx_ref_mps;
+extern volatile float g_ozone_nav_vy_ref_mps;
+extern volatile float g_ozone_nav_omega_ref_radps;
+extern volatile float g_ozone_nav_pid_vx_mps;
+extern volatile float g_ozone_nav_pid_vy_mps;
+extern volatile float g_ozone_nav_pid_omega_radps;
+extern volatile float g_ozone_nav_vx_cmd_mps;
+extern volatile float g_ozone_nav_vy_cmd_mps;
+extern volatile float g_ozone_nav_omega_cmd_radps;
+extern volatile float g_ozone_nav_cmd_speed_mps;
+extern volatile float g_ozone_nav_brake_dist_mm;
+extern volatile uint8_t g_ozone_nav_arrive_hold_count;
+
 namespace nav_control {
 
 extern int16_t current_x;
