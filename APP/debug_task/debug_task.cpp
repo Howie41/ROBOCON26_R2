@@ -11,8 +11,11 @@
 #include "merlin_map/merlin_map.h"
 #include "stair_assist.h"
 #include "waypoint_navigator.hpp"
+#include "logger.hpp"
+
 
 osThreadId_t Debug_TaskHandle;
+extern LoggerQueue logger_queue;
 
 volatile int32_t g_ozone_laser2_mm = 0;
 volatile uint8_t g_ozone_laser2_fresh = 0;
@@ -53,6 +56,7 @@ void debugTask(void *argument) {
 
   for (;;) {
     vTaskDelayUntil(&lastWake, 20);
+    logger_queue.try_send();
 
     const auto &assist_debug = stairAssistDebug();
     const auto &map_debug = merlin_map::debug();
