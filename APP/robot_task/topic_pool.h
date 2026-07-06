@@ -15,6 +15,7 @@
  */
 #pragma once
 #include "fdcan.h"
+#include "state_machine_task.h"
 #include "usart.h"
 #include <cstdint>
 #include <stdbool.h>
@@ -164,5 +165,12 @@ typedef struct {
 typedef struct {
   uint8_t data;
 } pub_qr_code_parsed; // topic = "qr_code_parsed"
+
+struct startup_config {
+  area_type area_type_value;
+  begin_type begin_type_value;
+  int16_t origin_x;
+  int16_t origin_y;
+};
 
 #pragma pack()

@@ -156,6 +156,16 @@ void PcCom::OnPacket(Packet packet) {
       break;
     }
 
+    case static_cast<uint16_t>(PcCmd::startup_config): {
+      if (packet.body_size() != sizeof(startup_config)) {
+        return;
+      }
+      startup_config config{};
+      std::memcpy(&config, packet.body_data(), sizeof(config));
+      pc_startup_config_pub_.Publish(config);
+      break;
+    }
+
     default: {
       // 路径规划指令
       if (path_cmd::is_path_cmd(packet.code())) {
@@ -187,9 +197,11 @@ void PcCom::ProcessTx() {
   if (tail_claw_weapon_event_sub_.TryGet(&claw_start_msg)) {
       send(static_cast<uint16_t>(PcCmd::tail_claw_weapon_start), claw_start_msg);
   }
-  /*if (tail_claw_rod_event_sub_.TryGet(&claw_start_msg)) {
-    bool ok=send(static_cast<uint16_t>(PcCmd::tail_claw_rod_start), claw_start_msg);
-  }*/
+  // 回应上位机启动配置
+  bool startup_config_ack{};
+  if (pc_startup_config_ack_sub_.TryGet(&startup_config_ack)) {
+    send(static_cast<uint16_t>(PcCmd::startup_config_ack), startup_config_ack);
+  }
 }
 
 template <typename T>
