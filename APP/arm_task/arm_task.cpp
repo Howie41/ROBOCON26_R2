@@ -64,6 +64,7 @@ void raise_kfs_top() { arm.raise_kfs(); }
 
 void armTask(void *argument) {
     arm.start();
+    arm.addKFS();
 
     // 任务大循环
     for (;;) {
@@ -115,6 +116,12 @@ void armTask(void *argument) {
                         break;
                     case 8:
                         arm.place_release();
+                        break;
+                    case 9:
+                        arm.fetch();
+                        break;
+                    case 10:
+                        arm.release();
                         break;
                 }
                 flag = 0;
