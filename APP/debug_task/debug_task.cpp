@@ -3,22 +3,28 @@
  * @brief Export runtime debug globals for Ozone inspection.
  */
 #include "debug_task.h"
-#include "task.h"
+
+#include "cmsis_os2.h"
+#include "logger.hpp"
+#include "com_config.h"
+#include "topics.hpp"
 
 
 osThreadId_t Debug_TaskHandle;
+extern LoggerQueue logger_queue;
 
-
-uint8_t flag = 1;
+volatile uint8_t debug_r1_cmd{0x00};
+TypedTopicPublisher<pub_qr_code_parsed> qr_code_pub{"qr_code_parsed"};
 
 void debugTask(void *argument) {
-
-    for (;;) {
-
-        // Test...
-        // HAL_GPIO_WritePin(GPIOG, GPIO_PIN_3, GPIO_PIN_SET);  // 开泵
-        // HAL_GPIO_WritePin(GPIOG, GPIO_PIN_8, flag ? GPIO_PIN_SET : GPIO_PIN_RESET);  // 阀置低，放气；阀置高，吸气（低电平：23通；高电平：12通）
-
-        osDelay(1);
+  for (;;) {
+    osDelay(50);
+    logger_queue.trySend();
+    if (debug_r1_cmd != 0x00) {
+      pub_qr_code_parsed msg{.data = debug_r1_cmd};
+      qr_code_pub.Publish(msg);
+      logger_queue.log("DEBUG r1_cmd %02X\n", debug_r1_cmd);
+      debug_r1_cmd = 0x00;
     }
+  }
 }

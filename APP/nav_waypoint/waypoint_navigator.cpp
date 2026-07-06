@@ -181,7 +181,7 @@ field::StairPose advancePoseNegY(int16_t x, int16_t y, int16_t advance_mm) {
                           kR1ClimbYawDeg};
 }
 
-field::StairPose stairStandbyPoseForLevel(uint8_t level) {
+[[maybe_unused]] field::StairPose stairStandbyPoseForLevel(uint8_t level) {
   return withHeadingYaw(
       offsetPoseX(field::kStairFrontPose, stairLevelOffsetX(level)));
 }
