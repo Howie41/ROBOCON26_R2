@@ -20,7 +20,7 @@ enum class match_type : uint8_t {
 
 /** ========== 比赛配置 ========== */
 
-constexpr match_type MATCH_TYPE = match_type::JGCB;
+constexpr match_type MATCH_TYPE = match_type::CWTY;
 constexpr bool ENABLE_DEBUG_PAUSE = false;
 
 /** ============================= */

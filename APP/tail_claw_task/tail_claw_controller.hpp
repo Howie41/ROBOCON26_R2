@@ -146,7 +146,7 @@ private:
      */
     float calcRollCmd(float target_deg);
 
-private:
+public:
     C610Motor* move_motor_{nullptr};
     C620Motor* roll_motor_{nullptr};
 
@@ -158,7 +158,7 @@ private:
     TailClawMode mode_{TailClawMode::AutoAlign};
     uint8_t motion_bits_{0};
 
-    bool weapon_claw_closed_{false};
+    bool weapon_claw_open_{false};
     bool air_pump_on_{false};
 
     bool btn_share_last_{false};
