@@ -18,6 +18,7 @@
 #include "NavProtocol.hpp"
 #include "infrared_com.hpp"
 #include "memory_map.h"
+#include "tail_claw_controller.hpp"
 #include "tail_claw_task.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
@@ -28,12 +29,35 @@ osThreadId_t StateMachineTaskHandle;
 extern Arm arm;  // 取矿机构实例
 extern LoggerQueue logger_queue;
 
+constexpr size_t SH_COUNT = 6;
+
 namespace waypoint {
 class location{
 public:
     int16_t x;
     int16_t y;
     int16_t yaw;
+};
+
+constexpr std::array<location, SH_COUNT> sh_aim{
+    location{-250, -775, 90},
+    location{-50, -775, 90},
+    location{150, -775, 90},
+    location{750, -775, 90},
+    location{550, -775, 90},
+    location{350, -775, 90},
+
+};
+
+constexpr int16_t sh_close_y = -855;
+
+constexpr std::array<location, SH_COUNT> sh_close{
+    location{sh_aim[0], sh_close_y, 90},
+    location{sh_aim[1], sh_close_y, 90},
+    location{sh_aim[2], sh_close_y, 90},
+    location{sh_aim[3], sh_close_y, 90},
+    location{sh_aim[4], sh_close_y, 90},
+    location{sh_aim[5], sh_close_y, 90},
 };
 
 constexpr location init{-550, 150, 0};
@@ -109,11 +133,15 @@ public:
     // 上电后就绪等待开始
     STATE(ready) {
         if constexpr (MATCH_TYPE == match_type::CWTY) {
-            logger_queue.log("SM ======== CWTY-READY ========\n");
+            logger_queue.log("\nSM READY CWTY ========\n");
         } else {
-            logger_queue.log("SM ======== JGCB-READY ========\n");
+            logger_queue.log("\nSM READY JGCB ========\n");
         }
-        sm.wait_for_startup_config();
+        // sm.wait_for_startup_config();
+        debug_pause = true;
+        sm.wait_until([]() -> bool {
+            return !debug_pause;
+        });
         if constexpr (MATCH_TYPE == match_type::CWTY) {
             sm.change_state_to(begin_cwty::instance());
         } else {
@@ -129,24 +157,26 @@ public:
 
     // 启动（崇武探幽）
     STATE(begin_cwty) {
-        logger_queue.log("SM ======== CWTY-BEGIN ========\n");
+        logger_queue.log("SM BEGIN CWTY ========\n");
 
-        tail_claw_set_weapon_claw(true);            // 打开夹爪，夹紧武器头
-        sm.move_to_pos(-180, -115, 0, 5000);
+        TailClawController::Instance().weapon_claw_open_ = true;            // 打开夹爪，夹紧武器头
+        sm.move_to_pos(100, 225, 0, 5000);
         sm.change_state_to(go_to_shr::instance());
     } STATE_END
 
     // 前往端头架
     STATE(go_to_shr) {
-        if (sm.flag_ == 0) {
-            sm.move_to_pos(335, -825, 90, 5000);
-        } else {
-            sm.move_to_pos(300, -170, 90, 4000U);
-            sm.move_to_pos(735, -830, 90, 5000);
-        }
-        tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
-        constexpr float target = -59.5f;
-        tail_claw_set_roll_target(target);
+        // if (sm.sh_index_ == 0) {
+        //     sm.move_to_pos(610, -550, 90, 5000);
+        // } else {
+        //     sm.move_to_pos(610, -170, 90, 4000U);
+        //     sm.move_to_pos(610, -630, 90, 5000); //第二个武器的位置
+        // }
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_], 5000);
+        
+        TailClawController::Instance().weapon_claw_open_ = true;
+        constexpr float target = 37.0f;
+        TailClawController::Instance().roll_target_deg_ = target;
         sm.wait_until_timeout_or([&sm, target]() -> bool {
             sm.tail_claw_update_status();
             return sm.tail_claw_status_valid_
@@ -158,33 +188,35 @@ public:
 
     // 夹爪夹取武器
     STATE(catch_weapon) {
-        if (sm.flag_ == 0) {
-            sm.move_to_pos(335, -895, 90, 5000);
-            // sm.move_to_pos(735, -905, 90, 5000);
-        } else {
-            sm.move_to_pos(735, -905, 90, 8000);
-        }
-        tail_claw_set_weapon_claw(false);         // 闭合夹爪，夹紧武器头
-        osDelay(500);                             // 等待夹爪动作完成，具体时间待调试
-        sm.flag_++;
+        // if (sm.sh_index_ == 0) {
+        //     sm.move_to_pos(610, -630, 90, 10000);
+        //     // sm.move_to_pos(735, -905, 90, 5000);
+        // } else {
+        //     sm.move_to_pos(735, -905, 90, 8000);
+        // }
+        sm.move_to_pos(waypoint::sh_close[sm.sh_index_], 5000);
+
+        TailClawController::Instance().weapon_claw_open_ = false;
+        osDelay(500);
         sm.change_state_to(rotate_weapon_claw::instance());
     } STATE_END
 
     // 夹爪反转
     STATE(rotate_weapon_claw) {
-        tail_claw_set_roll_target(2.0f);
+        TailClawController::Instance().roll_target_deg_ = 2.0f;
         osDelay(1000);
         sm.wait_until_timeout_or([&sm]() -> bool {
             sm.tail_claw_update_status();
             return sm.tail_claw_status_valid_ && sm.tail_claw_status_cache_.roll_arrived;
         }, 3000U, 10U);
-        tail_claw_reset_match();
         sm.change_state_to(match_rod::instance());
     } STATE_END
 
     // 端头架对齐武器杆
     STATE(match_rod) {
-        sm.move_to_pos(300, -170, -90, 4000U);
+        sm.move_to_pos(610, 50, 90, 5000);
+        sm.move_to_pos(610, 50, -90, 5000);
+        sm.move_to_pos(-160, -550,-90,5000);
         sm.change_state_to(wait_for_decision_cmd::instance());
     } STATE_END
 
@@ -194,9 +226,12 @@ public:
         sm.wait_until([&sm]() -> bool {
             switch (sm.get_cmd_from_r1()) {
                 case 0x0A: // 松开夹爪
-                    tail_claw_set_weapon_claw(true);
+                    TailClawController::Instance().weapon_claw_open_ = true;
                     return false;
                 case 0x1A: // 夹取新的武器头
+                    if (sm.sh_index_ < SH_COUNT - 1) {
+                        sm.sh_index_ += 1;
+                    }
                     sm.change_state_to(go_to_shr::instance());
                     return true;
                 case 0x1B: // 进梅林
@@ -211,7 +246,6 @@ public:
     // 前往梅林入口
     STATE(go_to_mf_entrance) {
         sm.move_to_pos(waypoint::mf_entrance_mid);
-        tail_claw_set_roll_target(-118.0f);
         sm.change_state_to(request_for_path_cmd::instance());
     } STATE_END
 
@@ -338,7 +372,7 @@ public:
 
     // 启动（九宫藏宝）
     STATE(begin_jgcb) {
-        logger_queue.log("SM ======== JGCB-BEGIN ========\n");
+        logger_queue.log("SM BEGIN JGCB ========\n");
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
             return (sm.get_cmd_from_r1() == 0x2A);
@@ -471,7 +505,8 @@ public:
 
 private:
     int8_t moved_left_right_{0}; // 左右移动计数
-    int flag_{0};                 // 武器夹取计数，0=第一次夹取，非0=后续夹取
+
+    uint8_t sh_index_{0};        // 武器夹取计数
 
     startup_config current_startup_config_{};
     std::optional<waypoint::location> current_origin_location_{};
