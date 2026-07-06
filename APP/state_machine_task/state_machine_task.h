@@ -18,9 +18,10 @@ enum class match_type : uint8_t {
     JGCB  // “九宫藏宝”
 };
 
-/** ========== 比赛类型 ========== */
+/** ========== 比赛配置 ========== */
 
-constexpr match_type MATCH_TYPE = match_type::CWTY;
+constexpr match_type MATCH_TYPE = match_type::JGCB;
+constexpr bool ENABLE_DEBUG_PAUSE = false;
 
 /** ============================= */
 
@@ -47,6 +48,17 @@ inline bool is_path_cmd(uint16_t code) {
 }
 } // namespace path_cmd
 
+enum class area_type : int16_t {
+    blue = 0,
+    red = 1,
+};
+
+enum class begin_type : int16_t {
+    mc = 0,                    // 一区
+    mf = 1,                    // 二区
+    arena_before_uphill = 2,   // 三区 斜坡前
+    arena_retry_zone = 3,      // 三区 斜坡后 重试区
+};
 
 #endif // __cplusplus
 

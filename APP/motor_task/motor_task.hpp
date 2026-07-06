@@ -47,7 +47,7 @@ public:
         motor_planning_units_[motor_count_] = new MotorPlanningUnit{
             .motor = &motor,
             .pos_pid = {
-                .Kp = 0.048f,
+                .Kp = 0.0487f,
                 .Ki = 0.0f,
                 .Kd = 0.0f,
                 .MaxOut = 60.0f,
