@@ -116,6 +116,12 @@ void armTask(void *argument) {
                     case 8:
                         arm.place_release();
                         break;
+                    case 9:
+                        arm.fetch();
+                        break;
+                    case 10:
+                        arm.release();
+                        break;
                 }
                 flag = 0;
                 test_flag = 0;
