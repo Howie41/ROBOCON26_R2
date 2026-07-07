@@ -28,6 +28,7 @@
 
 osThreadId_t Arm_TaskHandle;
 
+extern LoggerQueue logger_queue;
 
 static TypedTopicSubscriber<pub_arm_cmd> arm_cmd_sub("arm_cmd", 8);
 static pub_arm_cmd arm_cmd{};
@@ -43,22 +44,54 @@ namespace arm_action {
  * @note 伸出、吸取、抬起
  * @param 参数接收: LOAD_TYPE::MEDIUM, LOAD_TYPE::HIGH, LOAD_TYPE::LOW, LOAD_TYPE::PLAIN的输入，对应+200, +400, -200, 0高度的kfs
  */
-bool raise_kfs(LOAD_TYPE step) { return arm.fetch_step(step); }
+bool raise_kfs(LOAD_TYPE step) { 
+    auto result = arm.fetch_step(step); 
+    if (result) {
+        osDelay(3000);
+    } else {
+        logger_queue.log("ARM raise_kfs failed!\n");
+    }
+    return result;
+}
 /**
  * @brief 取出kfs，默认取最外层
  * @note 抬起、伸入储存区、吸取、抬起、伸出
  * @param std::nullopt:自动识别高度，UNLOAD_TYPE::LOW, UNLOAD_TYPE::MEDIUM, UNLOAD_TYPE::TOP : 指定高度
  */
-bool unload_kfs(std::optional<UNLOAD_TYPE> level = std::nullopt) { return arm.place_kfs(level); }
+bool unload_kfs(std::optional<UNLOAD_TYPE> level = std::nullopt) { 
+    auto result = arm.place_kfs(level); 
+    if (result) {
+        osDelay(5000);
+    } else {
+        logger_queue.log("ARM unload_kfs failed!\n");
+    }
+    return result;
+}
 /**
  * @brief 承接unload_kfs，释放kfs并恢复默认动作、kfs_amount-1
  */
-bool release_kfs() { return arm.place_release(); }
+bool release_kfs() {
+    auto result = arm.place_release();
+    if (result) {
+        osDelay(1000);
+    } else {
+        logger_queue.log("ARM release_kfs failed!\n");
+    }
+    return result;
+}
 /**
  * @brief 将举起的kfs放入储存
  */
-bool load_kfs() { return arm.load_kfs(); }
+bool load_kfs() { 
+    auto result = arm.load_kfs(); 
+    if (result) {
+        osDelay(4000);
+    } else {
+        logger_queue.log("ARM load_kfs failed!\n");
+    }
+    return result;
 }
+} // namespace arm_action
 
 
 
