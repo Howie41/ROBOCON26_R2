@@ -17,7 +17,6 @@
 #pragma once
 
 #include "Motor.hpp"
-#include "stm32h723xx.h"
 #include "stm32h7xx_hal_gpio.h"
 #include <cmath>
 #include <stdint.h>
@@ -57,10 +56,10 @@ public:
     
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
-    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(214.0f + pos_deg, speed_deg); }
-    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 85.0f, 1.2f * speed); }
-    void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1080.0f), 2.0f * speed); }
-    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(-pos_deg, speed_deg); }
+    void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(pos_deg - 30.0f, speed_deg); }
+    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 85.0f, 0.0025f * speed); }
+    void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1080.0f), 4.3f * speed); }
+    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(7.2f - pos_deg, speed_deg); }
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
     bool set_pose(arm_pose pose) {
@@ -72,8 +71,7 @@ public:
         }
         if (pose.special_operations & RESET_) reset();
         if (pose.special_operations & FETCH_) fetch();
-        if (pose.special_operations & PLACE_RELEASE_START_) place_release_start();
-        if (pose.special_operations & PLACE_RELEASE_STOP_) place_release_stop();
+        if (pose.special_operations & RELEASE_) release();
         return pose.is_end;
     }
 
@@ -115,7 +113,12 @@ public:
         return true;
     }
     void place_release() { reset_timeline(); set_is_place_releasing(true); }
-    void raise_kfs() { reset_timeline(); set_is_raising_kfs(true); }
+    bool raise_kfs() {
+        if (get_kfs_amount() == 3 || get_is_kfs_raised()) return false;
+        reset_timeline();
+        set_is_raising_kfs(true);
+        return true;
+    }
     void start() { reset_timeline(); set_is_starting(true); }
 
     
@@ -166,15 +169,11 @@ public:
     void rmvKFS() { kfs_num_--; }
 
     // 气泵控制类行为
-    void fetch() { set_is_holding_kfs(true); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_SET); }
-    void release() { set_is_holding_kfs(false); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_5, GPIO_PIN_RESET); }
-    void destroy_vaccum_start() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_SET); }
-    void destroy_vaccum_stop() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_7, GPIO_PIN_RESET); }
+    void fetch() { set_is_holding_kfs(true); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_3, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_8, GPIO_PIN_SET); }
+    void release() { set_is_holding_kfs(false); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_3, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_8, GPIO_PIN_RESET); }
+    
     // 恢复至默认姿态
     void reset() { set_pose(arm_actions_config::reset); }
-    // 气泵控制类接口
-    void place_release_start() { release(); destroy_vaccum_start(); }
-    void place_release_stop() { destroy_vaccum_stop(); }
 
 
 

@@ -9,10 +9,6 @@
 #include "com_config.h"
 #include "topics.hpp"
 
-#include "NavProtocol.hpp"
-#include "merlin_map/merlin_map.h"
-#include "stair_assist.h"
-#include "waypoint_navigator.hpp"
 
 osThreadId_t Debug_TaskHandle;
 extern LoggerQueue logger_queue;
