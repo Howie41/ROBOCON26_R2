@@ -373,8 +373,8 @@ bool move_to_pose_until_trigger(const field::StairPose &pose, bool allow_pass,
 
 }  // namespace
 
-volatile int32_t g_ozone_xbox_target_x = field::kStairFrontPose.x;
-volatile int32_t g_ozone_xbox_target_y = field::kStairFrontPose.y;
+volatile int32_t g_ozone_xbox_target_x = 0;
+volatile int32_t g_ozone_xbox_target_y = 300;
 volatile int32_t g_ozone_xbox_target_yaw = field::kStairFrontPose.yaw;
 
 void stairWaypointGoToFront() {
@@ -384,7 +384,7 @@ void stairWaypointGoToFront() {
       static_cast<int16_t>(g_ozone_xbox_target_y),
       static_cast<int16_t>(g_ozone_xbox_target_yaw),
   };
-  move_to_pose(front_pose, true);
+  move_to_pose(front_pose, false);
   g_stair_waypoint_level.store(0U);
   g_stair_waypoint_armed.store(true);
   g_stair_waypoint_step.store(0);
