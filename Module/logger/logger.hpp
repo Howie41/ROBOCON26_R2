@@ -12,7 +12,6 @@
 #include "cmsis_os2.h"
 #include "stm32h7xx_hal.h"
 
-#include "topics.hpp"
 #include "UartPort.hpp"
 
 class Logger {
@@ -57,7 +56,7 @@ public:
     static constexpr size_t TIMESTAMP_FMT_OVERHEAD = 11;
     struct message {
         uint32_t log_time;
-        // raw_text + 时间戳 + tab + null 必须 <= Logger::BUFFER_LENGTH
+        // raw_text + timestamp + tab + null 必须 <= Logger::BUFFER_LENGTH
         char raw_text[Logger::BUFFER_LENGTH - TIMESTAMP_FMT_OVERHEAD];
     };
 
@@ -66,14 +65,19 @@ public:
 
 private:
     Logger &logger_ref_;
-    TypedTopicPublisher<LoggerQueue::message> log_topic_pub_{"log_topic"};
-    TypedTopicSubscriber<LoggerQueue::message> log_topic_sub_{"log_topic", 4};
+    osMessageQueueId_t queue_handle_{nullptr};
 
 public:
     LoggerQueue(Logger &logger) : logger_ref_(logger) {}
     ~LoggerQueue() = default;
 
+    /// 必须在 osTaskInit() 中（队列创建后、任务启动前）调用
+    void init(osMessageQueueId_t handle) { queue_handle_ = handle; }
+
     bool log(const char *format, ...) {
+        if (queue_handle_ == nullptr) {
+            return false;
+        }
         LoggerQueue::message msg;
         va_list args;
         va_start(args, format);
@@ -86,14 +90,19 @@ public:
                 write_len = sizeof(msg.raw_text) - 1;
             }
             msg.log_time = osKernelGetTickCount();
-            return log_topic_pub_.Publish(msg);
+            // 非阻塞发送；队列满时丢弃
+            return osMessageQueuePut(queue_handle_, &msg, 0U, 0U) == osOK;
         }
         return false;
     }
 
     void try_send() {
+        if (queue_handle_ == nullptr) {
+            return;
+        }
         LoggerQueue::message msg;
-        if (log_topic_sub_.TryGet(&msg)) {
+        // 非阻塞接收；队列空时直接返回
+        if (osMessageQueueGet(queue_handle_, &msg, NULL, 0U) == osOK) {
             logger_ref_.log("%lu\t%s", static_cast<unsigned long>(msg.log_time), msg.raw_text);
         }
     }
