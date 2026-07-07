@@ -54,6 +54,7 @@ extern osThreadId_t PcComTaskHandle;
 extern osThreadId_t Watchdog_TaskHandle;
 
 #include "memory_map.h"
+#include "logger.hpp"
 
 // 添加任务分为两步：
 // 第一步先按照格式写 DECLARE_STATIC_TASK(任务名, 任务栈大小，任务优先级) 来声明任务的控制块和栈
@@ -99,7 +100,41 @@ DECLARE_STATIC_TASK(LiftTask, 256 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(PcComTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(StateMachineTask, 512 * 4, osPriorityNormal);
 
+// ---- 串口消息队列 ----
+static constexpr uint32_t LOG_QUEUE_LENGTH = 8;
+
+RAM_D1_ATTR static StaticQueue_t log_queue_cb;
+RAM_D1_ATTR static uint8_t log_queue_buffer[LOG_QUEUE_LENGTH * sizeof(LoggerQueue::message)];
+static const osMessageQueueAttr_t log_queue_attr = {
+    .name      = "log_queue",
+    .attr_bits = 0U,
+    .cb_mem    = &log_queue_cb,
+    .cb_size   = sizeof(log_queue_cb),
+    .mq_mem    = log_queue_buffer,
+    .mq_size   = sizeof(log_queue_buffer),
+};
+
+// ---- PC 日志消息队列 ----
+RAM_D1_ATTR static StaticQueue_t pc_log_queue_cb;
+RAM_D1_ATTR static uint8_t pc_log_queue_buffer[LOG_QUEUE_LENGTH * sizeof(LoggerQueue::message)];
+static const osMessageQueueAttr_t pc_log_queue_attr = {
+    .name      = "pc_log_queue",
+    .attr_bits = 0U,
+    .cb_mem    = &pc_log_queue_cb,
+    .cb_size   = sizeof(pc_log_queue_cb),
+    .mq_mem    = pc_log_queue_buffer,
+    .mq_size   = sizeof(pc_log_queue_buffer),
+};
+osMessageQueueId_t pc_log_queue_handle = nullptr;
+
 void osTaskInit(void) {
+  extern LoggerQueue logger_queue;
+  osMessageQueueId_t log_queue_handle =
+      osMessageQueueNew(LOG_QUEUE_LENGTH, sizeof(LoggerQueue::message), &log_queue_attr);
+  pc_log_queue_handle =
+      osMessageQueueNew(LOG_QUEUE_LENGTH, sizeof(LoggerQueue::message), &pc_log_queue_attr);
+  logger_queue.init(log_queue_handle, pc_log_queue_handle);
+
   CAN1_Send_TaskHandle = osThreadNew(can1SendTask, NULL, &CAN1_SendTaskHandle_attributes);
   CAN2_Send_TaskHandle = osThreadNew(can2SendTask, NULL, &CAN2_SendTaskHandle_attributes);
   CAN3_Send_TaskHandle = osThreadNew(can3SendTask, NULL, &CAN3_SendTaskHandle_attributes);

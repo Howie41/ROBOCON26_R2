@@ -19,7 +19,7 @@ TypedTopicPublisher<pub_qr_code_parsed> qr_code_pub{"qr_code_parsed"};
 void debugTask(void *argument) {
   for (;;) {
     osDelay(50);
-    logger_queue.trySend();
+    logger_queue.try_send();
     if (debug_r1_cmd != 0x00) {
       pub_qr_code_parsed msg{.data = debug_r1_cmd};
       qr_code_pub.Publish(msg);

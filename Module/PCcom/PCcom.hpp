@@ -7,6 +7,7 @@
 #include "transfer_protocol.hpp"
 #include "verification_algorithm.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include "state_machine_task.h"
 
@@ -40,6 +41,8 @@ enum class PcCmd : uint16_t {
 
   startup_config = 0x0000, // 上位机启动配置
   startup_config_ack = 0x000A, // 下位机回复配置
+
+  log_message = 0x0501, // 下位机发送日志给上位机
 };
 class PcCom {
 public:
@@ -60,6 +63,7 @@ private:
   template<typename T>
   bool send(uint16_t code,const T &msg);
   bool send(uint16_t code);  // 无负载版本
+  bool send(uint16_t code, const uint8_t *data, size_t size);
 
 private:
     Manager manager_;
