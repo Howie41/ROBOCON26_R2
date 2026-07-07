@@ -13,6 +13,10 @@
 #include "topic_pool.h"
 #include "topics.hpp"
 
+extern std::atomic<bool> g_config_valid;
+extern std::atomic<int16_t> g_config_origin_x;
+extern std::atomic<int16_t> g_config_origin_y;
+
 namespace { 
 
 std::atomic<uint8_t> g_stair_waypoint_step{0};
@@ -39,8 +43,9 @@ constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
 constexpr int16_t kDescendRetreatToLowerMm = 950;
 constexpr int16_t kGoToEdgeLowCoarseAdvanceMm = 200;
-constexpr int16_t kGroundGoToEdgeTargetX = 2060;
-constexpr int16_t kGroundCenterLaneToleranceMm = 80;
+constexpr int16_t kGroundGoToEdgeTargetX =
+    static_cast<int16_t>(field::kStairFrontPose.x + 60);
+constexpr int16_t kGroundCenterLaneToleranceMm = 300;
 constexpr float kPassDistanceMm = 200.0f;
 constexpr uint32_t kPassHoldMs = 1000U;
 constexpr TickType_t kPassFreshWindowTicks = pdMS_TO_TICKS(200);
@@ -52,6 +57,34 @@ void wait_until(T &&condition, uint32_t delay_ms = 100U) {
   while (!condition()) {
     osDelay(delay_ms);
   }
+}
+
+bool merlinOriginReady() {
+  return g_config_valid.load();
+}
+
+int16_t merlinOriginX() {
+  return merlinOriginReady() ? g_config_origin_x.load() : 0;
+}
+
+int16_t merlinOriginY() {
+  return merlinOriginReady() ? g_config_origin_y.load() : 0;
+}
+
+int16_t worldToLocalX(int16_t world_x) {
+  return static_cast<int16_t>(world_x - merlinOriginX());
+}
+
+int16_t worldToLocalY(int16_t world_y) {
+  return static_cast<int16_t>(world_y - merlinOriginY());
+}
+
+field::StairPose localToWorldPose(const field::StairPose &local_pose) {
+  return field::StairPose{
+      static_cast<int16_t>(local_pose.x + merlinOriginX()),
+      static_cast<int16_t>(local_pose.y + merlinOriginY()),
+      local_pose.yaw,
+  };
 }
 
 enum class R1ClimbDirection : uint8_t {
@@ -91,8 +124,13 @@ field::StairPose withHeadingYaw(const field::StairPose &pose) {
 }
 
 bool refreshCurrentMerlinCell() {
-  return merlin_map::identifyCurrentCell(nav_control::current_x,
-                                         nav_control::current_y);
+  if (!merlinOriginReady()) {
+    merlin_map::invalidateCurrentCell();
+    return false;
+  }
+
+  return merlin_map::identifyCurrentCell(worldToLocalX(nav_control::current_x),
+                                         worldToLocalY(nav_control::current_y));
 }
 
 uint8_t levelFromCellHeight(const merlin_map::Cell &cell) {
@@ -104,7 +142,7 @@ uint8_t levelFromCellHeight(const merlin_map::Cell &cell) {
 }
 
 bool isGroundCenterLaneTargetY() {
-  return std::abs(static_cast<int32_t>(nav_control::target_y) -
+  return std::abs(static_cast<int32_t>(worldToLocalY(nav_control::target_y)) -
                   static_cast<int32_t>(field::kStairCenterPose.y)) <=
          kGroundCenterLaneToleranceMm;
 }
@@ -253,10 +291,11 @@ bool hasFreshPoseSample(TickType_t now) {
 }
 
 float poseDistanceMm(const field::StairPose &pose) {
+  const field::StairPose world_pose = localToWorldPose(pose);
   const float error_x =
-      static_cast<float>(pose.x - nav_control::current_x);
+      static_cast<float>(world_pose.x - nav_control::current_x);
   const float error_y =
-      static_cast<float>(pose.y - nav_control::current_y);
+      static_cast<float>(world_pose.y - nav_control::current_y);
   return sqrtf(error_x * error_x + error_y * error_y);
 }
 
@@ -289,10 +328,11 @@ void saveCenterPose(const field::StairPose &pose) {
 }
 
 bool move_to_pose(const field::StairPose &pose, bool allow_pass = false) {
+  const field::StairPose world_pose = localToWorldPose(pose);
   taskENTER_CRITICAL();
-  nav_control::target_x = pose.x;
-  nav_control::target_y = pose.y;
-  nav_control::target_yaw = pose.yaw;
+  nav_control::target_x = world_pose.x;
+  nav_control::target_y = world_pose.y;
+  nav_control::target_yaw = world_pose.yaw;
   nav_control::auto_enabled = true;
   nav_control::arrived = false;
   nav_control::target_active = true;
@@ -329,10 +369,11 @@ bool move_to_pose(const field::StairPose &pose, bool allow_pass = false) {
 template <typename T>
 bool move_to_pose_until_trigger(const field::StairPose &pose, bool allow_pass,
                                 T &&trigger) {
+  const field::StairPose world_pose = localToWorldPose(pose);
   taskENTER_CRITICAL();
-  nav_control::target_x = pose.x;
-  nav_control::target_y = pose.y;
-  nav_control::target_yaw = pose.yaw;
+  nav_control::target_x = world_pose.x;
+  nav_control::target_y = world_pose.y;
+  nav_control::target_yaw = world_pose.yaw;
   nav_control::auto_enabled = true;
   nav_control::arrived = false;
   nav_control::target_active = true;
@@ -373,11 +414,17 @@ bool move_to_pose_until_trigger(const field::StairPose &pose, bool allow_pass,
 
 }  // namespace
 
-volatile int32_t g_ozone_xbox_target_x = 0;
-volatile int32_t g_ozone_xbox_target_y = 300;
+volatile int32_t g_ozone_xbox_target_x = field::kStairFrontPose.x;
+volatile int32_t g_ozone_xbox_target_y = field::kStairFrontPose.y;
 volatile int32_t g_ozone_xbox_target_yaw = field::kStairFrontPose.yaw;
 
 void stairWaypointGoToFront() {
+  if (!merlinOriginReady()) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
   g_stair_waypoint_step.store(21);
   const field::StairPose front_pose{
       static_cast<int16_t>(g_ozone_xbox_target_x),
@@ -392,6 +439,12 @@ void stairWaypointGoToFront() {
 }
 
 void stairWaypointRunUp() {
+  if (!merlinOriginReady()) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
   (void)refreshCurrentMerlinCell();
   uint8_t current_level = g_stair_waypoint_level.load();
   merlin_map::Cell current_cell{};
@@ -457,8 +510,8 @@ void stairWaypointRunUp() {
     stop_manual_chassis_motion();
   }
 
-  const int16_t trigger_x = nav_control::current_x;
-  const int16_t trigger_y = nav_control::current_y;
+  const int16_t trigger_x = worldToLocalX(nav_control::current_x);
+  const int16_t trigger_y = worldToLocalY(nav_control::current_y);
   high_drive_pose =
       advancePoseByHeading(trigger_x, trigger_y, kClimbAdvanceToLowerMm);
   if (has_next_cell) {
@@ -520,6 +573,12 @@ void stairWaypointRunUp() {
 }
 
 void stairWaypointRunUpR1() {
+  if (!merlinOriginReady()) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
   R1ClimbDirection dir{};
   if (!resolveR1ClimbDirection(nav_control::current_yaw, &dir)) {
     g_stair_waypoint_step.store(0);
@@ -545,8 +604,8 @@ void stairWaypointRunUpR1() {
     return stairAssistSuggestClimbUp();
   }, 10U);
 
-  const int16_t trigger_x = nav_control::current_x;
-  const int16_t trigger_y = nav_control::current_y;
+  const int16_t trigger_x = worldToLocalX(nav_control::current_x);
+  const int16_t trigger_y = worldToLocalY(nav_control::current_y);
   const field::StairPose high_drive_pose =
       advancePoseR1(trigger_x, trigger_y, kClimbAdvanceToLowerMm, dir);
 
@@ -590,7 +649,8 @@ void stairWaypointRunUpR1() {
   g_stair_waypoint_step.store(35);
   if (kR1PostLowAdvanceMm > 0) {
     const field::StairPose post_low_pose =
-        advancePoseR1(nav_control::current_x, nav_control::current_y,
+        advancePoseR1(worldToLocalX(nav_control::current_x),
+                      worldToLocalY(nav_control::current_y),
                       kR1PostLowAdvanceMm, dir);
     move_to_pose(post_low_pose, true);
   }
@@ -600,6 +660,12 @@ void stairWaypointRunUpR1() {
 }
 
 void stairWaypointRunDown() {
+  if (!merlinOriginReady()) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
   (void)refreshCurrentMerlinCell();
   uint8_t current_level = g_stair_waypoint_level.load();
   merlin_map::Cell current_cell{};
@@ -731,6 +797,12 @@ void stairWaypointRunDown() {
 }
 
 void stairWaypointRunGoToEdge() {
+  if (!merlinOriginReady()) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
   if (g_stair_waypoint_level.load() == 0U) {
     updateLaser3ProfileForGroundTargetY();
     stairAssistSetMode(StairAssistMode::ClimbUp);
@@ -740,7 +812,7 @@ void stairWaypointRunGoToEdge() {
     g_stair_waypoint_step.store(44);
     const field::StairPose coarse_pose{
         kGroundGoToEdgeTargetX,
-        static_cast<int16_t>(nav_control::target_y),
+        worldToLocalY(static_cast<int16_t>(nav_control::target_y)),
         static_cast<int16_t>(nav_control::target_yaw),
     };
     const bool triggered =
@@ -846,6 +918,12 @@ void stairWaypointRunGoToEdge() {
 }
 
 void stairWaypointRunReturnToCenter() {
+  if (!merlinOriginReady()) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
   if (g_stair_waypoint_level.load() == 0U) {
     g_stair_waypoint_step.store(0);
     stop_auto_nav();

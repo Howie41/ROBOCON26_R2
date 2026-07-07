@@ -39,27 +39,6 @@ public:
 
 constexpr location before_shr{500, 0, 0, "before_shr"};
 
-constexpr int16_t sh_aim_y = -692;
-
-constexpr std::array<location, SH_COUNT> sh_aim{
-    location{-275, sh_aim_y, 90, "sh_aim"},
-    location{-75, sh_aim_y, 90, "sh_aim"},
-    location{125, sh_aim_y, 90, "sh_aim"},
-    location{725, sh_aim_y, 90, "sh_aim"},
-    location{525, sh_aim_y, 90, "sh_aim"},
-    location{325, sh_aim_y, 90, "sh_aim"},
-};
-constexpr int16_t sh_close_y = -772;
-
-constexpr std::array<location, SH_COUNT> sh_close{
-    location{sh_aim[0].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[1].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[2].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[3].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[4].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[5].x, sh_close_y, 90, "sh_close"},
-};
-
 constexpr location match_rod{-95, -822, -90, "match_rod"};
 
 constexpr location mf_entrance_mid{2060, 1500, 0, "mf_entrance_mid"};
@@ -141,22 +120,12 @@ public:
         logger_queue.log("\n");
         logger_queue.log("SM ======== READY ========\n");
         sm.wait_for_startup_config();
-        switch (sm.current_startup_config_.begin_type_value) {
-            case begin_type::mc:
-                sm.change_state_to(begin_cwty::instance());
-                break;
-            case begin_type::mf:
-                sm.change_state_to(go_to_mf_entrance::instance());
-                break;
-            case begin_type::arena_before_uphill:
-                sm.change_state_to(begin_jgcb::instance());
-                break;
-            case begin_type::arena_retry_zone:
-                sm.change_state_to(go_to_arena::instance());
-                break;
-            default:
-                break;
-        }
+        // if constexpr (MATCH_TYPE == match_type::CWTY) {
+        //     sm.change_state_to(begin_cwty::instance());
+        // } else {
+        //     sm.change_state_to(begin_jgcb::instance());
+        // }
+        sm.change_state_to(stop::instance());
     } STATE_END
 
     // 停止
