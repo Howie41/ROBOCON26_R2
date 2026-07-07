@@ -13,10 +13,8 @@ extern osThreadId_t StateMachineTaskHandle;
 void stateMachineTask(void *argument);
 
 #ifdef __cplusplus
-enum class match_type : uint8_t { 
-    CWTY, // “崇武探幽”
-    JGCB  // “九宫藏宝”
-};
+
+constexpr bool ENABLE_DEBUG_PAUSE = true;
 
 namespace path_cmd {
 enum class code: uint16_t {
@@ -54,6 +52,3 @@ enum class begin_type : int16_t {
 };
 
 #endif // __cplusplus
-
-static_assert(MATCH_TYPE == match_type::CWTY || MATCH_TYPE == match_type::JGCB,
-    "Invalid match type: MATCH_TYPE must be CWTY or JGCB");
