@@ -171,6 +171,7 @@ struct startup_config {
   begin_type begin_type_value;
   int16_t origin_x;
   int16_t origin_y;
+  int16_t kfs_amount;
 };
 
 #pragma pack()
