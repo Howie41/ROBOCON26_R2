@@ -17,6 +17,7 @@
 #pragma once
 
 #include "Motor.hpp"
+#include "arm_task.hpp"
 #include "stm32h7xx_hal_gpio.h"
 #include <cmath>
 #include <stdint.h>
@@ -39,10 +40,26 @@ enum class UNLOAD_TYPE : uint8_t {
 };
 
 namespace arm_action {
-    bool load_kfs(LOAD_TYPE step);
-    bool unload_kfs(std::optional<UNLOAD_TYPE> level);
-    bool release_kfs();
-    bool raise_kfs_top();
+/**
+ * @brief 吸取对应层高的kfs、kfs_amount+1
+ * @note 伸出、吸取、抬起
+ * @param 参数接收: LOAD_TYPE::MEDIUM, LOAD_TYPE::HIGH, LOAD_TYPE::LOW, LOAD_TYPE::PLAIN的输入，对应+200, +400, -200, 0高度的kfs
+ */
+bool raise_kfs(LOAD_TYPE step);
+/**
+ * @brief 取出kfs，默认取最外层
+ * @note 抬起、伸入储存区、吸取、抬起、伸出
+ * @param std::nullopt:自动识别高度，UNLOAD_TYPE::LOW, UNLOAD_TYPE::MEDIUM, UNLOAD_TYPE::TOP : 指定高度
+ */
+bool unload_kfs(std::optional<UNLOAD_TYPE> level);
+/**
+ * @brief 承接unload_kfs，释放kfs并恢复默认动作、kfs_amount-1
+ */
+bool release_kfs();
+/**
+ * @brief 将举起的kfs放入储存
+ */
+bool load_kfs();
 }
 
 
@@ -63,7 +80,7 @@ struct ArmAttr {
     // 启动时
     bool is_starting{false};
     // 其他
-    bool is_raising_kfs{false};
+    bool is_kfs_raised{false};
     bool is_holding_kfs{false};
 };
 
@@ -99,7 +116,7 @@ public:
 
     // 对外KFS控制接口
     bool fetch_step(LOAD_TYPE step) {
-        if (attr_.is_raising_kfs) return false;
+        if (attr_.is_kfs_raised) return false;
         reset_timeline();
         switch (step) {
             case LOAD_TYPE::MEDIUM: { attr_.is_fetching_step_M = true; break; }
@@ -111,7 +128,7 @@ public:
     }
     bool place_kfs(std::optional<UNLOAD_TYPE> kfs_layer = std::nullopt) {
         if (kfs_layer.has_value()) {  // 取特定层KFS
-            if ((kfs_layer.value() != UNLOAD_TYPE::TOP && attr_.is_raising_kfs) || (kfs_layer.value() == UNLOAD_TYPE::TOP && !attr_.is_raising_kfs)) return false;
+            if ((kfs_layer.value() != UNLOAD_TYPE::TOP && attr_.is_kfs_raised) || (kfs_layer.value() == UNLOAD_TYPE::TOP && !attr_.is_kfs_raised)) return false;
             reset_timeline();
             switch (kfs_layer.value()) {
                 case UNLOAD_TYPE::LOW: { attr_.is_placing_kfs_L = true; break; }
@@ -120,7 +137,7 @@ public:
             }
         } else {  // 默认值
             reset_timeline();
-            if (attr_.is_raising_kfs) attr_.is_placing_kfs_T = true;
+            if (attr_.is_kfs_raised) attr_.is_placing_kfs_T = true;
             else switch (get_kfs_amount()) {
                 case 1: { attr_.is_placing_kfs_L = true; break; }
                 case 2: { attr_.is_placing_kfs_M = true; break; }
@@ -135,7 +152,7 @@ public:
         return true;
     }
     bool load_kfs() {
-        if (!attr_.is_raising_kfs) return false;
+        if (!attr_.is_kfs_raised) return false;
         reset_timeline();
         attr_.is_loading_kfs = true;
         return true;
@@ -164,7 +181,7 @@ public:
     }
     // 取出KFS出储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool place_proceed(uint8_t index) {  // 此函数不会减少kfs_num_，需要在外部结束动作链后主动减少kfs_num_
-        if (attr_.is_raising_kfs) {
+        if (attr_.is_kfs_raised) {
             return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
         } else {
             if (kfs_num_ == 1) return set_pose(arm_actions_config::place_proceed::kfs_1[index]);
@@ -213,7 +230,7 @@ public:
             case LOAD_TYPE::PLAIN: { delta_t = step_P[act_index_].delta_t; setter = &attr_.is_fetching_step_P; break; }
         }
         if (now_t_ > delta_t) {
-            if (fetch_proceed(step, act_index_++)) { *setter = false; addKFS(); attr_.is_raising_kfs = true; }
+            if (fetch_proceed(step, act_index_++)) { *setter = false; addKFS(); attr_.is_kfs_raised = true; }
             else last_t_ = DWT_GetTimeline_s();
         }
     }
@@ -229,7 +246,7 @@ public:
             case UNLOAD_TYPE::TOP: { delta_t = kfs_3[act_index_].delta_t; setter = &attr_.is_placing_kfs_T; break; }
         }
         if (now_t_ > delta_t) {
-            if (place_proceed(act_index_++)) { attr_.is_raising_kfs = false; rmvKFS(); *setter = false; }
+            if (place_proceed(act_index_++)) { attr_.is_kfs_raised = false; rmvKFS(); *setter = false; }
             else last_t_ = DWT_GetTimeline_s();
         }
     }
@@ -251,7 +268,7 @@ public:
             case 2: { delta_t = kfs_1[act_index_].delta_t; break; }
         }
         if (now_t_ > delta_t) {
-            if (place_proceed(act_index_++)) { attr_.is_loading_kfs = false; attr_.is_raising_kfs = false; }
+            if (place_proceed(act_index_++)) { attr_.is_loading_kfs = false; attr_.is_kfs_raised = false; }
             else last_t_ = DWT_GetTimeline_s();
         }
     }
