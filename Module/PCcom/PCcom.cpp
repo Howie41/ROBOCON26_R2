@@ -209,16 +209,10 @@ void PcCom::ProcessTx() {
   if (pc_log_queue_handle != nullptr &&
       osMessageQueueGet(pc_log_queue_handle, &msg, nullptr, 0U) == osOK) {
     char formatted[Logger::BUFFER_LENGTH];
-    int len = snprintf(formatted, sizeof(formatted), "%lu\t%s",
-                       static_cast<unsigned long>(msg.log_time), msg.raw_text);
-    if (len > 0) {
-      size_t write_len = static_cast<size_t>(len);
-      if (write_len >= sizeof(formatted)) {
-        write_len = sizeof(formatted) - 1;
-      }
+    size_t n = msg.format_to(formatted, sizeof(formatted));
+    if (n > 0) {
       send(static_cast<uint16_t>(PcCmd::log_message),
-        reinterpret_cast<uint8_t*>(formatted),
-        write_len);
+           reinterpret_cast<uint8_t*>(formatted), n);
     }
   }
 

@@ -101,7 +101,7 @@ DECLARE_STATIC_TASK(PcComTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(StateMachineTask, 512 * 4, osPriorityNormal);
 
 // ---- 串口消息队列 ----
-static constexpr uint32_t LOG_QUEUE_LENGTH = 6;
+static constexpr uint32_t LOG_QUEUE_LENGTH = 8;
 
 RAM_D1_ATTR static StaticQueue_t log_queue_cb;
 RAM_D1_ATTR static uint8_t log_queue_buffer[LOG_QUEUE_LENGTH * sizeof(LoggerQueue::message)];

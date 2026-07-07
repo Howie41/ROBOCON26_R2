@@ -53,14 +53,23 @@ private:
 
 class LoggerQueue {
 public:
-    static constexpr size_t TIMESTAMP_FMT_OVERHEAD = 11;
+    static constexpr size_t FMT_PREFIX_MAX = 11;  // "%lu\t" 最大宽度: 10(timestamp) + 1(tab)
     struct message {
         uint32_t log_time;
         // raw_text + timestamp + tab + null 必须 <= Logger::BUFFER_LENGTH
-        char raw_text[Logger::BUFFER_LENGTH - TIMESTAMP_FMT_OVERHEAD];
+        char raw_text[Logger::BUFFER_LENGTH - FMT_PREFIX_MAX];
+
+        /// 格式化为 "timestamp\traw_text"，返回实际字节数（不含 null）
+        size_t format_to(char *buf, size_t buf_size) const {
+            int len = snprintf(buf, buf_size, "%lu\t%s",
+                               static_cast<unsigned long>(log_time), raw_text);
+            if (len <= 0) return 0;
+            size_t n = static_cast<size_t>(len);
+            return (n < buf_size) ? n : buf_size - 1;
+        }
     };
 
-    static_assert(TIMESTAMP_FMT_OVERHEAD + sizeof(message::raw_text) <= Logger::BUFFER_LENGTH,
+    static_assert(FMT_PREFIX_MAX + sizeof(message::raw_text) <= Logger::BUFFER_LENGTH,
                     "Formatted log message must fit in Logger output buffer");
 
 private:
@@ -86,10 +95,6 @@ public:
         va_end(args);
         msg.raw_text[sizeof(msg.raw_text) - 1] = '\0'; // 显式截断
         if (len > 0) {
-            size_t write_len = static_cast<size_t>(len);
-            if (write_len >= sizeof(msg.raw_text)) {
-                write_len = sizeof(msg.raw_text) - 1;
-            }
             msg.log_time = osKernelGetTickCount();
             // 非阻塞推送到两个队列；队列满时丢弃
             bool ok = true;
@@ -109,9 +114,12 @@ public:
             return;
         }
         LoggerQueue::message msg;
-        // 非阻塞接收；队列空时直接返回
         if (osMessageQueueGet(log_queue_handle_, &msg, NULL, 0U) == osOK) {
-            logger_ref_.log("%lu\t%s", static_cast<unsigned long>(msg.log_time), msg.raw_text);
+            char formatted[Logger::BUFFER_LENGTH];
+            size_t n = msg.format_to(formatted, sizeof(formatted));
+            if (n > 0) {
+                logger_ref_.log_raw(formatted, n);
+            }
         }
     }
 };
