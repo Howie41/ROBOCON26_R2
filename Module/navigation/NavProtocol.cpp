@@ -18,11 +18,11 @@ volatile float g_nav_max_accel_mps2 = 3.00f;
 volatile float g_nav_max_decel_mps2 = 13.00f;
 volatile float g_nav_blend_dist_mm = 30.0f;
 volatile float g_nav_pid_max_xy_speed_mps = 0.85f;
-volatile float g_nav_pid_max_omega_radps = 0.10f;
+volatile float g_nav_pid_max_omega_radps = 4.50f;
 volatile float g_nav_max_omega_radps = 3.00f;
 volatile float g_nav_min_omega_radps = 0.15f;
 volatile float g_nav_omega_slowdown_deg = 10.0f;
-volatile float g_nav_max_omega_accel_radps2 = 30.00f;
+volatile float g_nav_max_omega_accel_radps2 = 1000.00f;
 volatile float g_nav_yaw_slowdown_start_deg = 12.0f;
 volatile float g_nav_yaw_slowdown_min_scale = 0.40f;
 volatile float g_nav_arrive_dist_mm = 20.0f;
@@ -68,12 +68,12 @@ PID_t pid_y = {
 };
 
 PID_t pid_yaw = {
-    .Kp = 0.16f,
+    .Kp = 0.13f,
     .Ki = 0.001f,
     .Kd = 0.001f,
-    .MaxOut = 2.0f,
+    .MaxOut = 4.5f,
     .IntegralLimit = 0.35f,
-    .DeadBand = 0.2f,
+    .DeadBand = 0.3f,
     .Improve = Integral_Limit,
 };
 
@@ -255,7 +255,7 @@ float calcYawSlowdownScale(float yaw_error_deg) {
   return 1.0f - t * (1.0f - g_nav_yaw_slowdown_min_scale);
 }
 
-float calcOmegaPlan(float yaw_error_deg) {
+[[maybe_unused]] float calcOmegaPlan(float yaw_error_deg) {
   const float abs_yaw = fabsf(yaw_error_deg);
 
   if (abs_yaw <= g_nav_arrive_yaw_deg) {
@@ -515,8 +515,6 @@ void NavControlTask(void *argument) {
       const float plan_speed = brake_speed * yaw_scale;
       const float vx_plan = plan_speed * dir_x;
       const float vy_plan = plan_speed * dir_y;
-      const float omega_plan = calcOmegaPlan(error_yaw);
-
       const float vx_pid_raw =
           PID_Calculate(&pid_x, 0.0f, error_x_body) / 1000.0f;
       const float vy_pid_raw =
@@ -532,8 +530,7 @@ void NavControlTask(void *argument) {
 
       const float vx_ref = blend * vx_plan + (1.0f - blend) * vx_pid;
       const float vy_ref = blend * vy_plan + (1.0f - blend) * vy_pid;
-      const float omega_ref =
-          blend * omega_plan + (1.0f - blend) * omega_pid;
+      const float omega_ref = omega_pid;
 
       s_nav_vx_cmd = rampToward(
           s_nav_vx_cmd, vx_ref, g_nav_max_accel_mps2 * kNavControlDtSec,
