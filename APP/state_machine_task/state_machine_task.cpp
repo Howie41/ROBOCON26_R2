@@ -298,15 +298,16 @@ public:
         path_cmd::code executing_cmd = sm.current_path_cmd_;
 
         chassis_action::start_go_to_edge();
+        
         switch (executing_cmd) {
             case path_cmd::code::grab_low_r2kfs:
-                arm_action::load_kfs(LOAD_TYPE::LOW);
+                arm_action::raise_kfs(LOAD_TYPE::LOW);
                 break;
             case path_cmd::code::grab_mid_r2kfs:
-                arm_action::load_kfs(LOAD_TYPE::MEDIUM);
+                arm_action::raise_kfs(LOAD_TYPE::MEDIUM);
                 break;
             case path_cmd::code::grab_high_r2kfs:
-                arm_action::load_kfs(LOAD_TYPE::HIGH);
+                arm_action::raise_kfs(LOAD_TYPE::HIGH);
                 break;
             case path_cmd::code::drop_and_grab_new_kfs:
                 // 忽略这个指令
@@ -315,10 +316,11 @@ public:
                 break;
         }
 
-        // wait_until_timeout_or([&]() -> bool {
-        //     return arm.get_is_holding_kfs();
-        // }, 8000);
-        osDelay(10*1000);
+        sm.wait_until_timeout_or([&]() -> bool {
+            return arm.get_attr().is_kfs_raised;
+        }, 3000);
+
+        arm_action::load_kfs();
 
         chassis_action::start_return_to_center();
 
@@ -360,10 +362,12 @@ public:
 
     // 装载KFS
     STATE(load_kfs) {
-        // TODO: 装载KFS的逻辑
-        arm_action::raise_kfs_top();
-        osDelay(10*1000);
+        arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+        sm.wait_until_timeout_or([&]() -> bool {
+            return arm.get_attr().is_kfs_raised;
+        }, 2500);
         arm_action::unload_kfs(UNLOAD_TYPE::TOP);
+
         sm.change_state_to(wait_and_place_kfs::instance());
     } STATE_END
 
@@ -389,7 +393,9 @@ public:
             }
         });
         arm_action::release_kfs();
-        osDelay(3*1000);
+        sm.wait_until_timeout_or([&]() -> bool {
+            return !arm.get_attr().is_place_releasing;
+        }, 1000);
         sm.change_state_to(go_to_combination_area::instance());
     } STATE_END
 
@@ -420,8 +426,10 @@ public:
 
     // 取出KFS并手持
     STATE(unload_kfs) {
-        arm_action::release_kfs();
         arm_action::unload_kfs(UNLOAD_TYPE::LOW);
+        sm.wait_until_timeout_or([&]() -> bool {
+            return !arm.get_attr().is_placing_kfs_L;
+        }, 8000);
         sm.change_state_to(wait_for_place_hi_kfs_cmd::instance());
     } STATE_END
 
@@ -445,6 +453,9 @@ public:
     // 释放KFS
     STATE(release_kfs) {
         arm_action::release_kfs();
+        sm.wait_until_timeout_or([&]() -> bool {
+            return !arm.get_attr().is_place_releasing;
+        }, 1000);
         sm.change_state_to(stop::instance());
     } STATE_END
 
