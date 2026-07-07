@@ -59,7 +59,7 @@ public:
     void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(pos_deg - 30.0f, speed_deg); }
     void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 85.0f, 0.0025f * speed); }
     void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1080.0f), 4.3f * speed); }
-    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(7.2f - pos_deg, speed_deg); }
+    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(8.5f - pos_deg, speed_deg); }
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
     bool set_pose(arm_pose pose) {
