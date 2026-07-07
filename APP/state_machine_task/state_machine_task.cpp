@@ -37,64 +37,70 @@ public:
     int16_t x;
     int16_t y;
     int16_t yaw;
+    const char* name = nullptr;
 };
 
-constexpr location before_shr{500, 0, 0};
+constexpr location before_shr{500, 0, 0, "before_shr"};
 
 constexpr int16_t sh_aim_y = -692;
 
 constexpr std::array<location, SH_COUNT> sh_aim{
-    location{-275, sh_aim_y, 90},
-    location{-75, sh_aim_y, 90},
-    location{125, sh_aim_y, 90},
-    location{725, sh_aim_y, 90},
-    location{525, sh_aim_y, 90},
-    location{325, sh_aim_y, 90},
+    location{-275, sh_aim_y, 90, "sh_aim"},
+    location{-75, sh_aim_y, 90, "sh_aim"},
+    location{125, sh_aim_y, 90, "sh_aim"},
+    location{725, sh_aim_y, 90, "sh_aim"},
+    location{525, sh_aim_y, 90, "sh_aim"},
+    location{325, sh_aim_y, 90, "sh_aim"},
 };
 constexpr int16_t sh_close_y = -772;
 
 constexpr std::array<location, SH_COUNT> sh_close{
-    location{sh_aim[0].x, sh_close_y, 90},
-    location{sh_aim[1].x, sh_close_y, 90},
-    location{sh_aim[2].x, sh_close_y, 90},
-    location{sh_aim[3].x, sh_close_y, 90},
-    location{sh_aim[4].x, sh_close_y, 90},
-    location{sh_aim[5].x, sh_close_y, 90},
+    location{sh_aim[0].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[1].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[2].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[3].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[4].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[5].x, sh_close_y, 90, "sh_close"},
 };
 
-constexpr location match_rod{-95, -822, -90};
+constexpr location match_rod{-95, -822, -90, "match_rod"};
 
-constexpr location mf_entrance_mid{2060, 1500, 0};
-constexpr location mf_entrance_left{2060, 1500+1200, 0};
-constexpr location mf_entrance_right{2060, 1500-1200, 0};
+constexpr location mf_entrance_mid{2060, 1500, 0, "mf_entrance_mid"};
+constexpr location mf_entrance_left{2060, 1500+1200, 0, "mf_entrance_left"};
+constexpr location mf_entrance_right{2060, 1500-1200, 0, "mf_entrance_right"};
 
-constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0};
-constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0};
-constexpr location mf_entrance_right_close{2085, mf_entrance_right.y, 0};
+constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0, "mf_entrance_mid_close"};
+constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0, "mf_entrance_left_close"};
+constexpr location mf_entrance_right_close{2085, mf_entrance_right.y, 0, "mf_entrance_right_close"};
 
 // ======== 三区 ========
-constexpr location before_uphill{1000, 200, 0};
-constexpr location after_uphill{3500, 200, 0};
-constexpr location beside_after_uphill{3500, -1480, 0};
+constexpr location before_uphill{1000, 200, 0, "before_uphill"};
+constexpr location after_uphill{3700, 200, 0, "after_uphill"};
+constexpr location beside_after_uphill{3500, -1480, 0, "beside_after_uphill"};
 /** @brief 赛中装填 KFS 点位 */
-constexpr location load_kfs{3200,-2025,0};
 
-constexpr int16_t grid_y = -4215;
-constexpr location grid_mid{2750, grid_y, -90};
-constexpr location grid_left{grid_mid.x + 540, grid_y, -90};
-constexpr location grid_right{grid_mid.x - 540, grid_y, -90};
 
-constexpr int16_t grid_close_y = -4515;
-constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90};
-constexpr location grid_left_close{grid_left.x, grid_close_y, -90};
-constexpr location grid_right_close{grid_right.x, grid_close_y, -90};
+
+
+constexpr location load_kfs{3400,-2025,0, "load_kfs"};
+
+constexpr int16_t grid_close_y = -4165;
+constexpr int16_t grid_y = grid_close_y + 500;
+
+constexpr location grid_mid{3050, grid_y, -90, "grid_mid"};
+constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left"};
+constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right"};
+
+constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90, "grid_mid_close"};
+constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_close"};
+constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close"};
 
 /** @brief 贴左侧围栏、近九宫格点位 */
-constexpr location left_fence_front{grid_left.x + 300, grid_y, -90};
+constexpr location left_fence_front{grid_left.x, grid_y, -90, "left_fence_front"};
 /** @brief 贴左侧围栏、后侧点位 */
-constexpr location left_fence_back{left_fence_front.x, grid_y + 1500, -90};
+constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500, -90, "left_fence_back"};
 /** @brief R1 R2 合体预备点 */
-constexpr location combination_area{2750, left_fence_back.y, -90};
+constexpr location combination_area{2750, left_fence_back.y, -90, "combination_area"};
 } // namespace waypoint
 
 volatile bool debug_pause{false};
@@ -135,6 +141,7 @@ public:
 
     // 上电后就绪等待开始
     STATE(ready) {
+        logger_queue.log("\n");
         logger_queue.log("SM ======== READY ========\n");
         sm.wait_for_startup_config();
         switch (sm.current_startup_config_.begin_type_value) {
@@ -145,8 +152,10 @@ public:
                 sm.change_state_to(go_to_mf_entrance::instance());
                 break;
             case begin_type::arena_before_uphill:
-            case begin_type::arena_retry_zone:
                 sm.change_state_to(begin_jgcb::instance());
+                break;
+            case begin_type::arena_retry_zone:
+                sm.change_state_to(go_to_arena::instance());
                 break;
             default:
                 break;
@@ -373,6 +382,7 @@ public:
         sm.wait_until_timeout_or([&sm]() -> bool {
             return (sm.get_cmd_from_r1() == 0x2A);
         }, 10 * 1000);
+        sm.move_to_pos(waypoint::before_uphill);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
 
@@ -392,9 +402,6 @@ public:
     // 装载KFS
     STATE(load_kfs) {
         arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-        sm.wait_until_timeout_or([&]() -> bool {
-            return arm.get_attr().is_kfs_raised;
-        }, 2500);
         arm_action::unload_kfs(UNLOAD_TYPE::TOP);
 
         sm.change_state_to(wait_and_place_kfs::instance());
@@ -422,9 +429,6 @@ public:
             }
         });
         arm_action::release_kfs();
-        sm.wait_until_timeout_or([&]() -> bool {
-            return !arm.get_attr().is_place_releasing;
-        }, 1000);
         sm.change_state_to(go_to_combination_area::instance());
     } STATE_END
 
@@ -449,16 +453,13 @@ public:
 
     // 合体
     STATE(begin_combination) {
-        chassis_action::start_climb_R1();
+        // chassis_action::start_climb_R1();
         sm.change_state_to(unload_kfs::instance());
     } STATE_END
 
     // 取出KFS并手持
     STATE(unload_kfs) {
         arm_action::unload_kfs(UNLOAD_TYPE::LOW);
-        sm.wait_until_timeout_or([&]() -> bool {
-            return !arm.get_attr().is_placing_kfs_L;
-        }, 8000);
         sm.change_state_to(wait_for_place_hi_kfs_cmd::instance());
     } STATE_END
 
@@ -482,9 +483,6 @@ public:
     // 释放KFS
     STATE(release_kfs) {
         arm_action::release_kfs();
-        sm.wait_until_timeout_or([&]() -> bool {
-            return !arm.get_attr().is_place_releasing;
-        }, 1000);
         sm.change_state_to(stop::instance());
     } STATE_END
 
@@ -535,9 +533,10 @@ private:
             return startup_config_sub_.TryGet(&config);
         });
         logger_queue.log("SM startup config received:\n");
-        logger_queue.log("  area=%d begin=%d O(%d,%d)\n",
-            static_cast<int>(config.area_type_value),
+        logger_queue.log("   area=%s begin=%d kfs=%d O(%d,%d)\n",
+            config.area_type_value == area_type::blue ? "BLUE" : "RED",
             static_cast<int>(config.begin_type_value),
+            config.kfs_amount,
             config.origin_x,
             config.origin_y
         );
@@ -582,19 +581,23 @@ private:
     }
 
     void change_state_to(state& new_state) {
-        do_debug_pause("change_state");
         logger_queue.log("SM -> %s\n", new_state.get_name());
+        // do_debug_pause("change_state");
         current_state_ = &new_state;
     }
 
     // 这个函数必须在任务环境里调用
-    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0) {
+    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, const char* name = nullptr) {
         if (current_origin_location_.has_value()) {
             x += current_origin_location_->x;
             y += current_origin_location_->y;
         }
 
-        logger_queue.log("SM move_to_pos: (%d, %d, %d)\n", x, y, yaw);
+        if (name) {
+            logger_queue.log("SM-POS (%d, %d, %d) %s\n", x, y, yaw, name);
+        } else {
+            logger_queue.log("SM-POS (%d, %d, %d)\n", x, y, yaw);
+        }
         // do_debug_pause("move_to_pos");
 
         taskENTER_CRITICAL();
@@ -625,7 +628,7 @@ private:
     }
 
     bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0) {
-        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms);
+        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.name);
     }
 
     /**
@@ -714,9 +717,9 @@ private:
     void do_debug_pause(const char *msg) {
         if constexpr (ENABLE_DEBUG_PAUSE) {
             debug_pause = true;
-            logger_queue.log("DEBUG pause: %s\n", msg);
+            logger_queue.log("DEBUG || %s\n", msg);
             wait_until([]() -> bool { return !debug_pause; });
-            logger_queue.log("DEBUG resume: %s\n", msg);
+            logger_queue.log("DEBUG >> \n", msg);
         }
     }
 };
