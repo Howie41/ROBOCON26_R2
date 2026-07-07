@@ -1,5 +1,6 @@
 #include "PCcom.hpp"
 #include "NavProtocol.hpp"
+#include "cmsis_os2.h"
 #include "lift_task.h"
 #include "field_waypoints.hpp"
 #include "state_machine_task.h"
@@ -7,6 +8,8 @@
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "waypoint_navigator.hpp"
+#include "logger.hpp"
+#include "robot_task.h"
 
 #include <codecvt>
 #include <cstddef>
@@ -202,6 +205,23 @@ void PcCom::ProcessTx() {
   if (pc_startup_config_ack_sub_.TryGet(&startup_config_ack)) {
     send(static_cast<uint16_t>(PcCmd::startup_config_ack), startup_config_ack);
   }
+  LoggerQueue::message msg{};
+  if (pc_log_queue_handle != nullptr &&
+      osMessageQueueGet(pc_log_queue_handle, &msg, nullptr, 0U) == osOK) {
+    char formatted[Logger::BUFFER_LENGTH];
+    int len = snprintf(formatted, sizeof(formatted), "%lu\t%s",
+                       static_cast<unsigned long>(msg.log_time), msg.raw_text);
+    if (len > 0) {
+      size_t write_len = static_cast<size_t>(len);
+      if (write_len >= sizeof(formatted)) {
+        write_len = sizeof(formatted) - 1;
+      }
+      send(static_cast<uint16_t>(PcCmd::log_message),
+        reinterpret_cast<uint8_t*>(formatted),
+        write_len);
+    }
+  }
+
 }
 
 template <typename T>
@@ -221,6 +241,17 @@ bool PcCom::send(uint16_t code, const T &msg) {
 bool PcCom::send(uint16_t code) {
   const uint8_t *dummy = nullptr;
   Packet packet{code, dummy, dummy, gdut::build_packet};
+
+  if (!packet) {
+    return false;
+  }
+
+  manager_.send(packet);
+  return true;
+}
+
+bool PcCom::send(uint16_t code, const uint8_t *data, size_t size) {
+  Packet packet{code, data, data + size, gdut::build_packet};
 
   if (!packet) {
     return false;

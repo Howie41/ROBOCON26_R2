@@ -65,19 +65,20 @@ public:
 
 private:
     Logger &logger_ref_;
-    osMessageQueueId_t queue_handle_{nullptr};
+    osMessageQueueId_t log_queue_handle_{nullptr};   // → debugTask → UART10
+    osMessageQueueId_t pc_queue_handle_{nullptr};    // → PcComTask → USB 上位机
 
 public:
     LoggerQueue(Logger &logger) : logger_ref_(logger) {}
     ~LoggerQueue() = default;
 
     /// 必须在 osTaskInit() 中（队列创建后、任务启动前）调用
-    void init(osMessageQueueId_t handle) { queue_handle_ = handle; }
+    void init(osMessageQueueId_t log_handle, osMessageQueueId_t pc_handle) {
+        log_queue_handle_ = log_handle;
+        pc_queue_handle_ = pc_handle;
+    }
 
     bool log(const char *format, ...) {
-        if (queue_handle_ == nullptr) {
-            return false;
-        }
         LoggerQueue::message msg;
         va_list args;
         va_start(args, format);
@@ -90,19 +91,26 @@ public:
                 write_len = sizeof(msg.raw_text) - 1;
             }
             msg.log_time = osKernelGetTickCount();
-            // 非阻塞发送；队列满时丢弃
-            return osMessageQueuePut(queue_handle_, &msg, 0U, 0U) == osOK;
+            // 非阻塞推送到两个队列；队列满时丢弃
+            bool ok = true;
+            if (log_queue_handle_ != nullptr) {
+                ok &= (osMessageQueuePut(log_queue_handle_, &msg, 0U, 0U) == osOK);
+            }
+            if (pc_queue_handle_ != nullptr) {
+                osMessageQueuePut(pc_queue_handle_, &msg, 0U, 0U);
+            }
+            return ok;
         }
         return false;
     }
 
     void try_send() {
-        if (queue_handle_ == nullptr) {
+        if (log_queue_handle_ == nullptr) {
             return;
         }
         LoggerQueue::message msg;
         // 非阻塞接收；队列空时直接返回
-        if (osMessageQueueGet(queue_handle_, &msg, NULL, 0U) == osOK) {
+        if (osMessageQueueGet(log_queue_handle_, &msg, NULL, 0U) == osOK) {
             logger_ref_.log("%lu\t%s", static_cast<unsigned long>(msg.log_time), msg.raw_text);
         }
     }

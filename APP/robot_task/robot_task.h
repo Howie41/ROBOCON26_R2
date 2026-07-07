@@ -13,4 +13,9 @@
  */
 #pragma once
 
+#include "cmsis_os2.h"
+
 void osTaskInit(void);
+
+/// PC 日志消息队列句柄（LoggerQueue::log → PcCom::ProcessTx → USB 上位机）
+extern osMessageQueueId_t pc_log_queue_handle;
