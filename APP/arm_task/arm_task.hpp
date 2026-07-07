@@ -29,23 +29,43 @@ enum class LOAD_TYPE: int8_t {
     LOW = -1,
     PLAIN = 0,
     MEDIUM = 1,
-    HIGH = 2,
-    TOP = 4
+    HIGH = 2
 };
 
 enum class UNLOAD_TYPE : uint8_t {
     LOW = 1,
     MEDIUM = 2,
-    HIGH = 3,
     TOP = 4
 };
 
 namespace arm_action {
     bool load_kfs(LOAD_TYPE step);
     bool unload_kfs(std::optional<UNLOAD_TYPE> level);
-    void release_kfs();
-    void raise_kfs_top();
+    bool release_kfs();
+    bool raise_kfs_top();
 }
+
+
+struct ArmAttr {
+    // 抓取台阶上的kfs
+    bool is_fetching_step_H{false};
+    bool is_fetching_step_M{false};
+    bool is_fetching_step_L{false};
+    bool is_fetching_step_P{false};
+    // 放置kfs
+    bool is_placing_kfs_L{false};
+    bool is_placing_kfs_M{false};
+    bool is_placing_kfs_T{false};
+    // 放置后释放
+    bool is_place_releasing{false};
+    // 存入kfs
+    bool is_loading_kfs{false};
+    // 启动时
+    bool is_starting{false};
+    // 其他
+    bool is_raising_kfs{false};
+    bool is_holding_kfs{false};
+};
 
 
 class Arm {
@@ -79,47 +99,52 @@ public:
 
     // 对外KFS控制接口
     bool fetch_step(LOAD_TYPE step) {
-        if (get_kfs_amount() == 3 || (step == LOAD_TYPE::TOP && !get_is_kfs_raised()) || (step != LOAD_TYPE::TOP && get_is_kfs_raised())) return false;
+        if (attr_.is_raising_kfs) return false;
         reset_timeline();
         switch (step) {
-            case LOAD_TYPE::MEDIUM: { set_is_fetching_step_M(true); break; }
-            case LOAD_TYPE::HIGH: { set_is_fetching_step_H(true); break; }
-            case LOAD_TYPE::LOW: { set_is_fetching_step_L(true); break; }
-            case LOAD_TYPE::PLAIN: { set_is_fetching_step_P(true); break; }
-            case LOAD_TYPE::TOP: { set_is_fetching_step_T(true); break; }
+            case LOAD_TYPE::MEDIUM: { attr_.is_fetching_step_M = true; break; }
+            case LOAD_TYPE::HIGH: { attr_.is_fetching_step_H = true; break; }
+            case LOAD_TYPE::LOW: { attr_.is_fetching_step_L = true; break; }
+            case LOAD_TYPE::PLAIN: { attr_.is_fetching_step_P = true; break; }
         }
         return true;
     }
     bool place_kfs(std::optional<UNLOAD_TYPE> kfs_layer = std::nullopt) {
         if (kfs_layer.has_value()) {  // 取特定层KFS
-            if ((kfs_layer.value() == UNLOAD_TYPE::TOP && !get_is_kfs_raised()) || (get_is_kfs_raised() && kfs_layer.value() != UNLOAD_TYPE::TOP)) return false;
+            if ((kfs_layer.value() != UNLOAD_TYPE::TOP && attr_.is_raising_kfs) || (kfs_layer.value() == UNLOAD_TYPE::TOP && !attr_.is_raising_kfs)) return false;
             reset_timeline();
             switch (kfs_layer.value()) {
-                case UNLOAD_TYPE::LOW: { set_is_placing_kfs_L(true); break; }
-                case UNLOAD_TYPE::MEDIUM: { set_is_placing_kfs_M(true); break; }
-                case UNLOAD_TYPE::HIGH: { set_is_placing_kfs_H(true); break; }
-                case UNLOAD_TYPE::TOP: { set_is_placing_kfs_T(true); break; }
+                case UNLOAD_TYPE::LOW: { attr_.is_placing_kfs_L = true; break; }
+                case UNLOAD_TYPE::MEDIUM: { attr_.is_placing_kfs_M = true; break; }
+                case UNLOAD_TYPE::TOP: { attr_.is_placing_kfs_T = true; break; }
             }
         } else {  // 默认值
-            if ((get_kfs_amount() == 0 && !get_is_kfs_raised())) return false;
             reset_timeline();
-            if (get_is_kfs_raised()) set_is_placing_kfs_T(true);
+            if (attr_.is_raising_kfs) attr_.is_placing_kfs_T = true;
             else switch (get_kfs_amount()) {
-                case 1: { set_is_placing_kfs_L(true); break; }
-                case 2: { set_is_placing_kfs_M(true); break; }
-                case 3: { set_is_placing_kfs_H(true); break; }
+                case 1: { attr_.is_placing_kfs_L = true; break; }
+                case 2: { attr_.is_placing_kfs_M = true; break; }
+                case 3: { attr_.is_placing_kfs_T = true; break; }
             }
         }
         return true;
     }
-    void place_release() { reset_timeline(); set_is_place_releasing(true); }
-    bool raise_kfs() {
-        if (get_kfs_amount() == 3 || get_is_kfs_raised()) return false;
+    bool place_release() {
         reset_timeline();
-        set_is_raising_kfs(true);
+        attr_.is_place_releasing = true;
         return true;
     }
-    void start() { reset_timeline(); set_is_starting(true); }
+    bool load_kfs() {
+        if (!attr_.is_raising_kfs) return false;
+        reset_timeline();
+        attr_.is_loading_kfs = true;
+        return true;
+    }
+    bool start() {
+        reset_timeline();
+        attr_.is_starting = true;
+        return true;
+    }
 
     
     // 重置计时器
@@ -128,49 +153,47 @@ public:
 
     // 吸取KFS入储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool fetch_proceed(LOAD_TYPE step, uint8_t index) {  // 此函数不会增加kfs_num_，需要在外部结束动作链后主动增加kfs_num_
-        auto get_pose_by_kfs = [&](auto& kfs_0, auto& kfs_1, auto& kfs_2) -> bool {
-            switch (kfs_num_) {
-                case 0: return set_pose(kfs_0[index]);
-                case 1: return set_pose(kfs_1[index]);
-                case 2: return set_pose(kfs_2[index]);
-                default: return false;
-            }
-        };
         using namespace arm_actions_config::fetch_proceed;
         switch (step) {
-            case LOAD_TYPE::MEDIUM: return get_pose_by_kfs(step_M::kfs_0, step_M::kfs_1, step_M::kfs_2);
-            case LOAD_TYPE::HIGH: return get_pose_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2);
-            case LOAD_TYPE::LOW: return get_pose_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2);
-            case LOAD_TYPE::PLAIN: return get_pose_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2);
-            case LOAD_TYPE::TOP: return get_pose_by_kfs(step_T::kfs_0, step_T::kfs_1, step_T::kfs_2);
+            case LOAD_TYPE::MEDIUM: return set_pose(step_M[index]);
+            case LOAD_TYPE::HIGH: return set_pose(step_H[index]);
+            case LOAD_TYPE::LOW: return set_pose(step_L[index]);
+            case LOAD_TYPE::PLAIN: return set_pose(step_P[index]);
             default: return false;
         }
     }
     // 取出KFS出储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool place_proceed(uint8_t index) {  // 此函数不会减少kfs_num_，需要在外部结束动作链后主动减少kfs_num_
-        if (is_kfs_raised_) {
-            return set_pose(arm_actions_config::place_proceed::kfs_4[index]);
+        if (attr_.is_raising_kfs) {
+            return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
         } else {
             if (kfs_num_ == 1) return set_pose(arm_actions_config::place_proceed::kfs_1[index]);
             else if (kfs_num_ == 2) return set_pose(arm_actions_config::place_proceed::kfs_2[index]);
-            else if (kfs_num_ == 3) return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
         }
         return false;
     }
     // 释放取出的KFS，并reset
     bool place_release_proceed(uint8_t index) { return set_pose(arm_actions_config::place_release_proceed[index]); }
-    // 吸取平地KFS并举高高
-    bool raise_kfs_proceed(uint8_t index) { return set_pose(arm_actions_config::raise_kfs_proceed[index]); }
+    // 存入KFS
+    bool load_kfs_proceed(uint8_t index) {
+        using namespace arm_actions_config::load_kfs_proceed;
+        switch (get_kfs_amount()) {
+            case 1: return set_pose(kfs_0[index]);
+            case 2: return set_pose(kfs_1[index]);
+        }
+    }
     // 启动时初始化
     bool start_proceed(uint8_t index) { return set_pose(arm_actions_config::start_proceed[index]); }
 
     // KFS数量控制类接口
-    void addKFS() { kfs_num_++; }
-    void rmvKFS() { kfs_num_--; }
+    void addKFS() { if (get_kfs_amount() < 3) kfs_num_++; }
+    void rmvKFS() { if (get_kfs_amount() > 0) kfs_num_--; }
+    uint8_t get_kfs_amount() { return kfs_num_; }
+    void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
 
     // 气泵控制类行为
-    void fetch() { set_is_holding_kfs(true); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_3, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_8, GPIO_PIN_SET); }
-    void release() { set_is_holding_kfs(false); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_3, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_8, GPIO_PIN_RESET); }
+    void fetch() { attr_.is_holding_kfs = true; HAL_GPIO_WritePin(GPIOG, GPIO_PIN_3, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_8, GPIO_PIN_SET); }
+    void release() { attr_.is_holding_kfs = false; HAL_GPIO_WritePin(GPIOG, GPIO_PIN_3, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOG, GPIO_PIN_8, GPIO_PIN_RESET); }
     
     // 恢复至默认姿态
     void reset() { set_pose(arm_actions_config::reset); }
@@ -179,114 +202,73 @@ public:
 
     // fetching_step 模块化实现
     void run_fetching_step(LOAD_TYPE step) {
-        set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
+        now_t_ = DWT_GetTimeline_s() - last_t_;  // now_t记录以last_t为基准的相对时间
         float delta_t;
-        void (Arm::*setter)(bool);
+        bool* setter;
         using namespace arm_actions_config::fetch_proceed;
-        auto get_dt_by_kfs = [&](auto& kfs_0, auto& kfs_1, auto& kfs_2) -> float {
-            switch (get_kfs_amount()) {
-                case 0: return kfs_0[act_index_].delta_t;
-                case 1: return kfs_1[act_index_].delta_t;
-                case 2: return kfs_2[act_index_].delta_t;
-                default: return 0.0f;
-            }
-        };
         switch (step) {
-            case LOAD_TYPE::HIGH: { delta_t = get_dt_by_kfs(step_H::kfs_0, step_H::kfs_1, step_H::kfs_2); setter = &Arm::set_is_fetching_step_H; break; }
-            case LOAD_TYPE::MEDIUM: { delta_t = get_dt_by_kfs(step_M::kfs_0, step_M::kfs_1, step_M::kfs_2); setter = &Arm::set_is_fetching_step_M; break; }
-            case LOAD_TYPE::LOW: { delta_t = get_dt_by_kfs(step_L::kfs_0, step_L::kfs_1, step_L::kfs_2); setter = &Arm::set_is_fetching_step_L; break; }
-            case LOAD_TYPE::PLAIN: { delta_t = get_dt_by_kfs(step_P::kfs_0, step_P::kfs_1, step_P::kfs_2); setter = &Arm::set_is_fetching_step_P; break; }
-            case LOAD_TYPE::TOP: { delta_t = get_dt_by_kfs(step_T::kfs_0, step_T::kfs_1, step_T::kfs_2); setter = &Arm::set_is_fetching_step_T; break; }
+            case LOAD_TYPE::HIGH: { delta_t = step_H[act_index_].delta_t; setter = &attr_.is_fetching_step_H; break; }
+            case LOAD_TYPE::MEDIUM: { delta_t = step_M[act_index_].delta_t; setter = &attr_.is_fetching_step_M; break; }
+            case LOAD_TYPE::LOW: { delta_t = step_L[act_index_].delta_t; setter = &attr_.is_fetching_step_L; break; }
+            case LOAD_TYPE::PLAIN: { delta_t = step_P[act_index_].delta_t; setter = &attr_.is_fetching_step_P; break; }
         }
-        if (get_now_t() > delta_t) {
-            if (fetch_proceed(step, act_index_++)) { (this->*setter)(false); addKFS(); set_is_kfs_raised(false); }
-            else set_last_t(DWT_GetTimeline_s());
+        if (now_t_ > delta_t) {
+            if (fetch_proceed(step, act_index_++)) { *setter = false; addKFS(); attr_.is_raising_kfs = true; }
+            else last_t_ = DWT_GetTimeline_s();
         }
     }
     // placing_kfs 模块化实现
     void run_placing_kfs(UNLOAD_TYPE layer) {
-        set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
+        now_t_ = DWT_GetTimeline_s() - last_t_;  // now_t记录以last_t为基准的相对时间
         float delta_t;
-        void (Arm::*setter)(bool);
+        bool* setter;
         using namespace arm_actions_config::place_proceed;
         switch (layer) {
-            case UNLOAD_TYPE::LOW: { delta_t = kfs_1[act_index_].delta_t; setter = &Arm::set_is_placing_kfs_L; break; }
-            case UNLOAD_TYPE::MEDIUM: { delta_t = kfs_2[act_index_].delta_t; setter = &Arm::set_is_placing_kfs_M; break; }
-            case UNLOAD_TYPE::HIGH: { delta_t = kfs_3[act_index_].delta_t; setter = &Arm::set_is_placing_kfs_H; break; }
-            case UNLOAD_TYPE::TOP: { delta_t = kfs_4[act_index_].delta_t; setter = &Arm::set_is_placing_kfs_T; break; }
+            case UNLOAD_TYPE::LOW: { delta_t = kfs_1[act_index_].delta_t; setter = &attr_.is_placing_kfs_L; break; }
+            case UNLOAD_TYPE::MEDIUM: { delta_t = kfs_2[act_index_].delta_t; setter = &attr_.is_placing_kfs_M; break; }
+            case UNLOAD_TYPE::TOP: { delta_t = kfs_3[act_index_].delta_t; setter = &attr_.is_placing_kfs_T; break; }
         }
-        if (get_now_t() > delta_t) {
-            if (place_proceed(act_index_++)) {
-                if (get_is_placing_kfs_T()) set_is_kfs_raised(false);
-                else rmvKFS();
-                (this->*setter)(false);
-            }
-            else set_last_t(DWT_GetTimeline_s());
+        if (now_t_ > delta_t) {
+            if (place_proceed(act_index_++)) { attr_.is_raising_kfs = false; rmvKFS(); *setter = false; }
+            else last_t_ = DWT_GetTimeline_s();
         }
     }
     // place_releasing 模块化实现
     void run_place_releasing() {
-        set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
-        if (get_now_t() > arm_actions_config::place_release_proceed[act_index_].delta_t) {
-            if (place_release_proceed(act_index_++)) set_is_place_releasing(false);
-            else set_last_t(DWT_GetTimeline_s());
+        now_t_ =DWT_GetTimeline_s() - last_t_;  // now_t记录以last_t为基准的相对时间
+        if (now_t_ > arm_actions_config::place_release_proceed[act_index_].delta_t) {
+            if (place_release_proceed(act_index_++)) attr_.is_place_releasing = false;
+            else last_t_ = DWT_GetTimeline_s();
         }
     }
-    // raising_kfs 模块化实现
-    void run_raising_kfs() {
-        set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
-        if (get_now_t() > arm_actions_config::raise_kfs_proceed[act_index_].delta_t) {
-            if (raise_kfs_proceed(act_index_++)) { set_is_raising_kfs(false); set_is_kfs_raised(true); }
-            else set_last_t(DWT_GetTimeline_s());
+    // loading_kfs 模块化实现
+    void run_loading_kfs() {
+        now_t_ = DWT_GetTimeline_s() - last_t_;  // now_t记录以last_t为基准的相对时间
+        float delta_t;
+        using namespace arm_actions_config::load_kfs_proceed;
+        switch (get_kfs_amount()) {
+            case 1: { delta_t = kfs_0[act_index_].delta_t; break; }
+            case 2: { delta_t = kfs_1[act_index_].delta_t; break; }
+        }
+        if (now_t_ > delta_t) {
+            if (place_proceed(act_index_++)) { attr_.is_loading_kfs = false; attr_.is_raising_kfs = false; }
+            else last_t_ = DWT_GetTimeline_s();
         }
     }
 
     // 启动时初始化
     void run_starting() {
-        set_now_t(DWT_GetTimeline_s() - get_last_t());  // now_t记录以last_t为基准的相对时间
-        if (get_now_t() > arm_actions_config::start_proceed[act_index_].delta_t) {
-            if (start_proceed(act_index_++)) { set_is_starting(false); }
-            else set_last_t(DWT_GetTimeline_s());
+        now_t_ = DWT_GetTimeline_s() - last_t_;  // now_t记录以last_t为基准的相对时间
+        if (now_t_ > arm_actions_config::start_proceed[act_index_].delta_t) {
+            if (start_proceed(act_index_++)) { attr_.is_starting = false; }
+            else last_t_ = DWT_GetTimeline_s();
         }
     }
 
 
 
     // 状态属性的getter与setter
-    inline const uint8_t get_kfs_amount() { return kfs_num_; }
-    void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
-    inline const bool get_is_fetching_step_L() { return is_fetching_step_L_; }
-    void set_is_fetching_step_L(bool is_fetching_step_L) { is_fetching_step_L_ = is_fetching_step_L; }
-    inline const bool get_is_fetching_step_P() { return is_fetching_step_P_; }
-    void set_is_fetching_step_P(bool is_fetching_step_P) { is_fetching_step_P_ = is_fetching_step_P; }
-    inline const bool get_is_fetching_step_M() { return is_fetching_step_M_; }
-    void set_is_fetching_step_M(bool is_fetching_step_M) { is_fetching_step_M_ = is_fetching_step_M; }
-    inline const bool get_is_fetching_step_H() { return is_fetching_step_H_; }
-    void set_is_fetching_step_H(bool is_fetching_step_H) { is_fetching_step_H_ = is_fetching_step_H; }
-    inline const bool get_is_fetching_step_T() { return is_fetching_step_T_; }
-    void set_is_fetching_step_T(bool is_fetching_step_T) { is_fetching_step_T_ = is_fetching_step_T; }
-    inline const bool get_is_placing_kfs_L() { return is_placing_kfs_L_; }
-    void set_is_placing_kfs_L(bool is_placing_kfs_L) { is_placing_kfs_L_ = is_placing_kfs_L; }
-    inline const bool get_is_placing_kfs_M() { return is_placing_kfs_M_; }
-    void set_is_placing_kfs_M(bool is_placing_kfs_M) { is_placing_kfs_M_ = is_placing_kfs_M; }
-    inline const bool get_is_placing_kfs_H() { return is_placing_kfs_H_; }
-    void set_is_placing_kfs_H(bool is_placing_kfs_H) { is_placing_kfs_H_ = is_placing_kfs_H; }
-    inline const bool get_is_placing_kfs_T() { return is_placing_kfs_T_; }
-    void set_is_placing_kfs_T(bool is_placing_kfs_T) { is_placing_kfs_T_ = is_placing_kfs_T; }
-    inline const bool get_is_place_releasing() { return is_place_releasing_; }
-    void set_is_place_releasing(bool is_place_releasing) { is_place_releasing_ = is_place_releasing; }
-    inline const bool get_is_raising_kfs() { return is_raising_kfs_; }
-    void set_is_raising_kfs(bool is_raising_kfs) { is_raising_kfs_ = is_raising_kfs; }
-    inline const bool get_is_starting() { return is_starting_; }
-    void set_is_starting(bool is_starting) { is_starting_ = is_starting; }
-    inline const bool get_is_kfs_raised() { return is_kfs_raised_; }
-    void set_is_kfs_raised(bool is_kfs_raised) { is_kfs_raised_ = is_kfs_raised; }
-    inline const bool get_is_holding_kfs() { return is_holding_kfs_; }
-    void set_is_holding_kfs(bool is_holding_kfs) { is_holding_kfs_ = is_holding_kfs; }
-    inline const float get_now_t() { return now_t_; }
-    void set_now_t(float now_t) { now_t_ = now_t; }
-    inline const float get_last_t() { return last_t_; }
-    void set_last_t(float last_t) { last_t_ = last_t; }
+    inline ArmAttr& get_attr() { return attr_; }
     
 private:
     DM43xxMotor &arm_lift_;
@@ -296,26 +278,8 @@ private:
 
     uint8_t kfs_num_{0};
 
-    // 吸取KFS
-    bool is_fetching_step_L_{false};
-    bool is_fetching_step_P_{false};
-    bool is_fetching_step_M_{false};
-    bool is_fetching_step_H_{false};
-    bool is_fetching_step_T_{false};
-    // 取出KFS
-    bool is_placing_kfs_L_{false};
-    bool is_placing_kfs_M_{false};
-    bool is_placing_kfs_H_{false};
-    bool is_placing_kfs_T_{false};
-    // 释放KFS并复位
-    bool is_place_releasing_{false};
-    // 举高高KFS
-    bool is_raising_kfs_{false};
-    // 启动时初始化
-    bool is_starting_{false};
-
-    bool is_kfs_raised_{false};
-    bool is_holding_kfs_{false};
+    // Arm状态属性
+    ArmAttr attr_;
 
     uint8_t act_index_ = 0;  // 用于记录动作索引
     float now_t_ = 0.0f;  // 当前动作相对时刻记录
