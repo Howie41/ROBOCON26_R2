@@ -30,8 +30,10 @@ constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.2f;
 constexpr float kGoToEdgeSeekSpeedMps = 0.2f;
 constexpr float kGoToEdgeLowPostTriggerSpeedMps = 0.1f;
-constexpr int16_t kR1ClimbYawDeg = -90;
-constexpr int16_t kR1PostLowAdvanceMm = 0;
+constexpr int16_t kR1ClimbYawNegYDeg = -90;
+constexpr int16_t kR1ClimbYawPosYDeg = 90;
+constexpr int16_t kR1ClimbYawToleranceDeg = 30;
+constexpr int16_t kR1PostLowAdvanceMm = 80;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
 constexpr int16_t kClimbAdvanceToCenterMm = 950;
 constexpr int16_t kDescendRetreatToHighMm = 280;
@@ -51,6 +53,11 @@ void wait_until(T &&condition, uint32_t delay_ms = 100U) {
     osDelay(delay_ms);
   }
 }
+
+enum class R1ClimbDirection : uint8_t {
+  NegY = 0,
+  PosY,
+};
 
 field::StairPose offsetPoseX(const field::StairPose &base, int32_t delta_x) {
   return field::StairPose{
@@ -176,9 +183,44 @@ field::StairPose advancePoseByHeading(int16_t x, int16_t y, int16_t advance_mm) 
   return field::StairPose{x, y, headingYawDeg()};
 }
 
-field::StairPose advancePoseNegY(int16_t x, int16_t y, int16_t advance_mm) {
-  return field::StairPose{x, static_cast<int16_t>(y - advance_mm),
-                          kR1ClimbYawDeg};
+bool resolveR1ClimbDirection(int16_t yaw_deg, R1ClimbDirection *out_dir) {
+  if (out_dir == nullptr) {
+    return false;
+  }
+
+  if (yaw_deg >= (kR1ClimbYawNegYDeg - kR1ClimbYawToleranceDeg) &&
+      yaw_deg <= (kR1ClimbYawNegYDeg + kR1ClimbYawToleranceDeg)) {
+    *out_dir = R1ClimbDirection::NegY;
+    return true;
+  }
+
+  if (yaw_deg >= (kR1ClimbYawPosYDeg - kR1ClimbYawToleranceDeg) &&
+      yaw_deg <= (kR1ClimbYawPosYDeg + kR1ClimbYawToleranceDeg)) {
+    *out_dir = R1ClimbDirection::PosY;
+    return true;
+  }
+
+  return false;
+}
+
+field::StairPose advancePoseR1(int16_t x, int16_t y, int16_t advance_mm,
+                               R1ClimbDirection dir) {
+  switch (dir) {
+    case R1ClimbDirection::NegY:
+      return field::StairPose{
+          x,
+          static_cast<int16_t>(y - advance_mm),
+          kR1ClimbYawNegYDeg,
+      };
+    case R1ClimbDirection::PosY:
+      return field::StairPose{
+          x,
+          static_cast<int16_t>(y + advance_mm),
+          kR1ClimbYawPosYDeg,
+      };
+  }
+
+  return field::StairPose{x, y, nav_control::current_yaw};
 }
 
 [[maybe_unused]] field::StairPose stairStandbyPoseForLevel(uint8_t level) {
@@ -478,6 +520,19 @@ void stairWaypointRunUp() {
 }
 
 void stairWaypointRunUpR1() {
+  R1ClimbDirection dir{};
+  if (!resolveR1ClimbDirection(nav_control::current_yaw, &dir)) {
+    g_stair_waypoint_step.store(0);
+    stop_auto_nav();
+    return;
+  }
+
+  if (dir == R1ClimbDirection::NegY) {
+    merlin_map::setHeading(merlin_map::Heading::NegY);
+  } else {
+    merlin_map::setHeading(merlin_map::Heading::PosY);
+  }
+
   stairAssistSetLaser3Profile(StairAssistLaser3Profile::Center);
   stairAssistSetMode(StairAssistMode::ClimbUp);
   stairAssistSetAutoLowerEnabled(true);
@@ -493,7 +548,7 @@ void stairWaypointRunUpR1() {
   const int16_t trigger_x = nav_control::current_x;
   const int16_t trigger_y = nav_control::current_y;
   const field::StairPose high_drive_pose =
-      advancePoseNegY(trigger_x, trigger_y, kClimbAdvanceToLowerMm);
+      advancePoseR1(trigger_x, trigger_y, kClimbAdvanceToLowerMm, dir);
 
   g_stair_waypoint_step.store(32);
   stop_auto_nav();
@@ -535,8 +590,8 @@ void stairWaypointRunUpR1() {
   g_stair_waypoint_step.store(35);
   if (kR1PostLowAdvanceMm > 0) {
     const field::StairPose post_low_pose =
-        advancePoseNegY(nav_control::current_x, nav_control::current_y,
-                        kR1PostLowAdvanceMm);
+        advancePoseR1(nav_control::current_x, nav_control::current_y,
+                      kR1PostLowAdvanceMm, dir);
     move_to_pose(post_low_pose, true);
   }
 
