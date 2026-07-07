@@ -39,28 +39,30 @@ public:
     int16_t yaw;
 };
 
+constexpr location before_shr{500, 0, 0};
+
+constexpr int16_t sh_aim_y = -692;
+
 constexpr std::array<location, SH_COUNT> sh_aim{
-    location{-250, -775, 90},
-    location{-50, -775, 90},
-    location{150, -775, 90},
-    location{750, -775, 90},
-    location{550, -775, 90},
-    location{350, -775, 90},
-
+    location{-275, sh_aim_y, 90},
+    location{-75, sh_aim_y, 90},
+    location{125, sh_aim_y, 90},
+    location{725, sh_aim_y, 90},
+    location{525, sh_aim_y, 90},
+    location{325, sh_aim_y, 90},
 };
-
-constexpr int16_t sh_close_y = -855;
+constexpr int16_t sh_close_y = -772;
 
 constexpr std::array<location, SH_COUNT> sh_close{
-    location{sh_aim[0], sh_close_y, 90},
-    location{sh_aim[1], sh_close_y, 90},
-    location{sh_aim[2], sh_close_y, 90},
-    location{sh_aim[3], sh_close_y, 90},
-    location{sh_aim[4], sh_close_y, 90},
-    location{sh_aim[5], sh_close_y, 90},
+    location{sh_aim[0].x, sh_close_y, 90},
+    location{sh_aim[1].x, sh_close_y, 90},
+    location{sh_aim[2].x, sh_close_y, 90},
+    location{sh_aim[3].x, sh_close_y, 90},
+    location{sh_aim[4].x, sh_close_y, 90},
+    location{sh_aim[5].x, sh_close_y, 90},
 };
 
-constexpr location init{-550, 150, 0};
+constexpr location match_rod{-95, -822, -90};
 
 constexpr location mf_entrance_mid{2060, 1500, 0};
 constexpr location mf_entrance_left{2060, 1500+1200, 0};
@@ -71,17 +73,18 @@ constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0};
 constexpr location mf_entrance_right_close{2085, mf_entrance_right.y, 0};
 
 // ======== 三区 ========
-constexpr location before_uphill{8000, 3650, 0};
-constexpr location after_uphill{10725, 3650, 0};
+constexpr location before_uphill{1000, 200, 0};
+constexpr location after_uphill{3500, 200, 0};
+constexpr location beside_after_uphill{3500, -1480, 0};
 /** @brief 赛中装填 KFS 点位 */
-constexpr location load_kfs{10210,970,0};
+constexpr location load_kfs{3200,-2025,0};
 
-constexpr int16_t grid_y = -140;
-constexpr location grid_mid{10000, grid_y, -90};
+constexpr int16_t grid_y = -4215;
+constexpr location grid_mid{2750, grid_y, -90};
 constexpr location grid_left{grid_mid.x + 540, grid_y, -90};
 constexpr location grid_right{grid_mid.x - 540, grid_y, -90};
 
-constexpr int16_t grid_close_y = -500;
+constexpr int16_t grid_close_y = -4515;
 constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90};
 constexpr location grid_left_close{grid_left.x, grid_close_y, -90};
 constexpr location grid_right_close{grid_right.x, grid_close_y, -90};
@@ -89,9 +92,9 @@ constexpr location grid_right_close{grid_right.x, grid_close_y, -90};
 /** @brief 贴左侧围栏、近九宫格点位 */
 constexpr location left_fence_front{grid_left.x + 300, grid_y, -90};
 /** @brief 贴左侧围栏、后侧点位 */
-constexpr location left_fence_back{grid_left.x + 300, 680, -90};
+constexpr location left_fence_back{left_fence_front.x, grid_y + 1500, -90};
 /** @brief R1 R2 合体预备点 */
-constexpr location combination_area{grid_right.x, 680, -90};
+constexpr location combination_area{2750, left_fence_back.y, -90};
 } // namespace waypoint
 
 volatile bool debug_pause{false};
@@ -132,20 +135,21 @@ public:
 
     // 上电后就绪等待开始
     STATE(ready) {
-        if constexpr (MATCH_TYPE == match_type::CWTY) {
-            logger_queue.log("\nSM READY CWTY ========\n");
-        } else {
-            logger_queue.log("\nSM READY JGCB ========\n");
-        }
-        // sm.wait_for_startup_config();
-        debug_pause = true;
-        sm.wait_until([]() -> bool {
-            return !debug_pause;
-        });
-        if constexpr (MATCH_TYPE == match_type::CWTY) {
-            sm.change_state_to(begin_cwty::instance());
-        } else {
-            sm.change_state_to(begin_jgcb::instance());
+        logger_queue.log("SM ======== READY ========\n");
+        sm.wait_for_startup_config();
+        switch (sm.current_startup_config_.begin_type_value) {
+            case begin_type::mc:
+                sm.change_state_to(begin_cwty::instance());
+                break;
+            case begin_type::mf:
+                sm.change_state_to(go_to_mf_entrance::instance());
+                break;
+            case begin_type::arena_before_uphill:
+            case begin_type::arena_retry_zone:
+                sm.change_state_to(begin_jgcb::instance());
+                break;
+            default:
+                break;
         }
     } STATE_END
 
@@ -159,19 +163,16 @@ public:
     STATE(begin_cwty) {
         logger_queue.log("SM BEGIN CWTY ========\n");
 
-        TailClawController::Instance().weapon_claw_open_ = true;            // 打开夹爪，夹紧武器头
-        sm.move_to_pos(100, 225, 0, 5000);
+        if (g_config_area_type.load() == area_type::blue) {
+            sm.sh_index_ = 3;
+        }
+
+        sm.move_to_pos(waypoint::before_shr, 5000);
         sm.change_state_to(go_to_shr::instance());
     } STATE_END
 
     // 前往端头架
     STATE(go_to_shr) {
-        // if (sm.sh_index_ == 0) {
-        //     sm.move_to_pos(610, -550, 90, 5000);
-        // } else {
-        //     sm.move_to_pos(610, -170, 90, 4000U);
-        //     sm.move_to_pos(610, -630, 90, 5000); //第二个武器的位置
-        // }
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_], 5000);
         
         TailClawController::Instance().weapon_claw_open_ = true;
@@ -188,12 +189,6 @@ public:
 
     // 夹爪夹取武器
     STATE(catch_weapon) {
-        // if (sm.sh_index_ == 0) {
-        //     sm.move_to_pos(610, -630, 90, 10000);
-        //     // sm.move_to_pos(735, -905, 90, 5000);
-        // } else {
-        //     sm.move_to_pos(735, -905, 90, 8000);
-        // }
         sm.move_to_pos(waypoint::sh_close[sm.sh_index_], 5000);
 
         TailClawController::Instance().weapon_claw_open_ = false;
@@ -203,7 +198,7 @@ public:
 
     // 夹爪反转
     STATE(rotate_weapon_claw) {
-        TailClawController::Instance().roll_target_deg_ = 2.0f;
+        TailClawController::Instance().roll_target_deg_ = 1.0f;
         osDelay(1000);
         sm.wait_until_timeout_or([&sm]() -> bool {
             sm.tail_claw_update_status();
@@ -214,9 +209,9 @@ public:
 
     // 端头架对齐武器杆
     STATE(match_rod) {
-        sm.move_to_pos(610, 50, 90, 5000);
-        sm.move_to_pos(610, 50, -90, 5000);
-        sm.move_to_pos(-160, -550,-90,5000);
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
+        sm.move_to_pos(waypoint::match_rod, 5000);
         sm.change_state_to(wait_for_decision_cmd::instance());
     } STATE_END
 
@@ -241,6 +236,7 @@ public:
                     return false;
             }
         }, 25);
+        sm.change_state_to(stop::instance());
     } STATE_END
 
     // 前往梅林入口
@@ -374,9 +370,9 @@ public:
     STATE(begin_jgcb) {
         logger_queue.log("SM BEGIN JGCB ========\n");
         sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
+        sm.wait_until_timeout_or([&sm]() -> bool {
             return (sm.get_cmd_from_r1() == 0x2A);
-        });
+        }, 10 * 1000);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
 
@@ -388,8 +384,7 @@ public:
 
     // 前往距斜坡最近的KFS前
     STATE(go_to_load_kfs) {
-        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y - 1500, waypoint::after_uphill.yaw);
-        // 防止卡到斜坡上
+        sm.move_to_pos(waypoint::beside_after_uphill);
         sm.move_to_pos(waypoint::load_kfs);
         sm.change_state_to(load_kfs::instance());
     } STATE_END
@@ -598,6 +593,9 @@ private:
             x += current_origin_location_->x;
             y += current_origin_location_->y;
         }
+
+        logger_queue.log("SM move_to_pos: (%d, %d, %d)\n", x, y, yaw);
+        // do_debug_pause("move_to_pos");
 
         taskENTER_CRITICAL();
         nav_control::target_x = x;

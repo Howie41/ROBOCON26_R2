@@ -362,7 +362,7 @@ void TailClawController::apply_gpio()
 {
     HAL_GPIO_WritePin(GPIOG,
                       GPIO_PIN_4,
-                      weapon_claw_closed_ ? GPIO_PIN_SET : GPIO_PIN_RESET);
+                      weapon_claw_open_ ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 void TailClawController::apply_motor_output()
