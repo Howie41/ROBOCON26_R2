@@ -59,6 +59,11 @@ struct StairAssistDebug {
   uint8_t laser2_ground_count{0};
   uint8_t laser2_high_count{0};
   uint8_t laser2_step_count{0};
+  bool front_photogate_blocked{false};
+  bool front_photogate_unblocked{false};
+  bool front_photogate_blocked_edge{false};
+  bool front_photogate_unblocked_edge{false};
+  bool front_photogate_descend_lower_latched{false};
   bool rear_photogate_blocked{false};
   bool rear_photogate_unblocked{false};
   bool rear_photogate_blocked_edge{false};
@@ -103,3 +108,17 @@ bool stairAssistShouldLowerAfterClimbAdvance();
 bool stairAssistShouldLowerAfterDescendRetreat();
 
 const StairAssistDebug &stairAssistDebug();
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern volatile uint8_t g_stair_front_descend_lower_latched;
+extern volatile uint8_t g_stair_laser2_go_to_edge_low_ready;
+extern volatile uint8_t g_stair_laser2_descend_lower_ready;
+extern volatile uint8_t g_stair_go_to_edge_low_ready;
+extern volatile uint8_t g_stair_should_lower_after_descend;
+
+#ifdef __cplusplus
+}
+#endif
