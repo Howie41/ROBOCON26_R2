@@ -12,11 +12,11 @@
 
 extern volatile float g_chassis_yaw_deg;
 
-volatile float g_nav_cruise_speed_mps = 3.00f;
+volatile float g_nav_cruise_speed_mps = 2.50f;
 volatile float g_nav_brake_safety_scale = 8.00f;
-volatile float g_nav_max_accel_mps2 = 2.80f;
-volatile float g_nav_max_decel_mps2 = 15.00f;
-volatile float g_nav_blend_dist_mm = 30.0f;
+volatile float g_nav_max_accel_mps2 = 2.00f;
+volatile float g_nav_max_decel_mps2 = 13.00f;
+volatile float g_nav_blend_dist_mm = 100.0f;
 volatile float g_nav_pid_max_xy_speed_mps = 0.85f;
 volatile float g_nav_pid_max_omega_radps = 4.50f;
 volatile float g_nav_max_omega_radps = 3.00f;
@@ -25,7 +25,7 @@ volatile float g_nav_omega_slowdown_deg = 10.0f;
 volatile float g_nav_max_omega_accel_radps2 = 1000.00f;
 volatile float g_nav_yaw_slowdown_start_deg = 12.0f;
 volatile float g_nav_yaw_slowdown_min_scale = 0.40f;
-volatile float g_nav_arrive_dist_mm = 20.0f;
+volatile float g_nav_arrive_dist_mm = 30.0f;
 volatile float g_nav_arrive_yaw_deg = 0.50f;
 volatile uint8_t g_nav_arrive_hold_count_target = 3U;
 
