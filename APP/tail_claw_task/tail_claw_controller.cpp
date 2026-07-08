@@ -87,7 +87,7 @@ void TailClawController::init_pid()
     move_speed_pid_.Improve = NONE;
 
     roll_pos_pid_ = {};
-    roll_pos_pid_.Kp = 30.0f;
+    roll_pos_pid_.Kp = 40.0f;
     roll_pos_pid_.Ki = 0.0f;
     roll_pos_pid_.Kd = 1.0f;
     roll_pos_pid_.MaxOut = 100.0f;
@@ -95,10 +95,10 @@ void TailClawController::init_pid()
     roll_pos_pid_.Improve = NONE;
 
     roll_speed_pid_ = {};
-    roll_speed_pid_.Kp = 70.0f;
+    roll_speed_pid_.Kp = 100.0f;
     roll_speed_pid_.Ki = 0.4;
     roll_speed_pid_.Kd = 0.6f;
-    roll_speed_pid_.MaxOut = 3000.0f;
+    roll_speed_pid_.MaxOut = 4000.0f;
     roll_speed_pid_.DeadBand = 0.3f;
     roll_speed_pid_.Improve = NONE;
 
@@ -190,7 +190,7 @@ void TailClawController::SetRollTarget(float deg)
 
 void TailClawController::SetWeaponClaw(bool close)
 {
-    weapon_claw_closed_ = close;
+    weapon_claw_open_ = close;
 }
 
 
@@ -213,7 +213,7 @@ pub_tail_claw_status TailClawController::GetStatus() const
     status.mode = mode_;
     status.motion_bits = motion_bits_;
     status.weapon_matched = weapon_matched_stable_;
-    status.weapon_claw_closed = weapon_claw_closed_;
+    status.weapon_claw_closed = weapon_claw_open_;
     status.air_pump_on = air_pump_on_;
     status.move_target_cm = move_target_cm_;
     status.roll_target_deg = roll_target_deg_;
@@ -335,7 +335,7 @@ void TailClawController::update_manual_control()
 void TailClawController::update_button_toggle()
 {
     if (button_rising_edge(xbox_cmd_.btnShare, &btn_share_last_)) {
-        weapon_claw_closed_ = !weapon_claw_closed_;
+        weapon_claw_open_ = !weapon_claw_open_;
     }
 
     if (button_rising_edge(xbox_cmd_.btnMenu, &btn_menu_last_)) {
@@ -362,7 +362,7 @@ void TailClawController::apply_gpio()
 {
     HAL_GPIO_WritePin(GPIOG,
                       GPIO_PIN_4,
-                      weapon_claw_closed_ ? GPIO_PIN_SET : GPIO_PIN_RESET);
+                      weapon_claw_open_ ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 void TailClawController::apply_motor_output()

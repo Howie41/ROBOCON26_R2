@@ -25,6 +25,9 @@
 #include <stdio.h>
 #include <optional>
 #include "arm_actions_config.hpp"
+#include "logger.hpp"
+
+extern LoggerQueue logger_queue;
 
 enum class LOAD_TYPE: int8_t {
     LOW = -1,
@@ -205,8 +208,18 @@ public:
     bool start_proceed(uint8_t index) { return set_pose(arm_actions_config::start_proceed[index]); }
 
     // KFS数量控制类接口
-    void addKFS() { if (get_kfs_amount() < 3) kfs_num_++; }
-    void rmvKFS() { if (get_kfs_amount() > 0) kfs_num_--; }
+    void addKFS() {
+        if (get_kfs_amount() < 3) {
+            kfs_num_++;
+            logger_queue.log("ARM add_kfs -> %d", kfs_num_);
+        }
+    }
+    void rmvKFS() {
+        if (get_kfs_amount() > 0) {
+            kfs_num_--;
+            logger_queue.log("ARM remove_kfs -> %d", kfs_num_);
+        }
+    }
     uint8_t get_kfs_amount() { return kfs_num_; }
     void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
 
