@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <sys/_pthreadtypes.h>
 
 #include "state_machine_task.h"
@@ -83,6 +84,7 @@ constexpr location beside_after_uphill{3500, -1480, 0, "beside_after_uphill"};
 
 
 constexpr location load_kfs{3400,-2025,0, "load_kfs"};
+constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
 
 constexpr int16_t grid_close_y = -4165;
 constexpr int16_t grid_y = grid_close_y + 500;
@@ -144,6 +146,11 @@ public:
         logger_queue.log("\n");
         logger_queue.log("SM ======== READY ========\n");
         sm.wait_for_startup_config();
+        sm.change_state_to(stop::instance());
+        return;
+
+        arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
+
         switch (sm.current_startup_config_.begin_type_value) {
             case begin_type::mc:
                 sm.change_state_to(begin_cwty::instance());
@@ -227,25 +234,25 @@ public:
     // 等待操作手决策，决定是否拼装新的武器
     STATE(wait_for_decision_cmd) {
         sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
-            switch (sm.get_cmd_from_r1()) {
-                case 0x0A: // 松开夹爪
-                    TailClawController::Instance().weapon_claw_open_ = true;
-                    return false;
-                case 0x1A: // 夹取新的武器头
-                    if (sm.sh_index_ < SH_COUNT - 1) {
-                        sm.sh_index_ += 1;
-                    }
-                    sm.change_state_to(go_to_shr::instance());
-                    return true;
-                case 0x1B: // 进梅林
-                    sm.change_state_to(go_to_mf_entrance::instance());
-                    return true;
-                default:
-                    return false;
-            }
+        uint8_t cmd = 0;
+        sm.wait_until([&]() -> bool {
+            cmd = sm.get_cmd_from_r1();
+            return (cmd == 0x0A || cmd == 0x1A || cmd == 0x1B);
         }, 25);
-        sm.change_state_to(stop::instance());
+        switch (cmd) {
+            case 0x0A: // 松开夹爪
+                TailClawController::Instance().weapon_claw_open_ = true;
+                break;
+            case 0x1A: // 夹取新的武器头
+                if (sm.sh_index_ < SH_COUNT - 1) {
+                    sm.sh_index_ += 1;
+                }
+                sm.change_state_to(go_to_shr::instance());
+                return;
+            case 0x1B: // 进梅林
+                sm.change_state_to(go_to_mf_entrance::instance());
+                return;
+        }
     } STATE_END
 
     // 前往梅林入口
@@ -389,53 +396,67 @@ public:
     // 上坡、前往竞技场
     STATE(go_to_arena) {
         sm.move_to_pos(waypoint::after_uphill);
-        sm.change_state_to(go_to_load_kfs::instance());
-    } STATE_END
-
-    // 前往距斜坡最近的KFS前
-    STATE(go_to_load_kfs) {
         sm.move_to_pos(waypoint::beside_after_uphill);
-        sm.move_to_pos(waypoint::load_kfs);
         sm.change_state_to(load_kfs::instance());
     } STATE_END
 
-    // 装载KFS
+    // 前往距斜坡最近的KFS前 装载KFS
     STATE(load_kfs) {
+        sm.move_to_pos(waypoint::load_kfs);
         arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-        arm_action::unload_kfs(UNLOAD_TYPE::TOP);
+        arm_action::load_kfs();
 
-        sm.change_state_to(wait_and_place_kfs::instance());
+        sm.change_state_to(load_kfs_2::instance());
+    } STATE_END
+
+    STATE(load_kfs_2) {
+        sm.move_to_pos(waypoint::load_kfs_2);
+        arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+
+        sm.change_state_to(wait_r1_cmd::instance());
     } STATE_END
 
     // 等待指令，然后放置中层KFS
-    STATE(wait_and_place_kfs) {
-        sm.move_to_pos(waypoint::grid_left);
+    STATE(wait_r1_cmd) {
+        // 转身
+        sm.move_to_pos(waypoint::load_kfs_2.x, waypoint::load_kfs_2.y, -90);
+        sm.move_to_pos(waypoint::grid_left.x, waypoint::load_kfs_2.y, -90);
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
             switch (sm.get_cmd_from_r1()) {
-                case 0x3A:
+                case cmd_place_kfs_on_left:
+                    arm_action::unload_kfs(std::nullopt); 
+                    sm.move_to_pos(waypoint::grid_left);
                     sm.move_to_pos(waypoint::grid_left_close);
-                    return true;
-                case 0x3B:
+                    arm_action::release_kfs();
+                    sm.move_to_pos(waypoint::grid_left);
+                    return false;
+                case cmd_place_kfs_on_mid:
+                    arm_action::unload_kfs(std::nullopt);
                     sm.move_to_pos(waypoint::grid_mid);
                     sm.move_to_pos(waypoint::grid_mid_close);
-                    return true;
-                case 0x3C:
+                    arm_action::release_kfs();
+                    sm.move_to_pos(waypoint::grid_mid);
+                    return false;
+                case cmd_place_kfs_on_right:
+                    arm_action::unload_kfs(std::nullopt);
                     sm.move_to_pos(waypoint::grid_right);
                     sm.move_to_pos(waypoint::grid_right_close);
+                    arm_action::release_kfs();
+                    sm.move_to_pos(waypoint::grid_right);
+                    return false;
+                case cmd_combination:
+                    sm.change_state_to(go_to_combination_area::instance());
                     return true;
                 default:
                     return false;
             }
         });
-        arm_action::release_kfs();
-        sm.change_state_to(go_to_combination_area::instance());
     } STATE_END
 
     // 前往合体点位
     STATE(go_to_combination_area) {
         // 慢慢退后到 R1 后面，准备合体
-        sm.move_to_pos(waypoint::grid_left);
         sm.move_to_pos(waypoint::left_fence_front);
         sm.move_to_pos(waypoint::left_fence_back);
         sm.move_to_pos(waypoint::combination_area);
@@ -446,44 +467,57 @@ public:
     STATE(wait_for_combination_cmd) {
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
-            return (sm.get_cmd_from_r1() == 0x4A);
+            return (sm.get_cmd_from_r1() == cmd_combination);
         });
         sm.change_state_to(begin_combination::instance());
     } STATE_END
 
     // 合体
     STATE(begin_combination) {
-        // chassis_action::start_climb_R1();
+        logger_queue.log("SM climb R1 start\n");
+        chassis_action::start_climb_R1();
+        logger_queue.log("SM climb R1 end\n");
         sm.change_state_to(unload_kfs::instance());
     } STATE_END
 
     // 取出KFS并手持
     STATE(unload_kfs) {
-        arm_action::unload_kfs(UNLOAD_TYPE::LOW);
-        sm.change_state_to(wait_for_place_hi_kfs_cmd::instance());
+        if (arm.get_kfs_amount() <= 0) {
+            sm.change_state_to(release_kfs::instance());
+            return;
+        }
+        arm_action::unload_kfs(std::nullopt);
+        sm.change_state_to(wait_for_release_kfs_cmd::instance());
     } STATE_END
 
     // 等待放置高层KFS的指令
-    STATE(wait_for_place_hi_kfs_cmd) {
+    STATE(wait_for_release_kfs_cmd) {
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
-            switch (sm.get_cmd_from_r1()) {
-                case 0x5B: // 释放 KFS
-                    sm.change_state_to(release_kfs::instance());
-                    return true;
-                case 0x5A: // 重试取出KFS
-                    sm.change_state_to(unload_kfs::instance());
-                    return true;
-                default:
-                    return false;
-            }
+            return (sm.get_cmd_from_r1() == cmd_release_kfs);
         });
+        sm.change_state_to(release_kfs::instance());
     } STATE_END
 
     // 释放KFS
     STATE(release_kfs) {
         arm_action::release_kfs();
-        sm.change_state_to(stop::instance());
+        if (arm.get_kfs_amount() > 0) {
+            logger_queue.log("SM %d kfs remaining can be unloaded...", arm.get_kfs_amount());
+            sm.change_state_to(wait_for_unload_kfs_cmd::instance());
+        } else {
+            logger_queue.log("SM No kfs left!");
+            sm.change_state_to(stop::instance());
+        }
+    } STATE_END
+
+    // 等待取出KFS的指令
+    STATE(wait_for_unload_kfs_cmd) {
+        sm.clean_previous_cmd();
+        sm.wait_until([&sm]() -> bool {
+            return (sm.get_cmd_from_r1() == cmd_unload_kfs);
+        });
+        sm.change_state_to(unload_kfs::instance());
     } STATE_END
 
 #undef STATE
@@ -497,6 +531,16 @@ public:
     }
 
 private:
+    enum r1_cmd: uint8_t {
+        cmd_go_uphill = 0x2A,
+        cmd_place_kfs_on_left = 0x3A,
+        cmd_place_kfs_on_mid = 0x3B,
+        cmd_place_kfs_on_right = 0x3C,
+        cmd_combination = 0x4A,
+        cmd_unload_kfs = 0x5A,
+        cmd_release_kfs = 0x5B,
+    };
+
     int8_t moved_left_right_{0}; // 左右移动计数
 
     uint8_t sh_index_{0};        // 武器夹取计数
