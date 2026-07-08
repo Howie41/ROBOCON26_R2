@@ -49,7 +49,7 @@ bool raise_kfs(LOAD_TYPE step) {
     if (result) {
         osDelay(3000);
     } else {
-        logger_queue.log("ARM raise_kfs failed!\n");
+        logger_queue.log("ARM\traise_kfs failed!\n");
     }
     return result;
 }
@@ -63,7 +63,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level = std::nullopt) {
     if (result) {
         osDelay(5000);
     } else {
-        logger_queue.log("ARM unload_kfs failed!\n");
+        logger_queue.log("ARM\tunload_kfs failed!\n");
     }
     return result;
 }
@@ -75,7 +75,7 @@ bool release_kfs() {
     if (result) {
         osDelay(1000);
     } else {
-        logger_queue.log("ARM release_kfs failed!\n");
+        logger_queue.log("ARM\trelease_kfs failed!\n");
     }
     return result;
 }
@@ -87,7 +87,7 @@ bool load_kfs() {
     if (result) {
         osDelay(4000);
     } else {
-        logger_queue.log("ARM load_kfs failed!\n");
+        logger_queue.log("ARM\tload_kfs failed!\n");
     }
     return result;
 }

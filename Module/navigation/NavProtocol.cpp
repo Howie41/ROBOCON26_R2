@@ -12,11 +12,11 @@
 
 extern volatile float g_chassis_yaw_deg;
 
-volatile float g_nav_cruise_speed_mps = 2.5f;
+volatile float g_nav_cruise_speed_mps = 2.3f;
 volatile float g_nav_brake_safety_scale = 8.00f;
 volatile float g_nav_max_accel_mps2 = 2.50f;
 volatile float g_nav_max_decel_mps2 = 13.00f;
-volatile float g_nav_blend_dist_mm = 500.0f;
+volatile float g_nav_blend_dist_mm = 300.0f;
 volatile float g_nav_pid_max_xy_speed_mps = 2.00f;
 volatile float g_nav_pid_max_omega_radps = 4.50f;
 volatile float g_nav_max_omega_radps = 3.00f;
@@ -25,7 +25,7 @@ volatile float g_nav_omega_slowdown_deg = 10.0f;
 volatile float g_nav_max_omega_accel_radps2 = 1000.00f;
 volatile float g_nav_yaw_slowdown_start_deg = 12.0f;
 volatile float g_nav_yaw_slowdown_min_scale = 0.40f;
-volatile float g_nav_arrive_dist_mm = 50.0f;
+volatile float g_nav_arrive_dist_mm = 30.0f;
 volatile float g_nav_arrive_yaw_deg = 0.50f;
 volatile uint8_t g_nav_arrive_hold_count_target = 2U;
 
@@ -48,8 +48,8 @@ volatile float g_ozone_nav_brake_dist_mm = 0.0f;
 volatile uint8_t g_ozone_nav_arrive_hold_count = 0U;
 
 PID_t pid_x = {
-    .Kp = 2.8f,
-    .Ki = 0.02f,
+    .Kp = 2.5f,
+    .Ki = 0.025f,
     .Kd = 0.00f,
     .MaxOut = 2500.0f,
     .IntegralLimit = 100.0f,
@@ -59,7 +59,7 @@ PID_t pid_x = {
 
 PID_t pid_y = {
     .Kp = 2.5f,
-    .Ki = 0.02f,
+    .Ki = 0.025f,
     .Kd = 0.00f,
     .MaxOut = 2500.0f,
     .IntegralLimit = 100.0f,
