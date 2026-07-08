@@ -86,7 +86,7 @@ constexpr location beside_after_uphill{3500, -1480, 0, "beside_after_uphill"};
 constexpr location load_kfs{3400,-2025,0, "load_kfs"};
 constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
 
-constexpr int16_t grid_close_y = -4165;
+constexpr int16_t grid_close_y = -4165 - 20;
 constexpr int16_t grid_y = grid_close_y + 500;
 
 constexpr location grid_mid{3050, grid_y, -90, "grid_mid"};
@@ -145,6 +145,11 @@ public:
     STATE(ready) {
         logger_queue.log("\n");
         logger_queue.log("SM\t======== READY ========\n");
+
+        // 清理之前可能收到过的配置
+        startup_config dummy_config;
+        sm.startup_config_sub_.TryGet(&dummy_config);
+
         sm.wait_for_startup_config();
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
@@ -405,6 +410,7 @@ public:
     // 前往距斜坡最近的KFS前 装载KFS
     STATE(load_kfs) {
         sm.move_to_pos(waypoint::load_kfs);
+        sm.do_debug_pause("load_kfs_1");
         arm_action::raise_kfs(LOAD_TYPE::PLAIN);
         arm_action::load_kfs();
 
@@ -413,8 +419,8 @@ public:
 
     STATE(load_kfs_2) {
         sm.move_to_pos(waypoint::load_kfs_2);
+        // sm.do_debug_pause("load_kfs_2");
         arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-
         sm.change_state_to(wait_r1_cmd::instance());
     } STATE_END
 

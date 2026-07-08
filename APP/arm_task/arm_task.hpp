@@ -211,13 +211,13 @@ public:
     void addKFS() {
         if (get_kfs_amount() < 3) {
             kfs_num_++;
-            logger_queue.log("ARM add_kfs -> %d", kfs_num_);
+            logger_queue.log("ARM add_kfs -> %d\n", kfs_num_);
         }
     }
     void rmvKFS() {
         if (get_kfs_amount() > 0) {
             kfs_num_--;
-            logger_queue.log("ARM remove_kfs -> %d", kfs_num_);
+            logger_queue.log("ARM remove_kfs -> %d\n", kfs_num_);
         }
     }
     uint8_t get_kfs_amount() { return kfs_num_; }
