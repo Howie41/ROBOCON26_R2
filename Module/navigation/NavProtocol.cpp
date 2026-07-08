@@ -12,11 +12,11 @@
 
 extern volatile float g_chassis_yaw_deg;
 
-volatile float g_nav_cruise_speed_mps = 2.50f;
+volatile float g_nav_cruise_speed_mps = 2.0f;
 volatile float g_nav_brake_safety_scale = 8.00f;
-volatile float g_nav_max_accel_mps2 = 2.00f;
+volatile float g_nav_max_accel_mps2 = 1.00f;
 volatile float g_nav_max_decel_mps2 = 13.00f;
-volatile float g_nav_blend_dist_mm = 100.0f;
+volatile float g_nav_blend_dist_mm = 300.0f;
 volatile float g_nav_pid_max_xy_speed_mps = 0.85f;
 volatile float g_nav_pid_max_omega_radps = 4.50f;
 volatile float g_nav_max_omega_radps = 3.00f;
@@ -49,9 +49,9 @@ volatile uint8_t g_ozone_nav_arrive_hold_count = 0U;
 
 PID_t pid_x = {
     .Kp = 2.8f,
-    .Ki = 0.30f,
-    .Kd = 0.08f,
-    .MaxOut = 1000.0f,
+    .Ki = 0.01f,
+    .Kd = 0.00f,
+    .MaxOut = 2500.0f,
     .IntegralLimit = 100.0f,
     .DeadBand = 10.0f,
     .Improve = Integral_Limit,
@@ -59,9 +59,9 @@ PID_t pid_x = {
 
 PID_t pid_y = {
     .Kp = 2.8f,
-    .Ki = 0.30f,
-    .Kd = 0.08f,
-    .MaxOut = 1000.0f,
+    .Ki = 0.01f,
+    .Kd = 0.00f,
+    .MaxOut = 2500.0f,
     .IntegralLimit = 100.0f,
     .DeadBand = 10.0f,
     .Improve = Integral_Limit,
