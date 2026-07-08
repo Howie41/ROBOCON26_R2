@@ -58,8 +58,8 @@ bool raise_kfs(LOAD_TYPE step) {
  * @note 抬起、伸入储存区、吸取、抬起、伸出
  * @param std::nullopt:自动识别高度，UNLOAD_TYPE::LOW, UNLOAD_TYPE::MEDIUM, UNLOAD_TYPE::TOP : 指定高度
  */
-bool unload_kfs(std::optional<UNLOAD_TYPE> level = std::nullopt) { 
-    auto result = arm.place_kfs(level); 
+bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
+    auto result = arm.place_kfs(level, is_layer3);
     if (result) {
         osDelay(5000);
     } else {
