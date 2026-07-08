@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <sys/_pthreadtypes.h>
 
 #include "state_machine_task.h"
@@ -18,6 +19,7 @@
 #include "NavProtocol.hpp"
 #include "infrared_com.hpp"
 #include "memory_map.h"
+#include "tail_claw_controller.hpp"
 #include "tail_claw_task.hpp"
 #include "topic_pool.h"
 #include "topics.hpp"
@@ -27,6 +29,8 @@
 osThreadId_t StateMachineTaskHandle;
 extern Arm arm;  // 取矿机构实例
 extern LoggerQueue logger_queue;
+
+constexpr size_t SH_COUNT = 6;
 
 namespace waypoint {
 class location{
@@ -39,15 +43,36 @@ public:
 
 constexpr location before_shr{500, 0, 0, "before_shr"};
 
+constexpr int16_t sh_aim_y = -692;
+
+constexpr std::array<location, SH_COUNT> sh_aim{
+    location{-275, sh_aim_y, 90, "sh_aim"},
+    location{-75, sh_aim_y, 90, "sh_aim"},
+    location{125, sh_aim_y, 90, "sh_aim"},
+    location{725, sh_aim_y, 90, "sh_aim"},
+    location{525, sh_aim_y, 90, "sh_aim"},
+    location{325, sh_aim_y, 90, "sh_aim"},
+};
+constexpr int16_t sh_close_y = -772;
+
+constexpr std::array<location, SH_COUNT> sh_close{
+    location{sh_aim[0].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[1].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[2].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[3].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[4].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[5].x, sh_close_y, 90, "sh_close"},
+};
+
 constexpr location match_rod{-95, -822, -90, "match_rod"};
 
-constexpr location mf_entrance_mid{2060, 1500, 0, "mf_entrance_mid"};
-constexpr location mf_entrance_left{2060, 1500+1200, 0, "mf_entrance_left"};
-constexpr location mf_entrance_right{2060, 1500-1200, 0, "mf_entrance_right"};
+constexpr location mf_entrance_mid{2150, 1496, 0, "mf_entrance_mid"};
+constexpr location mf_entrance_left{2150, 1496+1200, 0, "mf_entrance_left"};
+constexpr location mf_entrance_right{2150, 1496-1200, 0, "mf_entrance_right"};
 
-constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0, "mf_entrance_mid_close"};
-constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0, "mf_entrance_left_close"};
-constexpr location mf_entrance_right_close{2085, mf_entrance_right.y, 0, "mf_entrance_right_close"};
+// constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0, "mf_entrance_mid_close"};
+// constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0, "mf_entrance_left_close"};
+// constexpr location mf_entrance_right_close{2085, mf_entrance_right.y, 0, "mf_entrance_right_close"};
 
 // ======== 三区 ========
 constexpr location before_uphill{1000, 200, 0, "before_uphill"};
@@ -59,6 +84,7 @@ constexpr location beside_after_uphill{3500, -1480, 0, "beside_after_uphill"};
 
 
 constexpr location load_kfs{3400,-2025,0, "load_kfs"};
+constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
 
 constexpr int16_t grid_close_y = -4165;
 constexpr int16_t grid_y = grid_close_y + 500;
@@ -118,14 +144,27 @@ public:
     // 上电后就绪等待开始
     STATE(ready) {
         logger_queue.log("\n");
-        logger_queue.log("SM ======== READY ========\n");
+        logger_queue.log("SM\t======== READY ========\n");
         sm.wait_for_startup_config();
-        // if constexpr (MATCH_TYPE == match_type::CWTY) {
-        //     sm.change_state_to(begin_cwty::instance());
-        // } else {
-        //     sm.change_state_to(begin_jgcb::instance());
-        // }
-        sm.change_state_to(stop::instance());
+
+        arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
+
+        switch (sm.current_startup_config_.begin_type_value) {
+            case begin_type::mc:
+                sm.change_state_to(begin_cwty::instance());
+                break;
+            case begin_type::mf:
+                sm.change_state_to(go_to_mf_entrance::instance());
+                break;
+            case begin_type::arena_before_uphill:
+                sm.change_state_to(begin_jgcb::instance());
+                break;
+            case begin_type::arena_retry_zone:
+                sm.change_state_to(go_to_arena::instance());
+                break;
+            default:
+                break;
+        }
     } STATE_END
 
     // 停止
@@ -136,24 +175,23 @@ public:
 
     // 启动（崇武探幽）
     STATE(begin_cwty) {
-        logger_queue.log("SM ======== CWTY-BEGIN ========\n");
+        logger_queue.log("SM\tBEGIN CWTY ========\n");
 
-        tail_claw_set_weapon_claw(true);            // 打开夹爪，夹紧武器头
-        sm.move_to_pos(-180, -115, 0, 5000);
+        if (g_config_area_type.load() == area_type::blue) {
+            sm.sh_index_ = 3;
+        }
+
+        sm.move_to_pos(waypoint::before_shr, 5000);
         sm.change_state_to(go_to_shr::instance());
     } STATE_END
 
     // 前往端头架
     STATE(go_to_shr) {
-        if (sm.flag_ == 0) {
-            sm.move_to_pos(335, -825, 90, 5000);
-        } else {
-            sm.move_to_pos(300, -170, 90, 4000U);
-            sm.move_to_pos(735, -830, 90, 5000);
-        }
-        tail_claw_set_weapon_claw(true); // 打开夹爪，夹紧武器头
-        constexpr float target = -59.5f;
-        tail_claw_set_roll_target(target);
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_], 5000);
+        
+        TailClawController::Instance().weapon_claw_open_ = true;
+        constexpr float target = 37.0f;
+        TailClawController::Instance().roll_target_deg_ = target;
         sm.wait_until_timeout_or([&sm, target]() -> bool {
             sm.tail_claw_update_status();
             return sm.tail_claw_status_valid_
@@ -165,67 +203,65 @@ public:
 
     // 夹爪夹取武器
     STATE(catch_weapon) {
-        if (sm.flag_ == 0) {
-            sm.move_to_pos(335, -895, 90, 5000);
-            // sm.move_to_pos(735, -905, 90, 5000);
-        } else {
-            sm.move_to_pos(735, -905, 90, 8000);
-        }
-        tail_claw_set_weapon_claw(false);         // 闭合夹爪，夹紧武器头
-        osDelay(500);                             // 等待夹爪动作完成，具体时间待调试
-        sm.flag_++;
+        sm.move_to_pos(waypoint::sh_close[sm.sh_index_], 5000);
+
+        TailClawController::Instance().weapon_claw_open_ = false;
+        osDelay(500);
         sm.change_state_to(rotate_weapon_claw::instance());
     } STATE_END
 
     // 夹爪反转
     STATE(rotate_weapon_claw) {
-        tail_claw_set_roll_target(2.0f);
+        TailClawController::Instance().roll_target_deg_ = 1.0f;
         osDelay(1000);
         sm.wait_until_timeout_or([&sm]() -> bool {
             sm.tail_claw_update_status();
             return sm.tail_claw_status_valid_ && sm.tail_claw_status_cache_.roll_arrived;
         }, 3000U, 10U);
-        tail_claw_reset_match();
         sm.change_state_to(match_rod::instance());
     } STATE_END
 
     // 端头架对齐武器杆
     STATE(match_rod) {
-        sm.move_to_pos(300, -170, -90, 4000U);
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
+        sm.move_to_pos(waypoint::match_rod, 5000);
         sm.change_state_to(wait_for_decision_cmd::instance());
     } STATE_END
 
     // 等待操作手决策，决定是否拼装新的武器
     STATE(wait_for_decision_cmd) {
         sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
-            switch (sm.get_cmd_from_r1()) {
-                case 0x0A: // 松开夹爪
-                    tail_claw_set_weapon_claw(true);
-                    return false;
-                case 0x1A: // 夹取新的武器头
-                    sm.change_state_to(go_to_shr::instance());
-                    return true;
-                case 0x1B: // 进梅林
-                    sm.change_state_to(go_to_mf_entrance::instance());
-                    return true;
-                default:
-                    return false;
-            }
+        uint8_t cmd = 0;
+        sm.wait_until([&]() -> bool {
+            cmd = sm.get_cmd_from_r1();
+            return (cmd == 0x0A || cmd == 0x1A || cmd == 0x1B);
         }, 25);
+        switch (cmd) {
+            case 0x0A: // 松开夹爪
+                TailClawController::Instance().weapon_claw_open_ = true;
+                break;
+            case 0x1A: // 夹取新的武器头
+                if (sm.sh_index_ < SH_COUNT - 1) {
+                    sm.sh_index_ += 1;
+                }
+                sm.change_state_to(go_to_shr::instance());
+                return;
+            case 0x1B: // 进梅林
+                sm.change_state_to(go_to_mf_entrance::instance());
+                return;
+        }
     } STATE_END
 
     // 前往梅林入口
     STATE(go_to_mf_entrance) {
         sm.move_to_pos(waypoint::mf_entrance_mid);
-        tail_claw_set_roll_target(-118.0f);
         sm.change_state_to(request_for_path_cmd::instance());
     } STATE_END
 
     // 请求路径规划命令
     STATE(request_for_path_cmd) {
         sm.path_cmd_request_pub_.Publish(sm.current_path_cmd_index_); // 发一次 request
-        logger_queue.log("SM path cmd requested No.%d...\n", sm.current_path_cmd_index_);
 
         path_cmd::code cmd;
         auto if_received = sm.wait_until_timeout_or([&]() -> bool {
@@ -233,13 +269,17 @@ public:
         }, 3000); // 3秒超时
 
         if (!if_received) {
-            logger_queue.log("SM path cmd timeout!\n");
+            logger_queue.log("PATH\ttimeout No.%d!\n", sm.current_path_cmd_index_);
             return; // 超时未收到指令，保持当前状态重试
         }
 
-        logger_queue.log("SM path cmd received No.%d 0x%02X\n", sm.current_path_cmd_index_, static_cast<uint8_t>(cmd));
+        logger_queue.log("PATH\treceived No.%d 0x%02X\n", sm.current_path_cmd_index_, static_cast<uint8_t>(cmd));
         sm.current_path_cmd_index_ += 1;
         sm.current_path_cmd_ = cmd; // 给其他后续状态读取
+
+        if (cmd == path_cmd::code::move_forward || cmd == path_cmd::code::move_backward) {
+            sm.has_entered_mf = true;
+        }
 
         switch (cmd) {
             case path_cmd::code::move_forward:
@@ -258,7 +298,7 @@ public:
                 sm.change_state_to(execute_arm_action::instance());
                 break;
             case path_cmd::code::no_more_commands:
-                logger_queue.log("SM path cmd end\n");
+                logger_queue.log("PATH\tend\n");
                 sm.change_state_to(go_to_mf_exit::instance());
                 break;
             default:
@@ -279,12 +319,15 @@ public:
                 break;
             case path_cmd::code::turn_left_90:
                 chassis_action::turn_left_90_deg();
+                osDelay(1000);
                 break;
             case path_cmd::code::turn_right_90:
                 chassis_action::turn_right_90_deg();
+                osDelay(1000);
                 break;
             case path_cmd::code::turn_around:
                 chassis_action::turn_right_180_deg();
+                osDelay(1000);
                 // chassis_action::start_return_to_center();
                 break;
             case path_cmd::code::move_left:
@@ -323,13 +366,12 @@ public:
                 break;
         }
 
-        sm.wait_until_timeout_or([&]() -> bool {
-            return arm.get_attr().is_kfs_raised;
-        }, 3000);
-
         arm_action::load_kfs();
 
         chassis_action::start_return_to_center();
+        if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
+            sm.move_to_pos(waypoint::mf_entrance_mid.x - 300, nav_control::current_y, 0, 5000);
+        }
 
         sm.current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
         sm.change_state_to(request_for_path_cmd::instance());
@@ -337,7 +379,6 @@ public:
 
     // 前往梅林出口
     STATE(go_to_mf_exit) {
-        sm.move_to_pos(waypoint::before_uphill, 5000);
         sm.change_state_to(stop::instance());
     } STATE_END
 
@@ -345,65 +386,79 @@ public:
 
     // 启动（九宫藏宝）
     STATE(begin_jgcb) {
-        logger_queue.log("SM ======== JGCB-BEGIN ========\n");
+        logger_queue.log("SM\tBEGIN JGCB ========\n");
         sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
+        sm.wait_until_timeout_or([&sm]() -> bool {
             return (sm.get_cmd_from_r1() == 0x2A);
-        });
+        }, 10 * 1000);
+        sm.move_to_pos(waypoint::before_uphill);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
 
     // 上坡、前往竞技场
     STATE(go_to_arena) {
         sm.move_to_pos(waypoint::after_uphill);
-        sm.change_state_to(go_to_load_kfs::instance());
-    } STATE_END
-
-    // 前往距斜坡最近的KFS前
-    STATE(go_to_load_kfs) {
-        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y - 1500, waypoint::after_uphill.yaw);
-        // 防止卡到斜坡上
-        sm.move_to_pos(waypoint::load_kfs);
+        sm.move_to_pos(waypoint::beside_after_uphill);
         sm.change_state_to(load_kfs::instance());
     } STATE_END
 
-    // 装载KFS
+    // 前往距斜坡最近的KFS前 装载KFS
     STATE(load_kfs) {
+        sm.move_to_pos(waypoint::load_kfs);
         arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-        arm_action::unload_kfs(UNLOAD_TYPE::TOP);
+        arm_action::load_kfs();
 
-        sm.change_state_to(wait_and_place_kfs::instance());
+        sm.change_state_to(load_kfs_2::instance());
+    } STATE_END
+
+    STATE(load_kfs_2) {
+        sm.move_to_pos(waypoint::load_kfs_2);
+        arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+
+        sm.change_state_to(wait_r1_cmd::instance());
     } STATE_END
 
     // 等待指令，然后放置中层KFS
-    STATE(wait_and_place_kfs) {
-        sm.move_to_pos(waypoint::grid_left);
+    STATE(wait_r1_cmd) {
+        // 转身 load_kfs_2.x -> grid_left.x
+        sm.move_to_pos(waypoint::load_kfs_2.x, waypoint::load_kfs_2.y, -90);
+        sm.move_to_pos(waypoint::grid_left.x, waypoint::load_kfs_2.y, -90);
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
             switch (sm.get_cmd_from_r1()) {
-                case 0x3A:
+                case cmd_place_kfs_on_left:
+                    arm_action::unload_kfs(std::nullopt); 
+                    sm.move_to_pos(waypoint::grid_left);
                     sm.move_to_pos(waypoint::grid_left_close);
-                    return true;
-                case 0x3B:
+                    arm_action::release_kfs();
+                    sm.move_to_pos(waypoint::grid_left);
+                    return false;
+                case cmd_place_kfs_on_mid:
+                    arm_action::unload_kfs(std::nullopt);
                     sm.move_to_pos(waypoint::grid_mid);
                     sm.move_to_pos(waypoint::grid_mid_close);
-                    return true;
-                case 0x3C:
+                    arm_action::release_kfs();
+                    sm.move_to_pos(waypoint::grid_mid);
+                    return false;
+                case cmd_place_kfs_on_right:
+                    arm_action::unload_kfs(std::nullopt);
                     sm.move_to_pos(waypoint::grid_right);
                     sm.move_to_pos(waypoint::grid_right_close);
+                    arm_action::release_kfs();
+                    sm.move_to_pos(waypoint::grid_right);
+                    return false;
+                case cmd_combination:
+                    sm.change_state_to(go_to_combination_area::instance());
                     return true;
                 default:
                     return false;
             }
         });
-        arm_action::release_kfs();
-        sm.change_state_to(go_to_combination_area::instance());
     } STATE_END
 
     // 前往合体点位
     STATE(go_to_combination_area) {
         // 慢慢退后到 R1 后面，准备合体
-        sm.move_to_pos(waypoint::grid_left);
         sm.move_to_pos(waypoint::left_fence_front);
         sm.move_to_pos(waypoint::left_fence_back);
         sm.move_to_pos(waypoint::combination_area);
@@ -414,44 +469,57 @@ public:
     STATE(wait_for_combination_cmd) {
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
-            return (sm.get_cmd_from_r1() == 0x4A);
+            return (sm.get_cmd_from_r1() == cmd_combination);
         });
         sm.change_state_to(begin_combination::instance());
     } STATE_END
 
     // 合体
     STATE(begin_combination) {
-        // chassis_action::start_climb_R1();
+        logger_queue.log("CLIMB\tclimb R1 start\n");
+        chassis_action::start_climb_R1();
+        logger_queue.log("CLIMB\tclimb R1 end\n");
         sm.change_state_to(unload_kfs::instance());
     } STATE_END
 
     // 取出KFS并手持
     STATE(unload_kfs) {
-        arm_action::unload_kfs(UNLOAD_TYPE::LOW);
-        sm.change_state_to(wait_for_place_hi_kfs_cmd::instance());
+        if (arm.get_kfs_amount() <= 0) {
+            sm.change_state_to(release_kfs::instance());
+            return;
+        }
+        arm_action::unload_kfs(std::nullopt);
+        sm.change_state_to(wait_for_release_kfs_cmd::instance());
     } STATE_END
 
     // 等待放置高层KFS的指令
-    STATE(wait_for_place_hi_kfs_cmd) {
+    STATE(wait_for_release_kfs_cmd) {
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
-            switch (sm.get_cmd_from_r1()) {
-                case 0x5B: // 释放 KFS
-                    sm.change_state_to(release_kfs::instance());
-                    return true;
-                case 0x5A: // 重试取出KFS
-                    sm.change_state_to(unload_kfs::instance());
-                    return true;
-                default:
-                    return false;
-            }
+            return (sm.get_cmd_from_r1() == cmd_release_kfs);
         });
+        sm.change_state_to(release_kfs::instance());
     } STATE_END
 
     // 释放KFS
     STATE(release_kfs) {
         arm_action::release_kfs();
-        sm.change_state_to(stop::instance());
+        if (arm.get_kfs_amount() > 0) {
+            logger_queue.log("ARM\t%d kfs remaining can be unloaded...", arm.get_kfs_amount());
+            sm.change_state_to(wait_for_unload_kfs_cmd::instance());
+        } else {
+            logger_queue.log("ARM\tNo kfs left!");
+            sm.change_state_to(stop::instance());
+        }
+    } STATE_END
+
+    // 等待取出KFS的指令
+    STATE(wait_for_unload_kfs_cmd) {
+        sm.clean_previous_cmd();
+        sm.wait_until([&sm]() -> bool {
+            return (sm.get_cmd_from_r1() == cmd_unload_kfs);
+        });
+        sm.change_state_to(unload_kfs::instance());
     } STATE_END
 
 #undef STATE
@@ -465,8 +533,20 @@ public:
     }
 
 private:
+    enum r1_cmd: uint8_t {
+        cmd_go_uphill = 0x2A,
+        cmd_place_kfs_on_left = 0x3A,
+        cmd_place_kfs_on_mid = 0x3B,
+        cmd_place_kfs_on_right = 0x3C,
+        cmd_combination = 0x4A,
+        cmd_unload_kfs = 0x5A,
+        cmd_release_kfs = 0x5B,
+    };
+
+    bool has_entered_mf{false}; // 是否进入了梅林（用于梅林前底盘动作）
     int8_t moved_left_right_{0}; // 左右移动计数
-    int flag_{0};                 // 武器夹取计数，0=第一次夹取，非0=后续夹取
+
+    uint8_t sh_index_{0};        // 武器夹取计数
 
     startup_config current_startup_config_{};
     std::optional<waypoint::location> current_origin_location_{};
@@ -494,13 +574,13 @@ private:
      * @brief 等待上位机发送启动配置
      */
     void wait_for_startup_config() {
-        logger_queue.log("SM startup config waiting...\n");
+        logger_queue.log("SM\tstartup config waiting...\n");
         startup_config config{};
         wait_until([&]() -> bool {
             return startup_config_sub_.TryGet(&config);
         });
-        logger_queue.log("SM startup config received:\n");
-        logger_queue.log("   area=%s begin=%d kfs=%d O(%d,%d)\n",
+        logger_queue.log("SM\tstartup config received:\n");
+        logger_queue.log("SM\tarea=%s begin=%d kfs=%d O(%d,%d)\n",
             config.area_type_value == area_type::blue ? "BLUE" : "RED",
             static_cast<int>(config.begin_type_value),
             config.kfs_amount,
@@ -548,7 +628,7 @@ private:
     }
 
     void change_state_to(state& new_state) {
-        logger_queue.log("SM -> %s\n", new_state.get_name());
+        logger_queue.log("SM\t-> %s\n", new_state.get_name());
         // do_debug_pause("change_state");
         current_state_ = &new_state;
     }
@@ -561,9 +641,9 @@ private:
         }
 
         if (name) {
-            logger_queue.log("SM-POS (%d, %d, %d) %s\n", x, y, yaw, name);
+            logger_queue.log("POS\t(%d, %d, %d) %s\n", x, y, yaw, name);
         } else {
-            logger_queue.log("SM-POS (%d, %d, %d)\n", x, y, yaw);
+            logger_queue.log("POS\t(%d, %d, %d)\n", x, y, yaw);
         }
         // do_debug_pause("move_to_pos");
 
@@ -640,11 +720,11 @@ private:
         auto ir_result = infrared_group.tryGet();
         if (ir_result.has_value()) {
             cmd = static_cast<uint8_t>(ir_result.value().data);
-            logger_queue.log("R1 ir cmd: 0x%02X\n", cmd);
+            logger_queue.log("R1-CMD\tir cmd: 0x%02X\n", cmd);
         }
         if (qr_code_sub_.TryGet(&qr_code_msg)) {
             cmd = qr_code_msg.data;
-            logger_queue.log("R1 qr cmd: 0x%02X\n", cmd);
+            logger_queue.log("R1-CMD\tqr cmd: 0x%02X\n", cmd);
         }
         return cmd;
     }
@@ -653,11 +733,9 @@ private:
         if (moved_left_right_ == 0) {
             moved_left_right_ -= 1;
             move_to_pos(waypoint::mf_entrance_left);
-            move_to_pos(waypoint::mf_entrance_left_close);
         } else if (moved_left_right_ == 1) {
             moved_left_right_ -= 1;
             move_to_pos(waypoint::mf_entrance_mid);
-            move_to_pos(waypoint::mf_entrance_mid_close);
         } else {
             return; // 已经在最左边了，不能再左移
         }
@@ -667,11 +745,9 @@ private:
         if (moved_left_right_ == 0) {
             moved_left_right_ += 1;
             move_to_pos(waypoint::mf_entrance_right);
-            move_to_pos(waypoint::mf_entrance_right_close);
         } else if (moved_left_right_ == -1) {
             moved_left_right_ += 1;
             move_to_pos(waypoint::mf_entrance_mid);
-            move_to_pos(waypoint::mf_entrance_mid_close);
         } else {
             return; // 已经在最右边了，不能再右移
         }
@@ -684,9 +760,9 @@ private:
     void do_debug_pause(const char *msg) {
         if constexpr (ENABLE_DEBUG_PAUSE) {
             debug_pause = true;
-            logger_queue.log("DEBUG || %s\n", msg);
+            logger_queue.log("DEBUG\t|| %s\n", msg);
             wait_until([]() -> bool { return !debug_pause; });
-            logger_queue.log("DEBUG >> \n", msg);
+            logger_queue.log("DEBUG\t>> \n", msg);
         }
     }
 };

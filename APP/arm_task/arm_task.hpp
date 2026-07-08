@@ -25,6 +25,9 @@
 #include <stdio.h>
 #include <optional>
 #include "arm_actions_config.hpp"
+#include "logger.hpp"
+
+extern LoggerQueue logger_queue;
 
 enum class LOAD_TYPE: int8_t {
     LOW = -1,
@@ -94,9 +97,9 @@ public:
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
     void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(pos_deg - 30.0f, speed_deg); }
-    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 85.0f, 0.0025f * speed); }
+    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 82.6f, 0.0025f * speed); }
     void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1080.0f), 4.3f * speed); }
-    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(8.5f - pos_deg, speed_deg); }
+    void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(3.0f - pos_deg, speed_deg); }
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
     bool set_pose(arm_pose pose) {
@@ -136,6 +139,7 @@ public:
                 case UNLOAD_TYPE::TOP: { attr_.is_placing_kfs_T = true; break; }
             }
         } else {  // 默认值
+            if (get_kfs_amount() == 0) return false;
             reset_timeline();
             if (attr_.is_kfs_raised) attr_.is_placing_kfs_T = true;
             else switch (get_kfs_amount()) {
@@ -198,13 +202,24 @@ public:
             case 1: return set_pose(kfs_0[index]);
             case 2: return set_pose(kfs_1[index]);
         }
+        return false;
     }
     // 启动时初始化
     bool start_proceed(uint8_t index) { return set_pose(arm_actions_config::start_proceed[index]); }
 
     // KFS数量控制类接口
-    void addKFS() { if (get_kfs_amount() < 3) kfs_num_++; }
-    void rmvKFS() { if (get_kfs_amount() > 0) kfs_num_--; }
+    void addKFS() {
+        if (get_kfs_amount() < 3) {
+            kfs_num_++;
+            logger_queue.log("ARM add_kfs -> %d", kfs_num_);
+        }
+    }
+    void rmvKFS() {
+        if (get_kfs_amount() > 0) {
+            kfs_num_--;
+            logger_queue.log("ARM remove_kfs -> %d", kfs_num_);
+        }
+    }
     uint8_t get_kfs_amount() { return kfs_num_; }
     void set_kfs_amount(uint8_t num) { kfs_num_ = num; }
 
@@ -268,7 +283,7 @@ public:
             case 2: { delta_t = kfs_1[act_index_].delta_t; break; }
         }
         if (now_t_ > delta_t) {
-            if (place_proceed(act_index_++)) { attr_.is_loading_kfs = false; attr_.is_kfs_raised = false; }
+            if (load_kfs_proceed(act_index_++)) { attr_.is_loading_kfs = false; attr_.is_kfs_raised = false; }
             else last_t_ = DWT_GetTimeline_s();
         }
     }
