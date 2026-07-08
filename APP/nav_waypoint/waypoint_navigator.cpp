@@ -32,7 +32,7 @@ TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
 constexpr float kDescendLaserSeekSpeedRpm = -50.0f;
 constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.2f;
-constexpr float kGoToEdgeSeekSpeedMps = 0.2f;
+constexpr float kGoToEdgeSeekSpeedMps = 0.5f;
 constexpr float kGoToEdgeLowPostTriggerSpeedMps = 0.1f;
 constexpr int16_t kR1ClimbYawNegYDeg = -90;
 constexpr int16_t kR1ClimbYawPosYDeg = 90;

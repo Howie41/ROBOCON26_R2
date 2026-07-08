@@ -4,6 +4,8 @@
  * @brief 从串口打印简单信息
  * @date 2026-05-23
  */
+#pragma once
+
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
