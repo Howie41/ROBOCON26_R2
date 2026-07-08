@@ -10,11 +10,11 @@ struct StairPose {
   int16_t yaw;
 };
 
-// 当前楼梯直线测试坐标
-constexpr StairPose kStairFrontPose{2000, 1770, 0};      // stair-front
-constexpr StairPose kStairClosePose{2365, 1770, 0};      // stair-close
-constexpr StairPose kStairHighDrivePose{2975, 1770, 0};  // center - 280 mm
-constexpr StairPose kStairCenterPose{3255, 1770, 0};     // stair-center
+// Merlin local coordinates, all relative to config.origin_x/y.
+constexpr StairPose kStairFrontPose{2144, 1496, 0};      // stair-front
+constexpr StairPose kStairClosePose{2509, 1496, 0};      // stair-close
+constexpr StairPose kStairHighDrivePose{3119, 1496, 0};  // center - 280 mm
+constexpr StairPose kStairCenterPose{3399, 1496, 0};     // stair-center
 constexpr int16_t kStairSpanMm = 1200;
 constexpr uint8_t kStairMaxLevel = 3;
 
