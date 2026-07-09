@@ -198,7 +198,7 @@ InfraredModuleGroup infrared_group{&infrared_module_uart6, &infrared_module_uart
 
 #if LASER_MEASURE_ENABLE
 LaserMeasure laser1(uart7_port, 0x50);
-LaserMeasure laser2(uart8_port, 0x80);
+LaserMeasure laser2(uart8_port, 0x50);
 SK60PlusLaser laser3(uart1_port, 0x00);
 #endif
 // 日志
@@ -565,7 +565,7 @@ void laserMeasureTask(void *argument) {
       laser1_tick = now_tick;
     }
 
-    if ((now_tick - laser2_tick) >= 50U) {
+    if ((now_tick - laser2_tick) >= 40U) {
       (void)laser2.triggerSingleMeasure();
       laser2_tick = now_tick;
     }
