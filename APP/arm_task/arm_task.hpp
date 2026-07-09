@@ -99,7 +99,7 @@ public:
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
     void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(pos_deg - 30.0f, speed_deg); }
-    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 82.6f, 0.0025f * speed); }
+    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 84.3f, 0.0025f * speed); }
     void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1080.0f), 4.3f * speed); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(3.0f - pos_deg, speed_deg); }
     
