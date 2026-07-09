@@ -87,7 +87,7 @@ constexpr location load_kfs{3400,-2025-100,0, "load_kfs"};
 constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
 
 constexpr int16_t grid_close_y = -4165 - 20;
-constexpr int16_t grid_y = grid_close_y + 500;
+constexpr int16_t grid_y = grid_close_y + 350;
 
 constexpr location grid_mid{3050, grid_y, -90, "grid_mid"};
 constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left"};
@@ -393,9 +393,10 @@ public:
     STATE(begin_jgcb) {
         logger_queue.log("SM\tBEGIN JGCB ========\n");
         sm.clean_previous_cmd();
+        logger_queue.log("SM\tWaiting for R1 command...\n");
         sm.wait_until_timeout_or([&sm]() -> bool {
             return (sm.get_cmd_from_r1() == 0x2A);
-        }, 10 * 1000);
+        }, 40 * 1000);
         sm.move_to_pos(waypoint::before_uphill);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END

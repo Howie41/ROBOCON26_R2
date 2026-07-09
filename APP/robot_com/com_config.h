@@ -23,6 +23,7 @@ void uart3RxProcessTask(void *argument);
 void laserMeasureTask(void *argument);
 void usbCdcProcessTask(void *argument);
 void PcComTask(void *argument);
+void infraredProcessTask(void *argument);
 
 #ifdef __cplusplus
 }
@@ -34,7 +35,10 @@ void PcComTask(void *argument);
 #include "SK60PlusLaser/SK60PlusLaser.hpp"
 #include "infrared_com.hpp"
 
-extern InfraredModule infrared_module;
+extern InfraredModule infrared_module_uart6;
+extern InfraredModule infrared_module_uart5;
+extern InfraredModule infrared_module_uart4;
+extern InfraredModule infrared_module_uart9;
 extern InfraredModuleGroup infrared_group;
 extern LaserMeasure laser1;
 extern LaserMeasure laser2;

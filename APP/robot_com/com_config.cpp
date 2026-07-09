@@ -51,6 +51,7 @@ osThreadId_t uart3ProcessTaskHandle;
 osThreadId_t laserMeasureTaskHandle;
 osThreadId_t usbcdcProcessTaskHandle;
 osThreadId_t PcComTaskHandle;
+osThreadId_t InfraredProcessTaskHandle;
 
 extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
@@ -107,8 +108,11 @@ void onUart1RxCb(const uint8_t *data, size_t len, void *user);
 
 void onUsbRxCb(const uint8_t *data, size_t len, void *user);
 
+extern UART_HandleTypeDef huart4;
+extern UART_HandleTypeDef huart5;
 extern UART_HandleTypeDef huart7;
 extern UART_HandleTypeDef huart8;
+extern UART_HandleTypeDef huart9;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef huart2;
@@ -135,6 +139,9 @@ DMA_BUFFER_ATTR static uint8_t uart3_rx_dma[64];
 DMA_BUFFER_ATTR static uint8_t uart3_tx_dma[64];
 UartPort uart3_port(&huart3, uart3_rx_dma, sizeof(uart3_rx_dma), uart3_tx_dma, sizeof(uart3_tx_dma), onUart3RxCb, nullptr);
 osSemaphoreId_t uart3_rx_semphore = NULL;
+
+// 红外模块共用信号量
+osSemaphoreId_t infrared_rx_semphore = NULL;
 
 DMA_BUFFER_ATTR static uint8_t uart2_rx_dma[64];
 DMA_BUFFER_ATTR static uint8_t uart2_tx_dma[64];
@@ -187,7 +194,7 @@ InfraredModule infrared_module_uart6(uart6_port);
 InfraredModule infrared_module_uart5(uart5_port);
 InfraredModule infrared_module_uart4(uart4_port);
 InfraredModule infrared_module_uart9(uart9_port);
-InfraredModuleGroup infrared_group{&infrared_module_uart6, &infrared_module_uart5};
+InfraredModuleGroup infrared_group{&infrared_module_uart6, &infrared_module_uart5, &infrared_module_uart4, &infrared_module_uart9};
 
 #if LASER_MEASURE_ENABLE
 LaserMeasure laser1(uart7_port, 0x50);
@@ -289,9 +296,12 @@ uint8_t comServiceInit() {
   uart2_port.startRxDmaIdle();
   uart3_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart3_port.startRxDmaIdle();
+  infrared_rx_semphore = osSemaphoreNew(1, 0, NULL);
   uart6_port.startRxDmaIdle();
   uart5_port.startRxDmaIdle();
- 
+  uart4_port.startRxDmaIdle();
+  uart9_port.startRxDmaIdle();
+
   // Xbox 控制器初始化
   xbox_remote.init();
 
@@ -360,22 +370,38 @@ void onUart1RxCb(const uint8_t *data, size_t len, void *user) {
 #endif
 }
 
-// 红外模块回调
+// 红外模块回调（释放信号量，由 infraredProcessTask 统一处理）
 void onUart6RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)data;
+  (void)len;
   (void)user;
-  infrared_module_uart6.UartPortRxCbHandler(data, len);
+  if (infrared_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(infrared_rx_semphore);
+  }
 }
 void onUart5RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)data;
+  (void)len;
   (void)user;
-  infrared_module_uart5.UartPortRxCbHandler(data, len);
+  if (infrared_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(infrared_rx_semphore);
+  }
 }
 void onUart9RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)data;
+  (void)len;
   (void)user;
-  infrared_module_uart9.UartPortRxCbHandler(data, len);
+  if (infrared_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(infrared_rx_semphore);
+  }
 }
 void onUart4RxCb(const uint8_t *data, size_t len, void *user) {
+  (void)data;
+  (void)len;
   (void)user;
-  infrared_module_uart4.UartPortRxCbHandler(data, len);
+  if (infrared_rx_semphore != NULL) {
+    (void)osSemaphoreRelease(infrared_rx_semphore);
+  }
 }
 
 void onUsbRxCb(const uint8_t *data, size_t len, void *user) {
@@ -592,5 +618,29 @@ void PcComTask(void *argument) {
 
     pc_com.ProcessTx();
     vTaskDelayUntil(&currentTime, 1);
+  }
+}
+
+// 红外模块统一处理任务（处理 UART4/5/6/9 四个红外串口）
+void infraredProcessTask(void *argument) {
+  (void)argument;
+  for (;;) {
+    if (infrared_rx_semphore != NULL &&
+        osSemaphoreAcquire(infrared_rx_semphore, 0) == osOK) {
+      UartPort::Packet packet{};
+      while (uart6_port.Read(packet)) {
+        infrared_module_uart6.UartPortRxCbHandler(packet.data, packet.len);
+      }
+      while (uart5_port.Read(packet)) {
+        infrared_module_uart5.UartPortRxCbHandler(packet.data, packet.len);
+      }
+      while (uart4_port.Read(packet)) {
+        infrared_module_uart4.UartPortRxCbHandler(packet.data, packet.len);
+      }
+      while (uart9_port.Read(packet)) {
+        infrared_module_uart9.UartPortRxCbHandler(packet.data, packet.len);
+      }
+    }
+    osDelay(5);
   }
 }
