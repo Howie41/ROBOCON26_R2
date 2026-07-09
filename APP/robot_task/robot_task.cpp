@@ -22,7 +22,7 @@
 #include "bsp_dwt.h"
 #include "chassis_task.h"
 #include "com_config.h"
-#include "control_task.h"
+#include "control_task.hpp"
 #include "debug_task.h"
 #include "state_machine_task.h"
 #include "NavProtocol.hpp"

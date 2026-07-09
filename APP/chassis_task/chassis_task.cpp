@@ -66,96 +66,95 @@ bool isNearCurrentMerlinCellCenter();
 
 namespace chassis_action {
 
-constexpr float kYawRotate90Deg = 90.0f;
-constexpr float kYawRotateToleranceDeg = 1.0f;
+    constexpr float kYawRotate90Deg = 90.0f;
+    constexpr float kYawRotateToleranceDeg = 1.0f;
 
-bool g_yaw_rotate_active = false;
-bool g_yaw_rotate_finished = false;
-float g_yaw_rotate_target_deg = 0.0f;
-bool g_yaw_rotate_was_auto = false;
-PID_t g_yaw_rotate_pid = {
-    .Kp = 0.13f,
-    .Ki = 0.001f,
-    .Kd = 0.001f,
-    .MaxOut = 4.5f,
-    .IntegralLimit = 0.35f,
-    .DeadBand = 0.3f,
-    .Improve = Integral_Limit,
-};
+    bool g_yaw_rotate_active = false;
+    bool g_yaw_rotate_finished = false;
+    float g_yaw_rotate_target_deg = 0.0f;
+    bool g_yaw_rotate_was_auto = false;
+    PID_t g_yaw_rotate_pid = {
+        .Kp = 0.13f,
+        .Ki = 0.001f,
+        .Kd = 0.001f,
+        .MaxOut = 4.5f,
+        .IntegralLimit = 0.35f,
+        .DeadBand = 0.3f,
+        .Improve = Integral_Limit,
+    };
 
-}  // namespace chassis_action
+}
 
 namespace {
 
 void requestYawRotateDegInternal(float delta_deg) {
-  refreshYawReference();
-  chassis_action::g_yaw_rotate_target_deg =
-      normalizeDeg(g_chassis_yaw_deg + delta_deg);
-  chassis_action::g_yaw_rotate_active = true;
-  chassis_action::g_yaw_rotate_finished = false;
-  g_chassis_yaw_lock_deg = chassis_action::g_yaw_rotate_target_deg;
-  g_chassis_yaw_hold_omega = 0.0f;
+    refreshYawReference();
+    chassis_action::g_yaw_rotate_target_deg =
+        normalizeDeg(g_chassis_yaw_deg + delta_deg);
+    chassis_action::g_yaw_rotate_active = true;
+    chassis_action::g_yaw_rotate_finished = false;
+    g_chassis_yaw_lock_deg = chassis_action::g_yaw_rotate_target_deg;
+    g_chassis_yaw_hold_omega = 0.0f;
 
-  chassis_action::g_yaw_rotate_was_auto = nav_control::auto_enabled;
-  if (chassis_action::g_yaw_rotate_was_auto) {
-    nav_control::auto_enabled = false;
-  }
+    chassis_action::g_yaw_rotate_was_auto = nav_control::auto_enabled;
+    if (chassis_action::g_yaw_rotate_was_auto) {
+        nav_control::auto_enabled = false;
+    }
 
-  PID_Init(&chassis_action::g_yaw_rotate_pid);
+    PID_Init(&chassis_action::g_yaw_rotate_pid);
 }
 
 void requestYawRotateCcw90Internal() {
-  requestYawRotateDegInternal(chassis_action::kYawRotate90Deg);
+    requestYawRotateDegInternal(chassis_action::kYawRotate90Deg);
 }
 
 void requestYawRotateCw90Internal() {
-  requestYawRotateDegInternal(-chassis_action::kYawRotate90Deg);
+    requestYawRotateDegInternal(-chassis_action::kYawRotate90Deg);
 }
 
 bool yawRotateActiveInternal() {
-  return chassis_action::g_yaw_rotate_active;
+    return chassis_action::g_yaw_rotate_active;
 }
 
 bool takeYawRotateFinishedInternal() {
-  const bool finished = chassis_action::g_yaw_rotate_finished;
-  chassis_action::g_yaw_rotate_finished = false;
-  return finished;
+    const bool finished = chassis_action::g_yaw_rotate_finished;
+    chassis_action::g_yaw_rotate_finished = false;
+    return finished;
 }
 
 float yawRotateTargetDegInternal() {
-  return chassis_action::g_yaw_rotate_target_deg;
+    return chassis_action::g_yaw_rotate_target_deg;
 }
 
 void waitForYawRotateFinished() {
-  while (yawRotateActiveInternal()) {
-    osDelay(10U);
-  }
+    while (yawRotateActiveInternal()) {
+        osDelay(10U);
+    }
 }
 
 bool isNearCurrentMerlinCellCenter() {
-  merlin_map::Cell current_cell{};
-  if (!merlin_map::tryGetCurrentCell(&current_cell)) {
-    return false;
-  }
+    merlin_map::Cell current_cell{};
+    if (!merlin_map::tryGetCurrentCell(&current_cell)) {
+        return false;
+    }
 
-  const float error_x =
-      static_cast<float>(nav_control::current_x - current_cell.center_x);
-  const float error_y =
-      static_cast<float>(nav_control::current_y - current_cell.center_y);
-  const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
-  return dist_error < 30.0f;
+    const float error_x =
+        static_cast<float>(nav_control::current_x - current_cell.center_x);
+    const float error_y =
+        static_cast<float>(nav_control::current_y - current_cell.center_y);
+    const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
+    return dist_error < 30.0f;
 }
 
 Omni45Chassis chassis_solver(chassis_motor1, chassis_motor2, chassis_motor3,
                              chassis_motor4);
 
-const std::array<Omni45Chassis::SpeedPidParam, Omni45Chassis::kWheelCount>
-    kWheelPidParams = {
-        Omni45Chassis::SpeedPidParam(105.0f, 75.0f, 0.20f, 20000.0f, 0.3f, NONE),
-        Omni45Chassis::SpeedPidParam(100.0f, 72.0f, 0.15f, 20000.0f, 0.3f, NONE),
-        Omni45Chassis::SpeedPidParam(108.0f, 78.0f, 0.22f, 20000.0f, 0.3f, NONE),
-        Omni45Chassis::SpeedPidParam(102.0f, 74.0f, 0.18f, 20000.0f, 0.3f, NONE),
-    };
+const std::array<Omni45Chassis::SpeedPidParam, Omni45Chassis::kWheelCount> kWheelPidParams = {
+    Omni45Chassis::SpeedPidParam(105.0f, 75.0f, 0.20f, 20000.0f, 0.3f, NONE),
+    Omni45Chassis::SpeedPidParam(100.0f, 72.0f, 0.15f, 20000.0f, 0.3f, NONE),
+    Omni45Chassis::SpeedPidParam(108.0f, 78.0f, 0.22f, 20000.0f, 0.3f, NONE),
+    Omni45Chassis::SpeedPidParam(102.0f, 74.0f, 0.18f, 20000.0f, 0.3f, NONE),
+};
 
 PID_t yaw_hold_pid = {
     .Kp = 0.16f,
