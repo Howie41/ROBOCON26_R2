@@ -52,6 +52,7 @@ extern osThreadId_t NavControlTaskHandle;
 extern osThreadId_t LiftTaskHandle;
 extern osThreadId_t PcComTaskHandle;
 extern osThreadId_t Watchdog_TaskHandle;
+extern osThreadId_t InfraredProcessTaskHandle;
 
 #include "memory_map.h"
 #include "logger.hpp"
@@ -99,6 +100,7 @@ DECLARE_STATIC_TASK(NavControlTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(LiftTask, 256 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(PcComTask, 512 * 4, osPriorityNormal);
 DECLARE_STATIC_TASK(StateMachineTask, 512 * 4, osPriorityNormal);
+DECLARE_STATIC_TASK(InfraredProcessTask, 256 * 4, osPriorityNormal1);
 
 // ---- 串口消息队列 ----
 static constexpr uint32_t LOG_QUEUE_LENGTH = 8;
@@ -157,4 +159,5 @@ void osTaskInit(void) {
   PcComTaskHandle = osThreadNew(PcComTask, NULL, &PcComTaskHandle_attributes);
   // 自动状态机
   StateMachineTaskHandle = osThreadNew(stateMachineTask, NULL, &StateMachineTaskHandle_attributes);
+  InfraredProcessTaskHandle = osThreadNew(infraredProcessTask, NULL, &InfraredProcessTaskHandle_attributes);
 }

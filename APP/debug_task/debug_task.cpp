@@ -23,7 +23,7 @@ void debugTask(void *argument) {
     if (debug_r1_cmd != 0x00) {
       pub_qr_code_parsed msg{.data = debug_r1_cmd};
       qr_code_pub.Publish(msg);
-      logger_queue.log("DEBUG r1_cmd %02X\n", debug_r1_cmd);
+      logger_queue.log("DEBUG\tr1_cmd %02X\n", debug_r1_cmd);
       debug_r1_cmd = 0x00;
     }
   }

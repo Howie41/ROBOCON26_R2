@@ -83,11 +83,11 @@ constexpr location beside_after_uphill{3500, -1480, 0, "beside_after_uphill"};
 
 
 
-constexpr location load_kfs{3400,-2025,0, "load_kfs"};
+constexpr location load_kfs{3400,-2025-100,0, "load_kfs"};
 constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
 
-constexpr int16_t grid_close_y = -4165;
-constexpr int16_t grid_y = grid_close_y + 500;
+constexpr int16_t grid_close_y = -4165 - 20;
+constexpr int16_t grid_y = grid_close_y + 350;
 
 constexpr location grid_mid{3050, grid_y, -90, "grid_mid"};
 constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left"};
@@ -102,7 +102,7 @@ constexpr location left_fence_front{grid_left.x, grid_y, -90, "left_fence_front"
 /** @brief 贴左侧围栏、后侧点位 */
 constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500, -90, "left_fence_back"};
 /** @brief R1 R2 合体预备点 */
-constexpr location combination_area{2750, left_fence_back.y, -90, "combination_area"};
+constexpr location combination_area{grid_mid.x, left_fence_back.y, -90, "combination_area"};
 } // namespace waypoint
 
 volatile bool debug_pause{false};
@@ -145,6 +145,11 @@ public:
     STATE(ready) {
         logger_queue.log("\n");
         logger_queue.log("SM\t======== READY ========\n");
+
+        // 清理之前可能收到过的配置
+        startup_config dummy_config;
+        sm.startup_config_sub_.TryGet(&dummy_config);
+
         sm.wait_for_startup_config();
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
@@ -388,9 +393,10 @@ public:
     STATE(begin_jgcb) {
         logger_queue.log("SM\tBEGIN JGCB ========\n");
         sm.clean_previous_cmd();
+        logger_queue.log("SM\tWaiting for R1 command...\n");
         sm.wait_until_timeout_or([&sm]() -> bool {
             return (sm.get_cmd_from_r1() == 0x2A);
-        }, 10 * 1000);
+        }, 40 * 1000);
         sm.move_to_pos(waypoint::before_uphill);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
@@ -405,6 +411,7 @@ public:
     // 前往距斜坡最近的KFS前 装载KFS
     STATE(load_kfs) {
         sm.move_to_pos(waypoint::load_kfs);
+        sm.do_debug_pause("load_kfs_1");
         arm_action::raise_kfs(LOAD_TYPE::PLAIN);
         arm_action::load_kfs();
 
@@ -413,8 +420,8 @@ public:
 
     STATE(load_kfs_2) {
         sm.move_to_pos(waypoint::load_kfs_2);
+        // sm.do_debug_pause("load_kfs_2");
         arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-
         sm.change_state_to(wait_r1_cmd::instance());
     } STATE_END
 
@@ -635,15 +642,18 @@ private:
 
     // 这个函数必须在任务环境里调用
     bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, const char* name = nullptr) {
+        int16_t prev_x, prev_y;
+        prev_x = x;
+        prev_y = y;
         if (current_origin_location_.has_value()) {
             x += current_origin_location_->x;
             y += current_origin_location_->y;
         }
 
         if (name) {
-            logger_queue.log("POS\t(%d, %d, %d) %s\n", x, y, yaw, name);
+            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d) %s\n", prev_x, prev_y, yaw, x, y, yaw, name);
         } else {
-            logger_queue.log("POS\t(%d, %d, %d)\n", x, y, yaw);
+            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, yaw, x, y, yaw, name);
         }
         // do_debug_pause("move_to_pos");
 
