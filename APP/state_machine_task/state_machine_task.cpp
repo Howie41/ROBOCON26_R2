@@ -240,19 +240,22 @@ public:
         uint8_t cmd = 0;
         sm.wait_until([&]() -> bool {
             cmd = sm.get_cmd_from_r1();
-            return (cmd == 0x0A || cmd == 0x1A || cmd == 0x1B);
+            return (cmd == cmd_open_weapon_claw || cmd == cmd_catch_new_sh || cmd == cmd_go_to_mf);
         }, 25);
         switch (cmd) {
-            case 0x0A: // 松开夹爪
+            case cmd_open_weapon_claw: // 松开夹爪
                 TailClawController::Instance().weapon_claw_open_ = true;
                 break;
-            case 0x1A: // 夹取新的武器头
+            case cmd_catch_new_sh: // 夹取新的武器头
                 if (sm.sh_index_ < SH_COUNT - 1) {
                     sm.sh_index_ += 1;
+                    logger_queue.log("CLAW\tsh_index is now %d", sm.sh_index_);
+                } else {
+                    logger_queue.log("CLAW\tsh_index is at max!");   
                 }
                 sm.change_state_to(go_to_shr::instance());
                 return;
-            case 0x1B: // 进梅林
+            case cmd_go_to_mf: // 进梅林
                 sm.change_state_to(go_to_mf_entrance::instance());
                 return;
         }
@@ -395,7 +398,7 @@ public:
         sm.clean_previous_cmd();
         logger_queue.log("SM\tWaiting for R1 command...\n");
         sm.wait_until_timeout_or([&sm]() -> bool {
-            return (sm.get_cmd_from_r1() == 0x2A);
+            return (sm.get_cmd_from_r1() == cmd_go_uphill);
         }, 40 * 1000);
         sm.move_to_pos(waypoint::before_uphill);
         sm.change_state_to(go_to_arena::instance());
@@ -491,11 +494,7 @@ public:
 
     // 取出KFS并手持
     STATE(unload_kfs) {
-        if (arm.get_kfs_amount() <= 0) {
-            sm.change_state_to(release_kfs::instance());
-            return;
-        }
-        arm_action::unload_kfs(std::nullopt);
+        arm_action::unload_kfs(std::nullopt, true);
         sm.change_state_to(wait_for_release_kfs_cmd::instance());
     } STATE_END
 
@@ -513,7 +512,7 @@ public:
         arm_action::release_kfs();
         if (arm.get_kfs_amount() > 0) {
             logger_queue.log("ARM\t%d kfs remaining can be unloaded...", arm.get_kfs_amount());
-            sm.change_state_to(wait_for_unload_kfs_cmd::instance());
+            sm.change_state_to(unload_kfs::instance());
         } else {
             logger_queue.log("ARM\tNo kfs left!");
             sm.change_state_to(stop::instance());
@@ -521,13 +520,13 @@ public:
     } STATE_END
 
     // 等待取出KFS的指令
-    STATE(wait_for_unload_kfs_cmd) {
-        sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
-            return (sm.get_cmd_from_r1() == cmd_unload_kfs);
-        });
-        sm.change_state_to(unload_kfs::instance());
-    } STATE_END
+    // STATE(wait_for_unload_kfs_cmd) {
+    //     sm.clean_previous_cmd();
+    //     sm.wait_until([&sm]() -> bool {
+    //         return (sm.get_cmd_from_r1() == cmd_unload_kfs);
+    //     });
+    //     sm.change_state_to(unload_kfs::instance());
+    // } STATE_END
 
 #undef STATE
 #undef STATE_END
@@ -541,6 +540,9 @@ public:
 
 private:
     enum r1_cmd: uint8_t {
+        cmd_open_weapon_claw = 0x0A,   // 松开武器头夹爪
+        cmd_catch_new_sh = 0x1A,       // 夹取新的武器头
+        cmd_go_to_mf = 0x1B,           // 进入梅林
         cmd_go_uphill = 0x2A,
         cmd_place_kfs_on_left = 0x3A,
         cmd_place_kfs_on_mid = 0x3B,
