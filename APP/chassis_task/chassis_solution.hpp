@@ -60,7 +60,7 @@ public:
                 C620Motor &motor_rr, const Geometry &geometry = Geometry())
       : motors_{&motor_fl, &motor_fr, &motor_rl, &motor_rr},
         geometry_(geometry) {
-    setWheelDirectionSign({1.0f, -1.0f, 1.0f, -1.0f});
+    setWheelDirectionSign({-1.0f, -1.0f, -1.0f, -1.0f});
     configureSpeedPid(SpeedPidParam());
     configurePosHoldPid();
   }
@@ -83,7 +83,7 @@ public:
     direction_sign_ = direction_sign;
   }
 
-  std::array<float, 4> solveWheelRpm(const pub_chassis_cmd &cmd) const {
+  std::array<float, 4> solveWheelRadPerSec(const pub_chassis_cmd &cmd) const {
     const float vx = cmd.linear_x_;
     const float vy = cmd.linear_y_;
     const float wz = cmd.omega_;
@@ -91,23 +91,24 @@ public:
     const float rotation_term =
         0.5f * (geometry_.track_width_m + geometry_.wheel_base_m) * wz;
 
-    const float wheel_fl = vx + vy - rotation_term;
-    const float wheel_fr = vx - vy + rotation_term;
-    const float wheel_rl = vx - vy - rotation_term;
-    const float wheel_rr = vx + vy + rotation_term;
+    constexpr float kInvSqrt2 = 0.70710678f; // 1/√2
+    const float wheel_fl = (-vx + vy)*kInvSqrt2 + rotation_term;
+    const float wheel_fr = ( vx + vy)*kInvSqrt2 + rotation_term;
+    const float wheel_rl = (-vx - vy)*kInvSqrt2 + rotation_term;
+    const float wheel_rr = ( vx - vy)*kInvSqrt2 + rotation_term;
 
-    const float mps_to_rpm = 60.0f / (kPi * geometry_.wheel_diameter_m);
-    return {wheel_fl * mps_to_rpm, wheel_fr * mps_to_rpm, wheel_rl * mps_to_rpm,
-            wheel_rr * mps_to_rpm};
+    const float mps_to_rad_s = 2.0f / geometry_.wheel_diameter_m;
+    return {wheel_fl * mps_to_rad_s, wheel_fr * mps_to_rad_s,
+            wheel_rl * mps_to_rad_s, wheel_rr * mps_to_rad_s};
   }
 
   void run(const pub_chassis_cmd &cmd) {
-    target_rpm_ = solveWheelRpm(cmd);
+    target_rad_s_ = solveWheelRadPerSec(cmd);
     for (size_t i = 0; i < motors_.size(); ++i) {
-      target_rpm_[i] *= direction_sign_[i];
+      target_rad_s_[i] *= direction_sign_[i];
       pid_output_[i] = PID_Calculate(&speed_pid_[i],
-                                     motors_[i]->getRawCurrentSpeed(),
-                                     target_rpm_[i]);
+                                     motors_[i]->getCurrentSpeed(),
+                                     target_rad_s_[i]);
       motors_[i]->setMotorCmd(pid_output_[i]);
     }
   }
@@ -120,7 +121,7 @@ public:
       float target_speed =
           PID_Calculate(&pos_pid_[i], 0.0f, hold_pos_error_[i]);
       pid_output_[i] = PID_Calculate(&speed_pid_[i],
-                                     motors_[i]->getRawCurrentSpeed(),
+                                     motors_[i]->getCurrentSpeed(),
                                      target_speed);
       motors_[i]->setMotorCmd(pid_output_[i]);
     }
@@ -140,7 +141,7 @@ public:
            geometry_.wheel_diameter_m;
   }
 
-  void configurePosHoldPid(float kp = 3.0f, float ki = 0.01f,
+  void configurePosHoldPid(float kp = 0.00f, float ki = 0.00f,
                            float kd = 0.00f, float max_out = 600.0f,
                            float deadband = 0.5f,
                            float integral_limit = 200.0f) {
@@ -157,7 +158,7 @@ public:
     }
   }
 
-  const std::array<float, 4> &targetRpm() const { return target_rpm_; }
+  const std::array<float, 4> &targetRadPerSec() const { return target_rad_s_; }
   const std::array<float, 4> &pidOutput() const { return pid_output_; }
 
   std::array<PID_t, kWheelCount> pos_pid_{};
@@ -182,7 +183,7 @@ private:
   Geometry geometry_{};
   std::array<float, kWheelCount> direction_sign_{};
   std::array<PID_t, kWheelCount> speed_pid_{};
-  std::array<float, kWheelCount> target_rpm_{};
+  std::array<float, kWheelCount> target_rad_s_{};
   std::array<float, kWheelCount> pid_output_{};
 };
 

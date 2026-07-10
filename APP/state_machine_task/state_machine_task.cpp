@@ -66,9 +66,9 @@ constexpr std::array<location, SH_COUNT> sh_close{
 
 constexpr location match_rod{-95, -822, -90, "match_rod"};
 
-constexpr location mf_entrance_mid{2150, 1496, 0, "mf_entrance_mid"};
-constexpr location mf_entrance_left{2150, 1496+1200, 0, "mf_entrance_left"};
-constexpr location mf_entrance_right{2150, 1496-1200, 0, "mf_entrance_right"};
+constexpr location mf_entrance_mid{2150, 1496+30, 0, "mf_entrance_mid"};
+constexpr location mf_entrance_left{2150, 1496+30+30+1200, 0, "mf_entrance_left"};
+constexpr location mf_entrance_right{2150, 1496+30-1200, 0, "mf_entrance_right"};
 
 // constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0, "mf_entrance_mid_close"};
 // constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0, "mf_entrance_left_close"};
@@ -151,6 +151,8 @@ public:
         sm.startup_config_sub_.TryGet(&dummy_config);
 
         sm.wait_for_startup_config();
+        //sm.change_state_to(stop::instance());
+        //return;
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
 

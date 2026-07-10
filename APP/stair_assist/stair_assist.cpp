@@ -18,7 +18,7 @@ namespace {
 
 constexpr uint8_t kStableFrames = 1;
 constexpr uint32_t kLaserDataTimeoutMs = 500;
-constexpr uint32_t kFrontPhotogateUnblockedHoldMs = 20;
+constexpr uint32_t kFrontPhotogateUnblockedHoldMs = 3;
 
 // Laser1 is mounted toward the stair front. These are placeholders and must be
 // tuned with real measurements on the robot.
@@ -464,20 +464,19 @@ void updateDecisionFlags() {
                        kLaser2GoToEdgeLowMaxMm);
   const bool laser2_descend_lower_ready =
       g_debug.laser2_descend_lower_count >= kStableFrames;
-  const bool front_descend_lower_ready =
-      g_front_photogate_descend_lower_latched ||
+  const bool front_go_to_edge_low_ready =
       g_front_photogate_unblocked_hold_ready;
 
   g_stair_laser2_go_to_edge_low_ready = laser2_go_to_edge_low_ready ? 1U : 0U;
   g_stair_laser2_descend_lower_ready =
       laser2_descend_lower_ready ? 1U : 0U;
   g_stair_go_to_edge_low_ready =
-      (laser2_go_to_edge_low_ready || front_descend_lower_ready) ? 1U : 0U;
+      (laser2_go_to_edge_low_ready || front_go_to_edge_low_ready) ? 1U : 0U;
 
   g_debug.should_lower_after_descend =
       g_auto_lower_enabled &&
       (g_mode == StairAssistMode::Descend) &&
-      (laser2_descend_lower_ready || front_descend_lower_ready);
+      laser2_descend_lower_ready;
   g_stair_should_lower_after_descend =
       g_debug.should_lower_after_descend ? 1U : 0U;
 }
@@ -653,7 +652,7 @@ bool stairAssistSuggestGoToEdgeHigh() {
 bool stairAssistSuggestGoToEdgeLow() {
   return g_enabled &&
          ((g_stair_laser2_go_to_edge_low_ready != 0U) ||
-          g_front_photogate_descend_lower_latched);
+          g_front_photogate_unblocked_hold_ready);
 }
 
 bool stairAssistShouldLowerAfterClimbAdvance() {
