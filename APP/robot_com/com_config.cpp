@@ -22,7 +22,6 @@
 #include "memory_map.h"
 
 #include "Canbus.hpp"
-#include "Hwt101.hpp"
 #include "infrared_com.hpp"
 #include "Motor.hpp"
 #include "ROSCom.hpp"
@@ -36,6 +35,7 @@
 #include "topic_pool.h"
 #include "usart.h"
 #include "motor_task.hpp"
+#include "chassis.hpp"
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
@@ -68,6 +68,7 @@ C620Motor chassis_motor2(&fdcan3_bus, 0x202, 0, 0x200, 0);
 C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
 
+Chassis chassis(&chassis_motor1, &chassis_motor2, &chassis_motor3, &chassis_motor4);
 
 // 取矿电机
 C610Motor arm2006_motor(&fdcan2_bus, 0x203, 0, 0x200, 0);  // 伸缩
@@ -185,10 +186,6 @@ XboxRemote xbox_remote(uart3_port);
 TypedTopicPublisher<pub_Xbox_Data> xbox_data_pub("xbox");
 pub_Xbox_Data xbox_msg;
 
-// HWT101 陀螺仪
-volatile float g_hwt101_yaw_deg = 0.0f;
-volatile uint32_t g_hwt101_frame_count = 0;  // 如需 roll 和 pitch，可在此处一并启用
-Hwt101Parser hwt101_parser;
 
 // 导航协议解析器
 NavProtocol nav_protocol;
@@ -455,23 +452,15 @@ void can3SendTask(void *argument) {
 }
 
 // 接收并处理任务
-void uart2RxProcessTask(void *argument){
-  (void)argument;
-  for (;;) {
-  (void)osSemaphoreAcquire(uart2_rx_semphore, osWaitForever);
+void uart2RxProcessTask(void *argument) {
+    for (;;) {
+        (void)osSemaphoreAcquire(uart2_rx_semphore, osWaitForever);
 
-   UartPort::Packet packet{};
-    while (uart2_port.Read(packet)) {
-      for (uint16_t i = 0; i < packet.len; ++i) {
-        if (hwt101_parser.processByte(packet.data[i])) {
-          //g_hwt101_roll_deg = hwt101_parser.rollDeg();
-          //g_hwt101_pitch_deg = hwt101_parser.pitchDeg();
-          g_hwt101_yaw_deg = hwt101_parser.yawDeg();
-          g_hwt101_frame_count = hwt101_parser.frameCount();
+        UartPort::Packet packet{};
+        while (uart2_port.Read(packet)) {
+            for (uint16_t i = 0; i < packet.len; ++i) chassis.update_imu(packet.data[i]);
         }
-      }
     }
-  }
 }
 
 void uart3RxProcessTask(void *argument) {
