@@ -682,20 +682,35 @@ private:
         current_state_ = &new_state;
     }
 
-    // 这个函数必须在任务环境里调用
-    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, const char* name = nullptr) {
-        int16_t prev_x, prev_y;
+    /**
+     * @brief 移动到指定位置
+     * @note 务必在任务上下文里调用
+     * @param x 目标位置x坐标
+     * @param y 目标位置y坐标
+     * @param yaw 目标位置朝向角度
+     * @param enable_area_red_mirror 是否启用红区镜像变换
+     * @param timeout_ms 超时时间，0表示不超时
+     * @param name 目标位置名称，用于日志输出
+     */
+    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, bool enable_area_red_mirror = true, const char* name = nullptr) {
+        int16_t prev_x, prev_y, prev_yaw;
         prev_x = x;
         prev_y = y;
+        prev_yaw = yaw;
         if (current_origin_location_.has_value()) {
             x += current_origin_location_->x;
             y += current_origin_location_->y;
         }
+        // 红区镜像变换
+        if (enable_area_red_mirror && g_config_area_type == area_type::red) {
+            y = -y;
+            yaw = -yaw;
+        }
 
         if (name) {
-            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d) %s\n", prev_x, prev_y, yaw, x, y, yaw, name);
+            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d) %s\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
         } else {
-            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, yaw, x, y, yaw, name);
+            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
         }
         // do_debug_pause("move_to_pos");
 
@@ -718,16 +733,23 @@ private:
         }
     }
 
+    /**
+     * @brief 移动到指定位置
+     * @param loc 目标位置
+     * @param enable_area_red_mirror 是否启用红区镜像变换
+     * @param timeout_ms 超时时间，0表示不超时
+     * @return true 表示成功到达目标位置
+     */
+    bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0, bool enable_area_red_mirror = true) {
+        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, enable_area_red_mirror, loc.name);
+    }
+    
     bool is_loosely_arrived() {
         constexpr int16_t LOOSE_ARRIVED_THRESHOLD = 50; // 单位mm
         int16_t delta_x = nav_control::target_x - nav_control::current_x;
         int16_t delta_y = nav_control::target_y - nav_control::current_y;
         return (delta_x < LOOSE_ARRIVED_THRESHOLD && delta_x > -LOOSE_ARRIVED_THRESHOLD
              && delta_y < LOOSE_ARRIVED_THRESHOLD && delta_y > -LOOSE_ARRIVED_THRESHOLD);
-    }
-
-    bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0) {
-        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.name);
     }
 
     /**
