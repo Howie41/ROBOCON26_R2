@@ -154,6 +154,8 @@ public:
     PID_t move_speed_pid_{};
     PID_t roll_pos_pid_{};
     PID_t roll_speed_pid_{};
+    PID_t roll_heigh_pos_pid_{};
+    PID_t roll_heigh_speed_pid_{};
 
     TailClawMode mode_{TailClawMode::AutoAlign};
     uint8_t motion_bits_{0};

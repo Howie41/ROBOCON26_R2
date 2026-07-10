@@ -47,10 +47,12 @@ volatile float g_ozone_nav_cmd_speed_mps = 0.0f;
 volatile float g_ozone_nav_brake_dist_mm = 0.0f;
 volatile uint8_t g_ozone_nav_arrive_hold_count = 0U;
 
+
+
 PID_t pid_x = {
     .Kp = 2.7f,
-    .Ki = 0.025f,
-    .Kd = 0.00f,
+    .Ki = 0.03f,
+    .Kd = 0.02f,
     .MaxOut = 2500.0f,
     .IntegralLimit = 100.0f,
     .DeadBand = 10.0f,
@@ -59,8 +61,8 @@ PID_t pid_x = {
 
 PID_t pid_y = {
     .Kp = 2.7f,
-    .Ki = 0.025f,
-    .Kd = 0.00f,
+    .Ki = 0.03f,
+    .Kd = 0.02f,
     .MaxOut = 2500.0f,
     .IntegralLimit = 100.0f,
     .DeadBand = 10.0f,

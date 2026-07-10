@@ -14,7 +14,7 @@ void stateMachineTask(void *argument);
 
 #ifdef __cplusplus
 
-constexpr bool ENABLE_DEBUG_PAUSE = false;
+constexpr bool ENABLE_DEBUG_PAUSE = true;
 
 namespace path_cmd {
 enum class code: uint16_t {

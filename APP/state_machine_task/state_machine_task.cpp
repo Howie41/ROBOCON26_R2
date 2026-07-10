@@ -46,22 +46,22 @@ constexpr location before_shr{500, 0, 0, "before_shr"};
 constexpr int16_t sh_aim_y = -692;
 
 constexpr std::array<location, SH_COUNT> sh_aim{
-    location{-275, sh_aim_y, 90, "sh_aim"},
-    location{-75, sh_aim_y, 90, "sh_aim"},
-    location{125, sh_aim_y, 90, "sh_aim"},
-    location{725, sh_aim_y, 90, "sh_aim"},
-    location{525, sh_aim_y, 90, "sh_aim"},
-    location{325, sh_aim_y, 90, "sh_aim"},
+    location{-275+40, sh_aim_y-45, 90, "sh_aim"},
+    location{-75+40, sh_aim_y-45, 90, "sh_aim"},
+    location{125+40, sh_aim_y-45, 90, "sh_aim"},
+    location{725+40, sh_aim_y-45, 90, "sh_aim"},
+    location{525+40, sh_aim_y-45, 90, "sh_aim"},
+    location{325+40, sh_aim_y-45, 90, "sh_aim"},
 };
 constexpr int16_t sh_close_y = -772;
 
 constexpr std::array<location, SH_COUNT> sh_close{
-    location{sh_aim[0].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[1].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[2].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[3].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[4].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[5].x, sh_close_y, 90, "sh_close"},
+    location{sh_aim[0].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[1].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[2].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[3].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[4].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[5].x, sh_close_y-18, 90, "sh_close"},
 };
 
 constexpr location match_rod{-95, -822, -90, "match_rod"};
@@ -187,13 +187,14 @@ public:
         }
 
         sm.move_to_pos(waypoint::before_shr, 5000);
+        sm.do_debug_pause("before_shr_stop");
         sm.change_state_to(go_to_shr::instance());
     } STATE_END
 
     // 前往端头架
     STATE(go_to_shr) {
-        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_], 5000);
-        
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_]);
+        sm.do_debug_pause("sh_aim_stop");
         TailClawController::Instance().weapon_claw_open_ = true;
         constexpr float target = 37.0f;
         TailClawController::Instance().roll_target_deg_ = target;
@@ -208,10 +209,12 @@ public:
 
     // 夹爪夹取武器
     STATE(catch_weapon) {
-        sm.move_to_pos(waypoint::sh_close[sm.sh_index_], 5000);
+        sm.move_to_pos(waypoint::sh_close[sm.sh_index_]);
+        sm.do_debug_pause("sh_close_stop");
 
         TailClawController::Instance().weapon_claw_open_ = false;
         osDelay(500);
+        sm.do_debug_pause("claw");
         sm.change_state_to(rotate_weapon_claw::instance());
     } STATE_END
 
@@ -222,7 +225,7 @@ public:
         sm.wait_until_timeout_or([&sm]() -> bool {
             sm.tail_claw_update_status();
             return sm.tail_claw_status_valid_ && sm.tail_claw_status_cache_.roll_arrived;
-        }, 3000U, 10U);
+        },5000, 20);
         sm.change_state_to(match_rod::instance());
     } STATE_END
 
@@ -230,7 +233,8 @@ public:
     STATE(match_rod) {
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
-        sm.move_to_pos(waypoint::match_rod, 5000);
+        sm.move_to_pos(waypoint::match_rod);
+        sm.do_debug_pause("match");
         sm.change_state_to(wait_for_decision_cmd::instance());
     } STATE_END
 

@@ -1,3 +1,4 @@
+#include "pid_controller.h"
 #ifndef TAIL_CLAW_CLASS_VERSION_ENABLE
 #define TAIL_CLAW_CLASS_VERSION_ENABLE 1
 #endif
@@ -95,19 +96,37 @@ void TailClawController::init_pid()
     roll_pos_pid_.Improve = NONE;
 
     roll_speed_pid_ = {};
-    roll_speed_pid_.Kp = 100.0f;
+    roll_speed_pid_.Kp = 110.0f;
     roll_speed_pid_.Ki = 0.4;
     roll_speed_pid_.Kd = 0.6f;
     roll_speed_pid_.MaxOut = 4000.0f;
     roll_speed_pid_.DeadBand = 0.3f;
     roll_speed_pid_.Improve = NONE;
 
+    roll_heigh_pos_pid_ = {};
+    roll_heigh_pos_pid_.Kp = 70.0f;
+    roll_heigh_pos_pid_.Ki = 0.0f;
+    roll_heigh_pos_pid_.Kd = 1.0f;
+    roll_heigh_pos_pid_.MaxOut = 100.0f;
+    roll_heigh_pos_pid_.DeadBand = 0.3f;
+    roll_heigh_pos_pid_.Improve = NONE;
+
+    roll_heigh_speed_pid_ = {};
+    roll_heigh_speed_pid_.Kp = 110.0f;
+    roll_heigh_speed_pid_.Ki = 0.4;
+    roll_heigh_speed_pid_.Kd = 0.6f;
+    roll_heigh_speed_pid_.IntegralLimit=1000.0f;
+    roll_heigh_speed_pid_.MaxOut = 5000.0f;
+    roll_heigh_speed_pid_.DeadBand = 0.3f;
+    roll_heigh_speed_pid_.Improve = Integral_Limit;
+
     PID_Init(&move_pos_pid_);
     PID_Init(&move_speed_pid_);
     PID_Init(&roll_pos_pid_);
     PID_Init(&roll_speed_pid_);
+    PID_Init(&roll_heigh_speed_pid_);
+    PID_Init(&roll_heigh_pos_pid_);
 }
-
 void TailClawController::Tick1ms()
 {
     consume_commands();
@@ -453,12 +472,22 @@ float TailClawController::calcRollCmd(float target_deg)
     }
 
     const float target_pos = target_deg * roll_reduction_ratio;
-    const float speed_cmd = PID_Calculate(&roll_pos_pid_,
+    if(target_deg-roll_target_deg_>0.0f) {
+        const float speed_cmd = PID_Calculate(&roll_pos_pid_,
                                           roll_motor_->getCurrentSumPos(),
                                           target_pos);
-    return PID_Calculate(&roll_speed_pid_,
+        return PID_Calculate(&roll_speed_pid_,
                          roll_motor_->getCurrentSpeed(),
                          speed_cmd);
+    }
+    else{
+    const float speed_cmd = PID_Calculate(&roll_heigh_pos_pid_,
+                                          roll_motor_->getCurrentSumPos(),
+                                          target_pos);
+    return PID_Calculate(&roll_heigh_speed_pid_,
+                         roll_motor_->getCurrentSpeed(),
+                         speed_cmd);
+    }
 }
 
 #endif
