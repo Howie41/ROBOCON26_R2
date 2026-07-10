@@ -39,6 +39,7 @@ public:
     int16_t y;
     int16_t yaw;
     const char* name = nullptr;
+    bool enable_red_area_mirror = true;
 };
 
 constexpr location before_shr{500, 0, 0, "before_shr"};
@@ -64,7 +65,11 @@ constexpr std::array<location, SH_COUNT> sh_close{
     location{sh_aim[5].x, sh_close_y, 90, "sh_close"},
 };
 
-constexpr location match_rod{-95, -822, -90, "match_rod"};
+constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
+
+// 这个相对坐标已经基于红区坐标，不需要镜像
+constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red",
+                                  false};
 
 constexpr location mf_entrance_mid{2150, 1496+30, 0, "mf_entrance_mid"};
 constexpr location mf_entrance_left{2150, 1496+30+30+1200, 0, "mf_entrance_left"};
@@ -232,7 +237,11 @@ public:
     STATE(match_rod) {
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
-        sm.move_to_pos(waypoint::match_rod, 5000);
+        if (g_config_area_type.load() == area_type::blue) {
+            sm.move_to_pos(waypoint::match_rod_blue, 5000);
+        } else {
+            sm.move_to_pos(waypoint::match_rod_red, 5000);
+        }
         sm.change_state_to(wait_for_decision_cmd::instance());
     } STATE_END
 
@@ -736,12 +745,11 @@ private:
     /**
      * @brief 移动到指定位置
      * @param loc 目标位置
-     * @param enable_area_red_mirror 是否启用红区镜像变换
      * @param timeout_ms 超时时间，0表示不超时
      * @return true 表示成功到达目标位置
      */
-    bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0, bool enable_area_red_mirror = true) {
-        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, enable_area_red_mirror, loc.name);
+    bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0) {
+        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.enable_red_area_mirror, loc.name);
     }
     
     bool is_loosely_arrived() {
