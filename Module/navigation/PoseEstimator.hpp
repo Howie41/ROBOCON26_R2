@@ -6,6 +6,10 @@
 extern volatile float g_ozone_pose_fused_x_mm;
 extern volatile float g_ozone_pose_fused_y_mm;
 
+// 最近一帧雷达上报的世界坐标系原始位置，单位：mm。
+extern volatile float g_ozone_pose_radar_x_mm;
+extern volatile float g_ozone_pose_radar_y_mm;
+
 // 最近一次 1 kHz 轮式里程计更新得到的底盘坐标系位移增量，单位：mm。
 extern volatile float g_ozone_pose_body_dx_mm;
 extern volatile float g_ozone_pose_body_dy_mm;
@@ -27,6 +31,8 @@ namespace nav_localization {
 struct PoseSnapshot {
   float x_mm;  // 世界坐标系融合 X 位置，单位：mm。
   float y_mm;  // 世界坐标系融合 Y 位置，单位：mm。
+  float radar_x_mm;  // 最近一帧雷达原始 X 位置，单位：mm。
+  float radar_y_mm;  // 最近一帧雷达原始 Y 位置，单位：mm。
   bool valid;  // 接收到第一帧有效雷达位置后为 true。
 };
 

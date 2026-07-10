@@ -7,6 +7,8 @@
 
 volatile float g_ozone_pose_fused_x_mm = 0.0f;
 volatile float g_ozone_pose_fused_y_mm = 0.0f;
+volatile float g_ozone_pose_radar_x_mm = 0.0f;
+volatile float g_ozone_pose_radar_y_mm = 0.0f;
 volatile float g_ozone_pose_body_dx_mm = 0.0f;
 volatile float g_ozone_pose_body_dy_mm = 0.0f;
 volatile float g_ozone_pose_world_dx_mm = 0.0f;
@@ -22,6 +24,8 @@ constexpr float kDegToRad = 0.01745329251994329577f;
 
 float s_fused_x_mm = 0.0f;
 float s_fused_y_mm = 0.0f;
+float s_radar_x_mm = 0.0f;
+float s_radar_y_mm = 0.0f;
 bool s_pose_valid = false;
 
 }  // namespace
@@ -39,9 +43,13 @@ void submitRadarPosition(float x_mm, float y_mm) {
 
   s_fused_x_mm = x_mm;
   s_fused_y_mm = y_mm;
+  s_radar_x_mm = x_mm;
+  s_radar_y_mm = y_mm;
   s_pose_valid = true;
   g_ozone_pose_fused_x_mm = s_fused_x_mm;
   g_ozone_pose_fused_y_mm = s_fused_y_mm;
+  g_ozone_pose_radar_x_mm = s_radar_x_mm;
+  g_ozone_pose_radar_y_mm = s_radar_y_mm;
   const uint32_t next_update_count = g_ozone_pose_radar_update_count + 1U;
   g_ozone_pose_radar_update_count = next_update_count;
 
@@ -81,6 +89,8 @@ PoseSnapshot snapshot() {
   taskENTER_CRITICAL();
   result.x_mm = s_fused_x_mm;
   result.y_mm = s_fused_y_mm;
+  result.radar_x_mm = s_radar_x_mm;
+  result.radar_y_mm = s_radar_y_mm;
   result.valid = s_pose_valid;
   taskEXIT_CRITICAL();
 
