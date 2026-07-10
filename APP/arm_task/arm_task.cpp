@@ -58,7 +58,7 @@ bool raise_kfs(LOAD_TYPE step) {
     auto result = arm.fetch_step(step); 
     if (result) {
         switch (step) {
-            case LOAD_TYPE::MEDIUM: osDelay(1700); break;
+            case LOAD_TYPE::MEDIUM: osDelay(2000); break;
             case LOAD_TYPE::HIGH: osDelay(2000); break;
             case LOAD_TYPE::LOW: osDelay(2800); break;
             case LOAD_TYPE::PLAIN: osDelay(1700); break;
