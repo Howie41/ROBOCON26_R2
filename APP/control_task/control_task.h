@@ -19,7 +19,7 @@
 #include "topics.hpp"
 
 #define MAX_VELOCITY 3.0f // 最大线速度，单位m/s
-#define MAX_ROTATION_VELOCITY 5.0f // 最大旋转速度，单位rad/s
+#define MAX_ROTATION_VELOCITY 3.14f // 最大旋转速度，单位rad/s
 #define MAX_LIFT_VELOCITY 1.0f // 最大升降速度，单位m/s，根据实际情况调整
 
 

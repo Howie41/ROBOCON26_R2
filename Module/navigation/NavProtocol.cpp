@@ -4,11 +4,13 @@
 #include "pid_controller.h"
 #include "topic_pool.h"
 #include "topics.hpp"
+#include "control_task.h"
 
 #include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <math.h>
 
 extern volatile float g_chassis_yaw_deg;
 
@@ -16,7 +18,7 @@ volatile float g_nav_cruise_speed_mps = 2.3f;
 volatile float g_nav_brake_safety_scale = 8.00f;
 volatile float g_nav_max_accel_mps2 = 2.50f;
 volatile float g_nav_max_decel_mps2 = 13.00f;
-volatile float g_nav_blend_dist_mm = 5000.0f;
+volatile float g_nav_blend_dist_mm = 50000.0f;
 volatile float g_nav_pid_max_xy_speed_mps = 2.00f;
 volatile float g_nav_pid_max_omega_radps = 4.50f;
 volatile float g_nav_max_omega_radps = 3.00f;
@@ -31,6 +33,8 @@ volatile uint8_t g_nav_arrive_hold_count_target = 2U;
 
 volatile float g_ozone_nav_dist_mm = 0.0f;
 volatile float g_ozone_nav_yaw_err_deg = 0.0f;
+volatile float g_ozone_nav_path_err_mm = 0.0f;
+volatile float g_ozone_nav_lateral_err_mm = 0.0f;
 volatile float g_ozone_nav_blend = 0.0f;
 volatile float g_ozone_nav_plan_speed_mps = 0.0f;
 volatile float g_ozone_nav_v_ref_mps = 0.0f;
@@ -40,6 +44,10 @@ volatile float g_ozone_nav_omega_ref_radps = 0.0f;
 volatile float g_ozone_nav_pid_vx_mps = 0.0f;
 volatile float g_ozone_nav_pid_vy_mps = 0.0f;
 volatile float g_ozone_nav_pid_omega_radps = 0.0f;
+volatile float g_ozone_nav_path_tx = 1.0f;
+volatile float g_ozone_nav_path_ty = 0.0f;
+volatile float g_ozone_nav_path_nx = 0.0f;
+volatile float g_ozone_nav_path_ny = 1.0f;
 volatile float g_ozone_nav_vx_cmd_mps = 0.0f;
 volatile float g_ozone_nav_vy_cmd_mps = 0.0f;
 volatile float g_ozone_nav_omega_cmd_radps = 0.0f;
@@ -48,31 +56,31 @@ volatile float g_ozone_nav_brake_dist_mm = 0.0f;
 volatile uint8_t g_ozone_nav_arrive_hold_count = 0U;
 
 PID_t pid_x = {
-    .Kp = 2.7f,
-    .Ki = 0.025f,
-    .Kd = 0.00f,
-    .MaxOut = 2500.0f,
+    .Kp = 2.2f,
+    .Ki = 0.22f,
+    .Kd = 0.0f,
+    .MaxOut = 1500.0f,
     .IntegralLimit = 100.0f,
-    .DeadBand = 10.0f,
+    .DeadBand = 20.0f,
     .Improve = Integral_Limit,
 };
 
 PID_t pid_y = {
-    .Kp = 2.7f,
-    .Ki = 0.025f,
-    .Kd = 0.00f,
-    .MaxOut = 2500.0f,
+    .Kp = 2.2f,
+    .Ki = 0.22f,
+    .Kd = 0.0f,
+    .MaxOut = 1500.0f,
     .IntegralLimit = 100.0f,
-    .DeadBand = 10.0f,
+    .DeadBand = 20.0f,
     .Improve = Integral_Limit,
 };
 
 PID_t pid_yaw = {
-    .Kp = 0.13f,
-    .Ki = 0.001f,
+    .Kp = 2.10f,
+    .Ki = 0.22f,
     .Kd = 0.001f,
-    .MaxOut = 4.5f,
-    .IntegralLimit = 0.35f,
+    .MaxOut = MAX_ROTATION_VELOCITY*0.75*180.0f/M_PI,
+    .IntegralLimit = 5.0f,
     .DeadBand = 0.3f,
     .Improve = Integral_Limit,
 };
@@ -103,6 +111,7 @@ TypedTopicPublisher<pc_nav_event_t> pc_nav_event_pub("pc_nav_event_pub");
 
 namespace {
 void resetLowNavRuntime();
+void resetPathTrackingReference();
 }
 
 namespace nav_control {
@@ -130,6 +139,7 @@ void resetAllPIDs() {
   PID_Init(&pid_yaw);
   PID_Init(&pid_high_distance);
   PID_Init(&pid_high_yaw);
+  resetPathTrackingReference();
   resetLowNavRuntime();
 }
 
@@ -148,6 +158,10 @@ float s_nav_vx_cmd = 0.0f;
 float s_nav_vy_cmd = 0.0f;
 float s_nav_omega_cmd = 0.0f;
 uint8_t s_nav_arrive_hold_count = 0U;
+float s_nav_path_tx = 1.0f;
+float s_nav_path_ty = 0.0f;
+float s_nav_path_nx = 0.0f;
+float s_nav_path_ny = 1.0f;
 
 bool isPositionFresh(TickType_t now) {
   return (nav_control::g_last_position_update_tick != 0U) &&
@@ -183,6 +197,8 @@ void resetLowNavRuntime() {
 
   g_ozone_nav_dist_mm = 0.0f;
   g_ozone_nav_yaw_err_deg = 0.0f;
+  g_ozone_nav_path_err_mm = 0.0f;
+  g_ozone_nav_lateral_err_mm = 0.0f;
   g_ozone_nav_blend = 0.0f;
   g_ozone_nav_plan_speed_mps = 0.0f;
   g_ozone_nav_v_ref_mps = 0.0f;
@@ -192,12 +208,41 @@ void resetLowNavRuntime() {
   g_ozone_nav_pid_vx_mps = 0.0f;
   g_ozone_nav_pid_vy_mps = 0.0f;
   g_ozone_nav_pid_omega_radps = 0.0f;
+  g_ozone_nav_path_tx = s_nav_path_tx;
+  g_ozone_nav_path_ty = s_nav_path_ty;
+  g_ozone_nav_path_nx = s_nav_path_nx;
+  g_ozone_nav_path_ny = s_nav_path_ny;
   g_ozone_nav_vx_cmd_mps = 0.0f;
   g_ozone_nav_vy_cmd_mps = 0.0f;
   g_ozone_nav_omega_cmd_radps = 0.0f;
   g_ozone_nav_cmd_speed_mps = 0.0f;
   g_ozone_nav_brake_dist_mm = 0.0f;
   g_ozone_nav_arrive_hold_count = 0U;
+}
+
+void resetPathTrackingReference() {
+  const float dx =
+      static_cast<float>(nav_control::target_x - nav_control::current_x);
+  const float dy =
+      static_cast<float>(nav_control::target_y - nav_control::current_y);
+  const float length = sqrtf(dx * dx + dy * dy);
+
+  if (length > 1e-3f) {
+    s_nav_path_tx = dx / length;
+    s_nav_path_ty = dy / length;
+    s_nav_path_nx = -s_nav_path_ty;
+    s_nav_path_ny = s_nav_path_tx;
+  } else {
+    s_nav_path_tx = 1.0f;
+    s_nav_path_ty = 0.0f;
+    s_nav_path_nx = 0.0f;
+    s_nav_path_ny = 1.0f;
+  }
+
+  g_ozone_nav_path_tx = s_nav_path_tx;
+  g_ozone_nav_path_ty = s_nav_path_ty;
+  g_ozone_nav_path_nx = s_nav_path_nx;
+  g_ozone_nav_path_ny = s_nav_path_ny;
 }
 
 float calcBlendFactor(float dist_mm) {
@@ -495,41 +540,47 @@ void NavControlTask(void *argument) {
 
       const float yaw_rad =
           static_cast<float>(nav_control::current_yaw) * 3.14159f / 180.0f;
-      const float error_x_body =
-          error_x * cosf(yaw_rad) + error_y * sinf(yaw_rad);
-      const float error_y_body =
-          error_x * sinf(yaw_rad) - error_y * cosf(yaw_rad);
+      const float path_error =
+          error_x * s_nav_path_tx + error_y * s_nav_path_ty;
+      const float lateral_error =
+          error_x * s_nav_path_nx + error_y * s_nav_path_ny;
       const float dist_error =
-          sqrtf(error_x_body * error_x_body + error_y_body * error_y_body);
-
-      float dir_x = 0.0f;
-      float dir_y = 0.0f;
-      if (dist_error > 1e-3f) {
-        dir_x = error_x_body / dist_error;
-        dir_y = error_y_body / dist_error;
-      }
+          sqrtf(path_error * path_error + lateral_error * lateral_error);
 
       const float blend = calcBlendFactor(dist_error);
       const float brake_speed = calcBrakeLimitedSpeed(dist_error);
       const float yaw_scale = calcYawSlowdownScale(error_yaw);
       const float plan_speed = brake_speed * yaw_scale;
-      const float vx_plan = plan_speed * dir_x;
-      const float vy_plan = plan_speed * dir_y;
-      const float vx_pid_raw =
-          PID_Calculate(&pid_x, 0.0f, error_x_body) / 1000.0f;
-      const float vy_pid_raw =
-          PID_Calculate(&pid_y, 0.0f, error_y_body) / 1000.0f;
-      const float omega_pid_raw = PID_Calculate(&pid_yaw, 0.0f, error_yaw);
+      const float path_dir = (path_error >= 0.0f) ? 1.0f : -1.0f;
+      const float vx_plan_world = plan_speed * path_dir * s_nav_path_tx;
+      const float vy_plan_world = plan_speed * path_dir * s_nav_path_ty;
+      const float path_pid_raw =
+          PID_Calculate(&pid_x, 0.0f, path_error) / 1000.0f;
+      const float lateral_pid_raw =
+          PID_Calculate(&pid_y, 0.0f, lateral_error) / 1000.0f;
 
-      const float vx_pid = clampf(
-          vx_pid_raw, -g_nav_pid_max_xy_speed_mps, g_nav_pid_max_xy_speed_mps);
-      const float vy_pid = clampf(
-          vy_pid_raw, -g_nav_pid_max_xy_speed_mps, g_nav_pid_max_xy_speed_mps);
+      const float omega_pid_raw = PID_Calculate(&pid_yaw, 0.0f, error_yaw)*M_PI/180.0f;
+
+      const float path_pid = clampf(path_pid_raw, -g_nav_pid_max_xy_speed_mps,
+                                    g_nav_pid_max_xy_speed_mps);
+      const float lateral_pid =
+          clampf(lateral_pid_raw, -g_nav_pid_max_xy_speed_mps,
+                 g_nav_pid_max_xy_speed_mps);
       const float omega_pid = clampf(omega_pid_raw, -g_nav_pid_max_omega_radps,
                                      g_nav_pid_max_omega_radps);
 
-      const float vx_ref = blend * vx_plan + (1.0f - blend) * vx_pid;
-      const float vy_ref = blend * vy_plan + (1.0f - blend) * vy_pid;
+      const float vx_pid_world =
+          path_pid * s_nav_path_tx + lateral_pid * s_nav_path_nx;
+      const float vy_pid_world =
+          path_pid * s_nav_path_ty + lateral_pid * s_nav_path_ny;
+      const float vx_ref_world =
+          blend * vx_plan_world + (1.0f - blend) * vx_pid_world;
+      const float vy_ref_world =
+          blend * vy_plan_world + (1.0f - blend) * vy_pid_world;
+      const float vx_ref =
+          vx_ref_world * cosf(yaw_rad) + vy_ref_world * sinf(yaw_rad);
+      const float vy_ref =
+          -vx_ref_world * sinf(yaw_rad) + vy_ref_world * cosf(yaw_rad);
       const float omega_ref = omega_pid;
 
       s_nav_vx_cmd = rampToward(
@@ -544,9 +595,12 @@ void NavControlTask(void *argument) {
           g_nav_max_omega_accel_radps2 * kNavControlDtSec);
 
       pub_chassis_cmd cmd{};
-      cmd.linear_x_ = s_nav_vx_cmd;
-      cmd.linear_y_ = s_nav_vy_cmd;
-      cmd.omega_ = s_nav_omega_cmd;
+      // cmd.linear_x_ = s_nav_vx_cmd;
+      // cmd.linear_y_ = s_nav_vy_cmd;
+      // cmd.omega_ = s_nav_omega_cmd;
+      cmd.linear_x_ = vx_ref;
+      cmd.linear_y_ = vy_ref;
+      cmd.omega_ = omega_ref;
       cmd.nav_mode_ = true;
       chassis_cmd_pub.Publish(cmd);
 
@@ -572,14 +626,16 @@ void NavControlTask(void *argument) {
 
       g_ozone_nav_dist_mm = dist_error;
       g_ozone_nav_yaw_err_deg = error_yaw;
+      g_ozone_nav_path_err_mm = path_error;
+      g_ozone_nav_lateral_err_mm = lateral_error;
       g_ozone_nav_blend = blend;
       g_ozone_nav_plan_speed_mps = plan_speed;
       g_ozone_nav_v_ref_mps = sqrtf(vx_ref * vx_ref + vy_ref * vy_ref);
       g_ozone_nav_vx_ref_mps = vx_ref;
       g_ozone_nav_vy_ref_mps = vy_ref;
       g_ozone_nav_omega_ref_radps = omega_ref;
-      g_ozone_nav_pid_vx_mps = vx_pid;
-      g_ozone_nav_pid_vy_mps = vy_pid;
+      g_ozone_nav_pid_vx_mps = path_pid;
+      g_ozone_nav_pid_vy_mps = lateral_pid;
       g_ozone_nav_pid_omega_radps = omega_pid;
       g_ozone_nav_vx_cmd_mps = s_nav_vx_cmd;
       g_ozone_nav_vy_cmd_mps = s_nav_vy_cmd;
