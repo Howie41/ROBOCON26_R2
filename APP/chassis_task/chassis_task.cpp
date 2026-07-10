@@ -21,7 +21,7 @@
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "waypoint_navigator.hpp"
-
+#include "control_task.h"
 #include <array>
 #include <cmath>
 
@@ -41,10 +41,10 @@ volatile float g_chassis_cmd_linear_x = 0.0f;
 volatile float g_chassis_cmd_linear_y = 0.0f;
 volatile float g_chassis_cmd_omega = 0.0f;
 volatile float g_chassis_final_omega = 0.0f;
-volatile float g_chassis_target_rpm_fl = 0.0f;
-volatile float g_chassis_target_rpm_fr = 0.0f;
-volatile float g_chassis_target_rpm_rl = 0.0f;
-volatile float g_chassis_target_rpm_rr = 0.0f;
+volatile float g_chassis_target_rad_s_fl = 0.0f;
+volatile float g_chassis_target_rad_s_fr = 0.0f;
+volatile float g_chassis_target_rad_s_rl = 0.0f;
+volatile float g_chassis_target_rad_s_rr = 0.0f;
 volatile bool g_chassis_hold_active = false;
 
 namespace {
@@ -74,11 +74,11 @@ bool g_yaw_rotate_finished = false;
 float g_yaw_rotate_target_deg = 0.0f;
 bool g_yaw_rotate_was_auto = false;
 PID_t g_yaw_rotate_pid = {
-    .Kp = 0.13f,
-    .Ki = 0.001f,
+    .Kp = 2.10f,
+    .Ki = 0.22f,
     .Kd = 0.001f,
-    .MaxOut = 4.5f,
-    .IntegralLimit = 0.35f,
+    .MaxOut = MAX_ROTATION_VELOCITY*0.75*180.0f/M_PI,
+    .IntegralLimit = 5.0f,
     .DeadBand = 0.3f,
     .Improve = Integral_Limit,
 };
@@ -151,10 +151,10 @@ Omni45Chassis chassis_solver(chassis_motor1, chassis_motor2, chassis_motor3,
 
 const std::array<Omni45Chassis::SpeedPidParam, Omni45Chassis::kWheelCount>
     kWheelPidParams = {
-        Omni45Chassis::SpeedPidParam(105.0f, 75.0f, 0.20f, 20000.0f, 0.3f, NONE),
-        Omni45Chassis::SpeedPidParam(100.0f, 72.0f, 0.15f, 20000.0f, 0.3f, NONE),
-        Omni45Chassis::SpeedPidParam(108.0f, 78.0f, 0.22f, 20000.0f, 0.3f, NONE),
-        Omni45Chassis::SpeedPidParam(102.0f, 74.0f, 0.18f, 20000.0f, 0.3f, NONE),
+        Omni45Chassis::SpeedPidParam(3500.0f, 7600.0f, 0.0f, 16000.0f, 0.1f, IMCREATEMENT_OF_OUT),
+        Omni45Chassis::SpeedPidParam(3500.0f, 7600.0f, 0.0f, 16000.0f, 0.1f, IMCREATEMENT_OF_OUT),
+        Omni45Chassis::SpeedPidParam(3500.0f, 7600.0f, 0.0f, 16000.0f, 0.1f, IMCREATEMENT_OF_OUT),
+        Omni45Chassis::SpeedPidParam(3500.0f, 7600.0f, 0.0f, 16000.0f, 0.1f, IMCREATEMENT_OF_OUT),
     };
 
 PID_t yaw_hold_pid = {
@@ -248,7 +248,8 @@ bool updateYawRotateControl(pub_chassis_cmd &final_cmd) {
   final_cmd.linear_x_ = 0.0f;
   final_cmd.linear_y_ = 0.0f;
   final_cmd.omega_ =
-      PID_Calculate(&chassis_action::g_yaw_rotate_pid, 0.0f, yaw_error);
+      PID_Calculate(&chassis_action::g_yaw_rotate_pid, 0.0f, yaw_error) *
+      static_cast<float>(M_PI) / 180.0f;
 
   if (std::fabs(yaw_error) <= chassis_action::kYawRotateToleranceDeg) {
     final_cmd.omega_ = 0.0f;
@@ -292,16 +293,16 @@ void chassisTask(void *argument) {
       g_chassis_final_omega = final_cmd.omega_;
       chassis_solver.run(final_cmd);
 
-      const auto &target_rpm = chassis_solver.targetRpm();
-      g_chassis_target_rpm_fl = target_rpm[0];
-      g_chassis_target_rpm_fr = target_rpm[1];
-      g_chassis_target_rpm_rl = target_rpm[2];
-      g_chassis_target_rpm_rr = target_rpm[3];
+      const auto &target_rad_s = chassis_solver.targetRadPerSec();
+      g_chassis_target_rad_s_fl = target_rad_s[0];
+      g_chassis_target_rad_s_fr = target_rad_s[1];
+      g_chassis_target_rad_s_rl = target_rad_s[2];
+      g_chassis_target_rad_s_rr = target_rad_s[3];
 
       chassis_hold_active = false;
       chassis_hold_idle_count = 0U;
 
-    vTaskDelayUntil(&currentTime, 5);
+    vTaskDelayUntil(&currentTime, 1);
       continue;
     }
 
@@ -385,13 +386,13 @@ void chassisTask(void *argument) {
         chassis_solver.run(final_cmd);
       }
     }
-    const auto &target_rpm = chassis_solver.targetRpm();
-    g_chassis_target_rpm_fl = target_rpm[0];
-    g_chassis_target_rpm_fr = target_rpm[1];
-    g_chassis_target_rpm_rl = target_rpm[2];
-    g_chassis_target_rpm_rr = target_rpm[3];
+    const auto &target_rad_s = chassis_solver.targetRadPerSec();
+    g_chassis_target_rad_s_fl = target_rad_s[0];
+    g_chassis_target_rad_s_fr = target_rad_s[1];
+    g_chassis_target_rad_s_rl = target_rad_s[2];
+    g_chassis_target_rad_s_rr = target_rad_s[3];
 
-    vTaskDelayUntil(&currentTime, 5);
+    vTaskDelayUntil(&currentTime, 1);
   }
 }
 

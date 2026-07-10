@@ -32,8 +32,8 @@ TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
 constexpr float kDescendLaserSeekSpeedRpm = -40.0f;
 constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.15f;
-constexpr float kGoToEdgeSeekSpeedMps = 0.3f;
-constexpr float kGoToEdgeLowPostTriggerSpeedMps = 0.1f;
+constexpr float kGoToEdgeSeekSpeedMps = 0.25f;
+constexpr float kGoToEdgeLowPostTriggerSpeedMps = 0.05f;
 constexpr int16_t kR1ClimbYawNegYDeg = -90;
 constexpr int16_t kR1ClimbYawPosYDeg = 90;
 constexpr int16_t kR1ClimbYawToleranceDeg = 30;
@@ -414,8 +414,8 @@ bool move_to_pose_until_trigger(const field::StairPose &pose, bool allow_pass,
 
 }  // namespace
 
-volatile int32_t g_ozone_xbox_target_x = field::kStairFrontPose.x;
-volatile int32_t g_ozone_xbox_target_y = field::kStairFrontPose.y;
+volatile int32_t g_ozone_xbox_target_x = 1000;
+volatile int32_t g_ozone_xbox_target_y = 0;
 volatile int32_t g_ozone_xbox_target_yaw = field::kStairFrontPose.yaw;
 
 void stairWaypointGoToFront() {
