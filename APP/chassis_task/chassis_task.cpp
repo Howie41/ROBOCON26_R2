@@ -15,6 +15,7 @@
 #include "chassis_task.h"
 #include "Motor.hpp"
 #include "NavProtocol.hpp"
+#include "PoseEstimator.hpp"
 #include "chassis_solution.hpp"
 #include "merlin_map/merlin_map.h"
 #include "pid_controller.h"
@@ -51,6 +52,7 @@ namespace {
 
 float normalizeDeg(float angle_deg);
 void refreshYawReference();
+void updateWheelOdometry();
 void updateHeadingFromChassisYaw();
 bool hasMotionCommand(const pub_chassis_cmd &cmd);
 void requestYawRotateDegInternal(float delta_deg);
@@ -210,6 +212,36 @@ void refreshYawReference() {
   g_chassis_yaw_deg = currentRelativeYawDeg();
 }
 
+void updateWheelOdometry() {
+  static bool baseline_initialized = false;
+  static std::array<float, Omni45Chassis::kWheelCount> previous_pos_deg{};
+
+  const std::array<float, Omni45Chassis::kWheelCount> current_pos_deg = {
+      chassis_motor1.getCurrentSumPos(),
+      chassis_motor2.getCurrentSumPos(),
+      chassis_motor3.getCurrentSumPos(),
+      chassis_motor4.getCurrentSumPos(),
+  };
+
+  if (!baseline_initialized) {
+    previous_pos_deg = current_pos_deg;
+    baseline_initialized = true;
+    return;
+  }
+
+  std::array<float, Omni45Chassis::kWheelCount> delta_pos_deg{};
+  for (size_t i = 0; i < delta_pos_deg.size(); ++i) {
+    delta_pos_deg[i] = current_pos_deg[i] - previous_pos_deg[i];
+  }
+  previous_pos_deg = current_pos_deg;
+
+  const Omni45Chassis::BodyDisplacement body_delta =
+      chassis_solver.solveBodyDisplacement(delta_pos_deg);
+  nav_localization::integrateBodyDisplacement(
+      body_delta.dx_m * 1000.0f, body_delta.dy_m * 1000.0f,
+      g_chassis_yaw_deg);
+}
+
 void updateHeadingFromChassisYaw() {
   const float yaw_deg = g_chassis_yaw_deg;
   merlin_map::Heading matched_heading{};
@@ -285,6 +317,7 @@ void chassisTask(void *argument) {
     }
 
     refreshYawReference();
+    updateWheelOdometry();
     updateHeadingFromChassisYaw();
 
     pub_chassis_cmd final_cmd = chassis_cmd;

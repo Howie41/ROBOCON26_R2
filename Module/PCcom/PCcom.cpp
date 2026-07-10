@@ -112,10 +112,8 @@ void PcCom::OnPacket(Packet packet) {
       }
       pc_nav_position_t msg{};
       std::memcpy(&msg, packet.body_data(), sizeof(msg));
-      nav_control::current_x = msg.x;
-      nav_control::current_y = msg.y;
+      nav_control::submitRadarPosition(msg.x, msg.y);
       nav_control::pc_reported_yaw = msg.yaw;
-      nav_control::updatePositionTimestamp();
       break;
     }
 

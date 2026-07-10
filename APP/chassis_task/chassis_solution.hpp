@@ -56,6 +56,11 @@ public:
           deadband(deadband_in), improve(improve_in) {}
   };
 
+  struct BodyDisplacement {
+    float dx_m;
+    float dy_m;
+  };
+
   Omni45Chassis(C620Motor &motor_fl, C620Motor &motor_fr, C620Motor &motor_rl,
                 C620Motor &motor_rr, const Geometry &geometry = Geometry())
       : motors_{&motor_fl, &motor_fr, &motor_rl, &motor_rr},
@@ -100,6 +105,30 @@ public:
     const float mps_to_rad_s = 2.0f / geometry_.wheel_diameter_m;
     return {wheel_fl * mps_to_rad_s, wheel_fr * mps_to_rad_s,
             wheel_rl * mps_to_rad_s, wheel_rr * mps_to_rad_s};
+  }
+
+  BodyDisplacement solveBodyDisplacement(
+      const std::array<float, 4> &motor_delta_deg) const {
+    std::array<float, 4> wheel_travel_m{};
+    const float wheel_radius_m = 0.5f * geometry_.wheel_diameter_m;
+    const float deg_to_rad = kPi / 180.0f;
+
+    for (size_t i = 0; i < wheel_travel_m.size(); ++i) {
+      const float wheel_delta_rad =
+          motor_delta_deg[i] * direction_sign_[i] * deg_to_rad;
+      wheel_travel_m[i] = wheel_delta_rad * wheel_radius_m;
+    }
+
+    constexpr float kInvTwoSqrt2 = 0.3535533905932738f;
+    const float dx_m =
+        (-wheel_travel_m[kFrontLeft] + wheel_travel_m[kFrontRight] -
+         wheel_travel_m[kRearLeft] + wheel_travel_m[kRearRight]) *
+        kInvTwoSqrt2;
+    const float dy_m =
+        (wheel_travel_m[kFrontLeft] + wheel_travel_m[kFrontRight] -
+         wheel_travel_m[kRearLeft] - wheel_travel_m[kRearRight]) *
+        kInvTwoSqrt2;
+    return {dx_m, dy_m};
   }
 
   void run(const pub_chassis_cmd &cmd) {
@@ -355,4 +384,3 @@ private:
 	std::array<float, kWheelCount> pid_output_{};
 };
 */
-

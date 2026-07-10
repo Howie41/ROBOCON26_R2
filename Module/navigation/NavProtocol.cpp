@@ -1,5 +1,6 @@
 #include "NavProtocol.hpp"
 
+#include "PoseEstimator.hpp"
 #include "UsbPort.hpp"
 #include "pid_controller.h"
 #include "topic_pool.h"
@@ -129,6 +130,14 @@ bool arrival_reported = false;
 bool high_mode_active = false;
 TickType_t g_last_position_update_tick = 0;
 
+void submitRadarPosition(int16_t x, int16_t y) {
+  nav_localization::submitRadarPosition(static_cast<float>(x),
+                                        static_cast<float>(y));
+  current_x = x;
+  current_y = y;
+  updatePositionTimestamp();
+}
+
 void updatePositionTimestamp() {
   g_last_position_update_tick = xTaskGetTickCount();
 }
@@ -189,6 +198,12 @@ float clampf(float value, float min_value, float max_value) {
   return value;
 }
 
+int16_t roundPoseCoordinate(float value) {
+  constexpr float kInt16Min = -32768.0f;
+  constexpr float kInt16Max = 32767.0f;
+  return static_cast<int16_t>(lroundf(clampf(value, kInt16Min, kInt16Max)));
+}
+
 void resetLowNavRuntime() {
   s_nav_vx_cmd = 0.0f;
   s_nav_vy_cmd = 0.0f;
@@ -221,10 +236,15 @@ void resetLowNavRuntime() {
 }
 
 void resetPathTrackingReference() {
+  const nav_localization::PoseSnapshot pose = nav_localization::snapshot();
+  const float current_x_mm =
+      pose.valid ? pose.x_mm : static_cast<float>(nav_control::current_x);
+  const float current_y_mm =
+      pose.valid ? pose.y_mm : static_cast<float>(nav_control::current_y);
   const float dx =
-      static_cast<float>(nav_control::target_x - nav_control::current_x);
+      static_cast<float>(nav_control::target_x) - current_x_mm;
   const float dy =
-      static_cast<float>(nav_control::target_y - nav_control::current_y);
+      static_cast<float>(nav_control::target_y) - current_y_mm;
   const float length = sqrtf(dx * dx + dy * dy);
 
   if (length > 1e-3f) {
@@ -430,9 +450,7 @@ void NavProtocol::buildResponse(const NavCmd &cmd, char *buf, size_t buf_size) {
       break;
 
     case CmdType::POSITION:
-      nav_control::current_x = cmd.param1;
-      nav_control::current_y = cmd.param2;
-      nav_control::g_last_position_update_tick = now;
+      nav_control::submitRadarPosition(cmd.param1, cmd.param2);
       snprintf(buf, buf_size, "POS OK X=%hd Y=%hd\n",
                nav_control::current_x, nav_control::current_y);
       break;
@@ -472,6 +490,17 @@ void NavControlTask(void *argument) {
 
   for (;;) {
     const TickType_t now = xTaskGetTickCount();
+    const nav_localization::PoseSnapshot pose = nav_localization::snapshot();
+
+    if (pose.valid) {
+      nav_control::current_x = roundPoseCoordinate(pose.x_mm);
+      nav_control::current_y = roundPoseCoordinate(pose.y_mm);
+    }
+
+    const float current_x_mm =
+        pose.valid ? pose.x_mm : static_cast<float>(nav_control::current_x);
+    const float current_y_mm =
+        pose.valid ? pose.y_mm : static_cast<float>(nav_control::current_y);
 
     nav_control::current_yaw = static_cast<int16_t>(g_chassis_yaw_deg);
 
@@ -485,9 +514,9 @@ void NavControlTask(void *argument) {
 
       if (nav_control::high_mode_active) {
         const float error_x =
-            static_cast<float>(nav_control::target_x - nav_control::current_x);
+            static_cast<float>(nav_control::target_x) - current_x_mm;
         const float error_y =
-            static_cast<float>(nav_control::target_y - nav_control::current_y);
+            static_cast<float>(nav_control::target_y) - current_y_mm;
 
         const float yaw_rad =
             static_cast<float>(nav_control::current_yaw) * 3.14159f / 180.0f;
@@ -532,9 +561,9 @@ void NavControlTask(void *argument) {
       }
 
       const float error_x =
-          static_cast<float>(nav_control::target_x - nav_control::current_x);
+          static_cast<float>(nav_control::target_x) - current_x_mm;
       const float error_y =
-          static_cast<float>(nav_control::target_y - nav_control::current_y);
+          static_cast<float>(nav_control::target_y) - current_y_mm;
       const float error_yaw = normalizeDeg(static_cast<float>(
           nav_control::target_yaw - nav_control::current_yaw));
 
