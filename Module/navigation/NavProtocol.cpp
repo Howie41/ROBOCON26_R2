@@ -27,7 +27,7 @@ volatile float g_nav_omega_slowdown_deg = 10.0f;
 volatile float g_nav_max_omega_accel_radps2 = 1000.00f;
 volatile float g_nav_yaw_slowdown_start_deg = 12.0f;
 volatile float g_nav_yaw_slowdown_min_scale = 0.40f;
-volatile float g_nav_arrive_dist_mm = 30.0f;
+volatile float g_nav_arrive_dist_mm = 15.0f;
 volatile float g_nav_arrive_yaw_deg = 1.0f;
 volatile uint8_t g_nav_arrive_hold_count_target = 2U;
 

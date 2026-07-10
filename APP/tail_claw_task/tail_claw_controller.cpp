@@ -90,16 +90,16 @@ void TailClawController::init_pid()
     roll_pos_pid_ = {};
     roll_pos_pid_.Kp = 40.0f;
     roll_pos_pid_.Ki = 0.0f;
-    roll_pos_pid_.Kd = 1.0f;
+    roll_pos_pid_.Kd = 8.0f;
     roll_pos_pid_.MaxOut = 100.0f;
     roll_pos_pid_.DeadBand = 0.3f;
     roll_pos_pid_.Improve = NONE;
 
     roll_speed_pid_ = {};
-    roll_speed_pid_.Kp = 110.0f;
+    roll_speed_pid_.Kp = 70.0f;
     roll_speed_pid_.Ki = 0.4;
-    roll_speed_pid_.Kd = 0.6f;
-    roll_speed_pid_.MaxOut = 4000.0f;
+    roll_speed_pid_.Kd = 1.0f;
+    roll_speed_pid_.MaxOut = 3000.0f;
     roll_speed_pid_.DeadBand = 0.3f;
     roll_speed_pid_.Improve = NONE;
 
@@ -472,19 +472,32 @@ float TailClawController::calcRollCmd(float target_deg)
     }
 
     const float target_pos = target_deg * roll_reduction_ratio;
-    if(target_deg-roll_target_deg_>0.0f) {
+    if (target_deg - roll_motor_->getCurrentSumPos() >= 0.0f) {
+        // 正转方向：使用 roll_pos_pid_ / roll_speed_pid_
+        if (roll_last_direction_ != 1) {
+            // 刚从反转/初始切换到正转，清零正转 PID 的冻结积分，防止突变
+            PID_Reset(&roll_pos_pid_);
+            PID_Reset(&roll_speed_pid_);
+            roll_last_direction_ = 1;
+        }
         const float speed_cmd = PID_Calculate(&roll_pos_pid_,
                                           roll_motor_->getCurrentSumPos(),
                                           target_pos);
         return PID_Calculate(&roll_speed_pid_,
                          roll_motor_->getCurrentSpeed(),
                          speed_cmd);
-    }
-    else{
-    const float speed_cmd = PID_Calculate(&roll_heigh_pos_pid_,
+    } else {
+        // 反转方向：使用 roll_heigh_pos_pid_ / roll_heigh_speed_pid_
+        if (roll_last_direction_ != -1) {
+            // 刚从正转/初始切换到反转，清零反转 PID 的冻结积分，防止突变
+            PID_Reset(&roll_heigh_pos_pid_);
+            PID_Reset(&roll_heigh_speed_pid_);
+            roll_last_direction_ = -1;
+        }
+        const float speed_cmd = PID_Calculate(&roll_heigh_pos_pid_,
                                           roll_motor_->getCurrentSumPos(),
                                           target_pos);
-    return PID_Calculate(&roll_heigh_speed_pid_,
+        return PID_Calculate(&roll_heigh_speed_pid_,
                          roll_motor_->getCurrentSpeed(),
                          speed_cmd);
     }

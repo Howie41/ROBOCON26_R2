@@ -46,12 +46,12 @@ constexpr location before_shr{500, 0, 0, "before_shr"};
 constexpr int16_t sh_aim_y = -692;
 
 constexpr std::array<location, SH_COUNT> sh_aim{
-    location{-275+40, sh_aim_y-45, 90, "sh_aim"},
-    location{-75+40, sh_aim_y-45, 90, "sh_aim"},
-    location{125+40, sh_aim_y-45, 90, "sh_aim"},
-    location{725+40, sh_aim_y-45, 90, "sh_aim"},
-    location{525+40, sh_aim_y-45, 90, "sh_aim"},
-    location{325+40, sh_aim_y-45, 90, "sh_aim"},
+    location{-275+50, sh_aim_y-45, 90, "sh_aim"},
+    location{-75+50, sh_aim_y-45, 90, "sh_aim"},
+    location{125+50, sh_aim_y-45, 90, "sh_aim"},
+    location{725+50, sh_aim_y-45, 90, "sh_aim"},
+    location{525+50, sh_aim_y-45, 90, "sh_aim"},
+    location{325+50, sh_aim_y-45, 90, "sh_aim"},
 };
 constexpr int16_t sh_close_y = -772;
 
@@ -234,7 +234,7 @@ public:
     // 端头架对齐武器杆
     STATE(match_rod) {
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
-        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90);
         sm.move_to_pos(waypoint::match_rod);
         sm.do_debug_pause("match");
         sm.change_state_to(wait_for_decision_cmd::instance());

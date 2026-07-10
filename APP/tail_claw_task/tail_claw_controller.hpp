@@ -177,6 +177,9 @@ public:
     uint8_t match_lost_count_{0};
     bool weapon_matched_stable_{false};
 
+    // 记录上次翻转方向（1=正转, -1=反转, 0=初始），用于切换 PID 时清零非活跃积分
+    int8_t roll_last_direction_{0};
+
     uint8_t status_publish_count_{0};
 
     pub_Xbox_Data xbox_cmd_{};
