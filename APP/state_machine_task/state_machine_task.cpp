@@ -394,12 +394,30 @@ public:
 
     // 启动（九宫藏宝）
     STATE(begin_jgcb) {
+        constexpr uint32_t log_interval = 5 * 1000;
+        const uint32_t timeout_seconds = sm.current_startup_config_.arena_delay_seconds;
+        const uint32_t timeout_ticks = timeout_seconds * 1000;
         logger_queue.log("SM\tBEGIN JGCB ========\n");
+        logger_queue.log("SM\tdelay %us waiting for R1 cmd...\n", timeout_seconds);
+        const uint32_t start_time = osKernelGetTickCount();
+        uint32_t last_log_time = 0;
         sm.clean_previous_cmd();
-        logger_queue.log("SM\tWaiting for R1 command...\n");
-        sm.wait_until_timeout_or([&sm]() -> bool {
-            return (sm.get_cmd_from_r1() == cmd_go_uphill);
-        }, 40 * 1000);
+        while (true) {
+            const uint32_t now_time = osKernelGetTickCount();
+            if ((now_time - start_time) >= timeout_ticks) {
+                break;
+            }
+            if (sm.get_cmd_from_r1() == cmd_go_uphill) {  
+                logger_queue.log("SM\tR1 cmd received, delay skipped");
+                break;
+            }
+            const uint32_t elapsed_time = now_time - start_time;
+            if (elapsed_time - last_log_time >= log_interval) {
+                last_log_time = elapsed_time;
+                logger_queue.log("SM\twaiting for R1 cmd (%ds left)\n", (timeout_ticks - elapsed_time) / 1000);
+            }
+            osDelay(100);
+        }
         sm.move_to_pos(waypoint::before_uphill);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
@@ -588,13 +606,27 @@ private:
         wait_until([&]() -> bool {
             return startup_config_sub_.TryGet(&config);
         });
+
+        auto clamp = [](int16_t val, int16_t min, int16_t max) -> int16_t {
+            if (val < min) return min;
+            if (val > max) return max;
+            return val;
+        };
+        config.kfs_amount = clamp(config.kfs_amount, 0, 3);
+        config.arena_load_kfs_amount = clamp(config.arena_load_kfs_amount, 0, 2);
+        config.arena_delay_seconds = clamp(config.arena_delay_seconds, 10, 60);
+
         logger_queue.log("SM\tstartup config received:\n");
-        logger_queue.log("SM\tarea=%s begin=%d kfs=%d O(%d,%d)\n",
+        logger_queue.log("SM\tarea=%s begin=%d own_kfs=%d O(%d,%d)\n",
             config.area_type_value == area_type::blue ? "BLUE" : "RED",
             static_cast<int>(config.begin_type_value),
             config.kfs_amount,
             config.origin_x,
             config.origin_y
+        );
+        logger_queue.log("SM\tarena load_kfs=%d delay=%ds\n", 
+            config.arena_load_kfs_amount,
+            config.arena_delay_seconds
         );
         current_startup_config_ = config;
         current_origin_location_.emplace(waypoint::location{config.origin_x, config.origin_y, 0});
