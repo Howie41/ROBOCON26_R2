@@ -71,9 +71,9 @@ constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
 constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red",
                                   false};
 
-constexpr location mf_entrance_mid{2150, 1496+30, 0, "mf_entrance_mid"};
+constexpr location mf_entrance_mid{2150, 1496+30+30, 0, "mf_entrance_mid"};
 constexpr location mf_entrance_left{2150, 1496+30+30+1200, 0, "mf_entrance_left"};
-constexpr location mf_entrance_right{2150, 1496+30-1200, 0, "mf_entrance_right"};
+constexpr location mf_entrance_right{2150, 1496+30+30-1200, 0, "mf_entrance_right"};
 
 // constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0, "mf_entrance_mid_close"};
 // constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0, "mf_entrance_left_close"};
