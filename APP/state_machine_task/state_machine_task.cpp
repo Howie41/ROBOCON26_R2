@@ -25,6 +25,7 @@
 #include "topics.hpp"
 #include "chassis_task.h"
 #include "logger.hpp"
+#include "merlin_map/merlin_map.h"
 
 osThreadId_t StateMachineTaskHandle;
 extern Arm arm;  // 取矿机构实例
@@ -66,9 +67,20 @@ constexpr std::array<location, SH_COUNT> sh_close{
 
 constexpr location match_rod{-95, -822, -90, "match_rod"};
 
-constexpr location mf_entrance_mid{2150, 1496+30, 0, "mf_entrance_mid"};
-constexpr location mf_entrance_left{2150, 1496+30+30+1200, 0, "mf_entrance_left"};
-constexpr location mf_entrance_right{2150, 1496+30-1200, 0, "mf_entrance_right"};
+inline location mf_entrance_col1() {
+    const merlin_map::MerlinPose pose = merlin_map::entryPose(1U);
+    return location{pose.x, pose.y, pose.yaw, "mf_entrance_col1"};
+}
+
+inline location mf_entrance_col2() {
+    const merlin_map::MerlinPose pose = merlin_map::entryPose(2U);
+    return location{pose.x, pose.y, pose.yaw, "mf_entrance_col2"};
+}
+
+inline location mf_entrance_col3() {
+    const merlin_map::MerlinPose pose = merlin_map::entryPose(3U);
+    return location{pose.x, pose.y, pose.yaw, "mf_entrance_col3"};
+}
 
 // constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0, "mf_entrance_mid_close"};
 // constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0, "mf_entrance_left_close"};
@@ -262,7 +274,7 @@ public:
 
     // 前往梅林入口
     STATE(go_to_mf_entrance) {
-        sm.move_to_pos(waypoint::mf_entrance_mid);
+        sm.move_to_pos(waypoint::mf_entrance_col2());
         sm.change_state_to(request_for_path_cmd::instance());
     } STATE_END
 
@@ -377,7 +389,8 @@ public:
 
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
-            sm.move_to_pos(waypoint::mf_entrance_mid.x - 300, nav_control::current_y, 0, 5000);
+            const waypoint::location entry_col2 = waypoint::mf_entrance_col2();
+            sm.move_to_pos(entry_col2.x - 300, nav_control::current_y, 0, 5000);
         }
 
         sm.current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
@@ -744,10 +757,10 @@ private:
     void move_left() {
         if (moved_left_right_ == 0) {
             moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_left);
+            move_to_pos(waypoint::mf_entrance_col1());
         } else if (moved_left_right_ == 1) {
             moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_mid);
+            move_to_pos(waypoint::mf_entrance_col2());
         } else {
             return; // 已经在最左边了，不能再左移
         }
@@ -756,10 +769,10 @@ private:
     void move_right() {
         if (moved_left_right_ == 0) {
             moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_right);
+            move_to_pos(waypoint::mf_entrance_col3());
         } else if (moved_left_right_ == -1) {
             moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_mid);
+            move_to_pos(waypoint::mf_entrance_col2());
         } else {
             return; // 已经在最右边了，不能再右移
         }
