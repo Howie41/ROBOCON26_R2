@@ -90,7 +90,7 @@ void Xbox_Data_Process() {
 
   if (ABS(control_xbox_cmd.joyLHori - 32767) > 2300) {
     chassis_cmd.linear_y_ =
-        (int)(control_xbox_cmd.joyLHori - 32767) / 32767.0f * MAX_VELOCITY;
+        -(int)(control_xbox_cmd.joyLHori - 32767) / 32767.0f * MAX_VELOCITY;
   } else {
     chassis_cmd.linear_y_ = 0.0f;
   }
