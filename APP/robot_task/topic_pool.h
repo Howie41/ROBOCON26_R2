@@ -167,11 +167,13 @@ typedef struct {
 } pub_qr_code_parsed; // topic = "qr_code_parsed"
 
 struct startup_config {
-  area_type area_type_value;
-  begin_type begin_type_value;
-  int16_t origin_x;
-  int16_t origin_y;
-  int16_t kfs_amount;
+  area_type area_type_value;          // 比赛区域（红方/蓝方）
+  begin_type begin_type_value;        // 启动方式（区域）
+  int16_t origin_x;                   // 起点坐标x
+  int16_t origin_y;                   // 起点坐标y
+  int16_t kfs_amount;                 // 初始KFS数量，有效值 0~3
+  int16_t arena_load_kfs_amount;      // 在三区装载KFS的数量，有效值 0~2
+  int16_t arena_delay_seconds;        // 以三区启动时的等待时间，单位秒，有效值 10~60 秒
 };
 
 #pragma pack()
