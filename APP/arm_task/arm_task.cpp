@@ -38,6 +38,16 @@ extern Arm arm;  // 取矿机构实例
 static uint8_t flag = 0;  // 当前功能状态值
 static uint8_t test_flag = 0;  // 上位机进行速度规划调试用时的flag
 
+
+float get_total_time(arm_pose *poses, uint16_t size) {
+    float total_time = 0.0f;
+    for (uint8_t i = 0; i < size; i++) {
+        total_time += poses[i].delta_t;
+    }
+    return total_time;
+}
+
+
 namespace arm_action {
 /**
  * @brief 吸取对应层高的kfs、kfs_amount+1
@@ -47,7 +57,12 @@ namespace arm_action {
 bool raise_kfs(LOAD_TYPE step) { 
     auto result = arm.fetch_step(step); 
     if (result) {
-        osDelay(3000);
+        switch (step) {
+            case LOAD_TYPE::MEDIUM: osDelay(1700); break;
+            case LOAD_TYPE::HIGH: osDelay(2000); break;
+            case LOAD_TYPE::LOW: osDelay(2800); break;
+            case LOAD_TYPE::PLAIN: osDelay(1700); break;
+        }
     } else {
         logger_queue.log("ARM\traise_kfs failed!\n");
     }
@@ -61,7 +76,15 @@ bool raise_kfs(LOAD_TYPE step) {
 bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
     auto result = arm.place_kfs(level, is_layer3);
     if (result) {
-        osDelay(5000);
+        if (level.has_value()) {
+            switch (level.value()) {
+                case UNLOAD_TYPE::LOW: osDelay(4200); break;
+                case UNLOAD_TYPE::MEDIUM: osDelay(3200); break;
+                case UNLOAD_TYPE::TOP: osDelay(400); break;
+            }
+        } else {
+            osDelay(4200);
+        }
     } else {
         logger_queue.log("ARM\tunload_kfs failed!\n");
     }
@@ -73,7 +96,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
 bool release_kfs() {
     auto result = arm.place_release();
     if (result) {
-        osDelay(1000);
+        osDelay(100);
     } else {
         logger_queue.log("ARM\trelease_kfs failed!\n");
     }
@@ -85,7 +108,7 @@ bool release_kfs() {
 bool load_kfs() { 
     auto result = arm.load_kfs(); 
     if (result) {
-        osDelay(4000);
+        osDelay(1800);
     } else {
         logger_queue.log("ARM\tload_kfs failed!\n");
     }
