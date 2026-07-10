@@ -17,6 +17,35 @@ extern std::atomic<bool> g_config_valid;
 extern std::atomic<int16_t> g_config_origin_x;
 extern std::atomic<int16_t> g_config_origin_y;
 
+namespace field {
+
+StairPose stairFrontPose() {
+  const merlin_map::MerlinPose pose = merlin_map::stairFrontPose();
+  return StairPose{pose.x, pose.y, pose.yaw};
+}
+
+StairPose stairClosePose() {
+  const merlin_map::MerlinPose pose = merlin_map::stairClosePose();
+  return StairPose{pose.x, pose.y, pose.yaw};
+}
+
+StairPose stairHighDrivePose() {
+  const merlin_map::MerlinPose pose = merlin_map::stairHighDrivePose();
+  return StairPose{pose.x, pose.y, pose.yaw};
+}
+
+StairPose stairCenterPose() {
+  const merlin_map::MerlinPose pose = merlin_map::stairCenterPose();
+  return StairPose{pose.x, pose.y, pose.yaw};
+}
+
+StairPose merlinEntryPoseByCol(uint8_t col) {
+  const merlin_map::MerlinPose pose = merlin_map::entryPose(col);
+  return StairPose{pose.x, pose.y, pose.yaw};
+}
+
+}  // namespace field
+
 namespace { 
 
 std::atomic<uint8_t> g_stair_waypoint_step{0};
@@ -40,11 +69,9 @@ constexpr int16_t kR1ClimbYawToleranceDeg = 30;
 constexpr int16_t kR1PostLowAdvanceMm = 80;
 constexpr int16_t kClimbAdvanceToLowerMm = 670;
 constexpr int16_t kClimbAdvanceToCenterMm = 950;
-constexpr int16_t kDescendRetreatToHighMm = 280;
-constexpr int16_t kDescendRetreatToLowerMm = 950;
+constexpr int16_t kDescendRetreatToHighMm = 220;
+constexpr int16_t kDescendRetreatToLowerMm = 900;
 constexpr int16_t kGoToEdgeLowCoarseAdvanceMm = 200;
-constexpr int16_t kGroundGoToEdgeTargetX =
-    static_cast<int16_t>(field::kStairFrontPose.x + 60);
 constexpr int16_t kGroundCenterLaneToleranceMm = 300;
 constexpr float kPassDistanceMm = 200.0f;
 constexpr uint32_t kPassHoldMs = 1000U;
@@ -77,6 +104,10 @@ int16_t worldToLocalX(int16_t world_x) {
 
 int16_t worldToLocalY(int16_t world_y) {
   return static_cast<int16_t>(world_y - merlinOriginY());
+}
+
+int16_t groundGoToEdgeTargetX() {
+  return static_cast<int16_t>(field::stairFrontPose().x + 60);
 }
 
 field::StairPose localToWorldPose(const field::StairPose &local_pose) {
@@ -142,8 +173,9 @@ uint8_t levelFromCellHeight(const merlin_map::Cell &cell) {
 }
 
 bool isGroundCenterLaneTargetY() {
+  const merlin_map::MerlinPose center_entry = merlin_map::entryPose(2U);
   return std::abs(static_cast<int32_t>(worldToLocalY(nav_control::target_y)) -
-                  static_cast<int32_t>(field::kStairCenterPose.y)) <=
+                  static_cast<int32_t>(center_entry.y)) <=
          kGroundCenterLaneToleranceMm;
 }
 
@@ -263,25 +295,31 @@ field::StairPose advancePoseR1(int16_t x, int16_t y, int16_t advance_mm,
 
 [[maybe_unused]] field::StairPose stairStandbyPoseForLevel(uint8_t level) {
   return withHeadingYaw(
-      offsetPoseX(field::kStairFrontPose, stairLevelOffsetX(level)));
+      offsetPoseX(field::stairFrontPose(), stairLevelOffsetX(level)));
 }
 
 field::StairPose stairClosePoseForLevel(uint8_t level) {
   return withHeadingYaw(
-      offsetPoseX(field::kStairClosePose, stairLevelOffsetX(level)));
+      offsetPoseX(field::stairClosePose(), stairLevelOffsetX(level)));
 }
 
 field::StairPose stairHighDrivePoseForLevel(uint8_t level) {
   return withHeadingYaw(
-      offsetPoseX(field::kStairHighDrivePose, stairLevelOffsetX(level)));
+      offsetPoseX(field::stairHighDrivePose(), stairLevelOffsetX(level)));
 }
 
 field::StairPose stairCenterPoseForLevel(uint8_t level) {
   if (level == 0U) {
-    return withHeadingYaw(field::kStairFrontPose);
+    return withHeadingYaw(field::stairFrontPose());
   }
-  return withHeadingYaw(
-      offsetPoseX(field::kStairCenterPose, stairLevelOffsetX(level - 1U)));
+
+  merlin_map::Cell cell{};
+  if (merlin_map::tryGetCellByRowCol(level, 2U, &cell)) {
+    return field::StairPose{cell.center_x, cell.center_y, headingYawDeg()};
+  }
+
+  return withHeadingYaw(offsetPoseX(field::stairCenterPose(),
+                                    stairLevelOffsetX(level - 1U)));
 }
 
 bool hasFreshPoseSample(TickType_t now) {
@@ -416,7 +454,7 @@ bool move_to_pose_until_trigger(const field::StairPose &pose, bool allow_pass,
 
 volatile int32_t g_ozone_xbox_target_x = 1000;
 volatile int32_t g_ozone_xbox_target_y = 0;
-volatile int32_t g_ozone_xbox_target_yaw = field::kStairFrontPose.yaw;
+volatile int32_t g_ozone_xbox_target_yaw = 0;
 
 void stairWaypointGoToFront() {
   if (!merlinOriginReady()) {
@@ -811,7 +849,7 @@ void stairWaypointRunGoToEdge() {
 
     g_stair_waypoint_step.store(44);
     const field::StairPose coarse_pose{
-        kGroundGoToEdgeTargetX,
+        groundGoToEdgeTargetX(),
         worldToLocalY(static_cast<int16_t>(nav_control::target_y)),
         static_cast<int16_t>(nav_control::target_yaw),
     };

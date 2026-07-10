@@ -55,15 +55,16 @@ private:
 
 class LoggerQueue {
 public:
-    static constexpr size_t FMT_PREFIX_MAX = 11;  // "%lu\t" 最大宽度: 10(timestamp) + 1(tab)
+    static constexpr size_t FMT_PREFIX_MAX = 18;  // "#%u\t%lu\t%s": 1(#)+5(id)+1+10(ts)+1
     struct message {
+        uint16_t log_id;
         uint32_t log_time;
-        // raw_text + timestamp + tab + null 必须 <= Logger::BUFFER_LENGTH
-        char raw_text[Logger::BUFFER_LENGTH - FMT_PREFIX_MAX];
+        char raw_text[Logger::BUFFER_LENGTH - FMT_PREFIX_MAX];  // 128 - 18 = 110
 
-        /// 格式化为 "timestamp\traw_text"，返回实际字节数（不含 null）
+        /// 格式化为 "#log_id\ttimestamp\traw_text"，返回实际字节数（不含 null）
         size_t format_to(char *buf, size_t buf_size) const {
-            int len = snprintf(buf, buf_size, "%lu\t%s",
+            int len = snprintf(buf, buf_size, "#%u\t%lu\t%s",
+                               static_cast<unsigned>(log_id),
                                static_cast<unsigned long>(log_time), raw_text);
             if (len <= 0) return 0;
             size_t n = static_cast<size_t>(len);
@@ -78,6 +79,7 @@ private:
     Logger &logger_ref_;
     osMessageQueueId_t log_queue_handle_{nullptr};   // → debugTask → UART10
     osMessageQueueId_t pc_queue_handle_{nullptr};    // → PcComTask → USB 上位机
+    std::atomic<uint16_t> next_log_id_{0};
 
 public:
     LoggerQueue(Logger &logger) : logger_ref_(logger) {}
@@ -97,16 +99,17 @@ public:
         va_end(args);
         msg.raw_text[sizeof(msg.raw_text) - 1] = '\0'; // 显式截断
         if (len > 0) {
+            msg.log_id = next_log_id_.fetch_add(1);
             msg.log_time = osKernelGetTickCount();
             // 非阻塞推送到两个队列；队列满时丢弃
-            bool ok = true;
+            bool result{true};
             if (log_queue_handle_ != nullptr) {
-                ok &= (osMessageQueuePut(log_queue_handle_, &msg, 0U, 0U) == osOK);
+                result &= (osMessageQueuePut(log_queue_handle_, &msg, 0U, 0U) == osOK);
             }
             if (pc_queue_handle_ != nullptr) {
-                osMessageQueuePut(pc_queue_handle_, &msg, 0U, 0U);
+                result &= (osMessageQueuePut(pc_queue_handle_, &msg, 0U, 0U) == osOK);
             }
-            return ok;
+            return result;
         }
         return false;
     }
