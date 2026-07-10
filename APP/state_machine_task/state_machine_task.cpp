@@ -405,30 +405,14 @@ public:
 
     // 启动（九宫藏宝）
     STATE(begin_jgcb) {
-        constexpr uint32_t log_interval = 5 * 1000;
-        const uint32_t timeout_seconds = sm.current_startup_config_.arena_delay_seconds;
-        const uint32_t timeout_ticks = timeout_seconds * 1000;
         logger_queue.log("SM\tBEGIN JGCB ========\n");
-        logger_queue.log("SM\tdelay %us waiting for R1 cmd...\n", timeout_seconds);
-        const uint32_t start_time = osKernelGetTickCount();
-        uint32_t last_log_time = 0;
         sm.clean_previous_cmd();
-        while (true) {
-            const uint32_t now_time = osKernelGetTickCount();
-            if ((now_time - start_time) >= timeout_ticks) {
-                break;
-            }
-            if (sm.get_cmd_from_r1() == cmd_go_uphill) {  
-                logger_queue.log("SM\tR1 cmd received, delay skipped");
-                break;
-            }
-            const uint32_t elapsed_time = now_time - start_time;
-            if (elapsed_time - last_log_time >= log_interval) {
-                last_log_time = elapsed_time;
-                logger_queue.log("SM\twaiting for R1 cmd (%ds left)\n", (timeout_ticks - elapsed_time) / 1000);
-            }
-            osDelay(100);
-        }
+        sm.wait_until([&]() -> bool {
+            return (sm.get_cmd_from_r1() == cmd_go_uphill);
+        });
+        sm.countdown(20, "go_uphill", [&]() -> bool {
+            return false;
+        });
         sm.move_to_pos(waypoint::before_uphill);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
@@ -437,14 +421,71 @@ public:
     STATE(go_to_arena) {
         sm.move_to_pos(waypoint::after_uphill);
         sm.move_to_pos(waypoint::beside_after_uphill);
+        sm.move_to_pos(waypoint::beside_after_uphill.x, waypoint::beside_after_uphill.y, -90);
+        sm.change_state_to(wait_for_arena_action::instance());
+    } STATE_END
+
+    STATE(wait_for_arena_action) {
+        sm.clean_previous_cmd();
+        sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", [&]() -> bool {
+            return sm.get_cmd_from_r1() == cmd_go_uphill;
+        });
+        sm.change_state_to(go_to_grid_1::instance());
+    } STATE_END
+
+    STATE(go_to_grid_1) {   
+        sm.move_to_pos(waypoint::grid_mid);
+        sm.change_state_to(wait_r1_cmd_1::instance());
+    } STATE_END
+
+    STATE(wait_r1_cmd_1) {
+        sm.clean_previous_cmd();
+        sm.wait_until([&sm]() -> bool {
+            switch (sm.get_cmd_from_r1()) {
+                case cmd_place_kfs_on_left: {
+                    auto res = arm_action::unload_kfs(std::nullopt);
+                    if (res) {
+                        sm.move_to_pos(waypoint::grid_left);
+                        sm.move_to_pos(waypoint::grid_left_close);
+                        arm_action::release_kfs();
+                        sm.move_to_pos(waypoint::grid_left);
+                    }
+                    return true;
+                }
+                case cmd_place_kfs_on_mid: {
+                    auto res = arm_action::unload_kfs(std::nullopt);
+                    if (res) {
+                        sm.move_to_pos(waypoint::grid_mid);
+                        sm.move_to_pos(waypoint::grid_mid_close);
+                        arm_action::release_kfs();
+                        sm.move_to_pos(waypoint::grid_mid);
+                    }
+                    return true;
+                }
+                case cmd_place_kfs_on_right: {
+                    auto res = arm_action::unload_kfs(std::nullopt);
+                    if (res) {
+                        sm.move_to_pos(waypoint::grid_right);
+                        sm.move_to_pos(waypoint::grid_right_close);
+                        arm_action::release_kfs();
+                        sm.move_to_pos(waypoint::grid_right);
+                    }
+                    return true;
+                }
+                default:
+                    return false;
+            }
+        });
         sm.change_state_to(load_kfs::instance());
     } STATE_END
 
     // 前往距斜坡最近的KFS前 装载KFS
     STATE(load_kfs) {
-        if (sm.current_startup_config_.arena_load_kfs_amount >= 1) {
+        if (sm.current_startup_config_.arena_load_kfs_amount == 1) {
             sm.move_to_pos(waypoint::load_kfs);
             arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+        }
+        if (sm.current_startup_config_.arena_load_kfs_amount > 1) {
             arm_action::load_kfs();
         }
 
@@ -452,46 +493,58 @@ public:
     } STATE_END
 
     STATE(load_kfs_2) {
-        sm.move_to_pos(waypoint::load_kfs_2);
         if (sm.current_startup_config_.arena_load_kfs_amount >= 2) {
+            sm.move_to_pos(waypoint::load_kfs_2);
             arm_action::raise_kfs(LOAD_TYPE::PLAIN);
         }
-        sm.change_state_to(go_to_grid::instance());
+        sm.change_state_to(go_to_grid_2::instance());
     } STATE_END
 
-    STATE(go_to_grid) {
+    STATE(go_to_grid_2) {
         // 转身 load_kfs_2.x -> grid_left.x
-        sm.move_to_pos(waypoint::load_kfs_2.x, waypoint::load_kfs_2.y, -90);
-        sm.move_to_pos(waypoint::grid_left.x, waypoint::load_kfs_2.y, -90);
-        sm.change_state_to(wait_r1_cmd::instance());
+        // sm.move_to_pos(waypoint::load_kfs_2.x, waypoint::load_kfs_2.y, -90);
+        // sm.move_to_pos(waypoint::grid_left.x, waypoint::load_kfs_2.y, -90);
+        if (sm.current_startup_config_.arena_load_kfs_amount > 0) {
+            sm.move_to_pos(waypoint::grid_mid);
+        }
+        sm.change_state_to(wait_r1_cmd_2::instance());
     } STATE_END
 
     // 等待指令，然后放置中层KFS
-    STATE(wait_r1_cmd) {
+    STATE(wait_r1_cmd_2) {
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
             switch (sm.get_cmd_from_r1()) {
-                case cmd_place_kfs_on_left:
-                    arm_action::unload_kfs(std::nullopt); 
-                    sm.move_to_pos(waypoint::grid_left);
-                    sm.move_to_pos(waypoint::grid_left_close);
-                    arm_action::release_kfs();
-                    sm.move_to_pos(waypoint::grid_left);
+                case cmd_place_kfs_on_left: {
+                    auto res = arm_action::unload_kfs(std::nullopt);
+                    if (res) {
+                        sm.move_to_pos(waypoint::grid_left);
+                        sm.move_to_pos(waypoint::grid_left_close);
+                        arm_action::release_kfs();
+                        sm.move_to_pos(waypoint::grid_left);
+                    }
                     return false;
-                case cmd_place_kfs_on_mid:
-                    arm_action::unload_kfs(std::nullopt);
-                    sm.move_to_pos(waypoint::grid_mid);
-                    sm.move_to_pos(waypoint::grid_mid_close);
-                    arm_action::release_kfs();
-                    sm.move_to_pos(waypoint::grid_mid);
+                }
+                case cmd_place_kfs_on_mid: {
+                    auto res = arm_action::unload_kfs(std::nullopt);
+                    if (res) {
+                        sm.move_to_pos(waypoint::grid_mid);
+                        sm.move_to_pos(waypoint::grid_mid_close);
+                        arm_action::release_kfs();
+                        sm.move_to_pos(waypoint::grid_mid);
+                    }
                     return false;
-                case cmd_place_kfs_on_right:
-                    arm_action::unload_kfs(std::nullopt);
-                    sm.move_to_pos(waypoint::grid_right);
-                    sm.move_to_pos(waypoint::grid_right_close);
-                    arm_action::release_kfs();
-                    sm.move_to_pos(waypoint::grid_right);
+                }
+                case cmd_place_kfs_on_right: {
+                    auto res = arm_action::unload_kfs(std::nullopt);
+                    if (res) {
+                        sm.move_to_pos(waypoint::grid_right);
+                        sm.move_to_pos(waypoint::grid_right_close);
+                        arm_action::release_kfs();
+                        sm.move_to_pos(waypoint::grid_right);
+                    }
                     return false;
+                }
                 case cmd_combination:
                     sm.change_state_to(go_to_combination_area::instance());
                     return true;
@@ -685,6 +738,42 @@ private:
         return true;
     }
 
+    /**
+     * @brief 倒计时，轮询间隔 100ms，可通过 break_when 提前跳出
+     * @param seconds 倒计时秒数
+     * @param name 名称，用于日志输出
+     * @param log_interval 日志输出间隔（毫秒），默认 5000ms
+     * @param break_when 提前跳出条件，传入 lambda 返回 true 时跳出
+     */
+    template <typename T>
+    void countdown(uint32_t seconds, const char* name, T &&break_when, uint32_t log_interval = 5000) {
+        const uint32_t start = osKernelGetTickCount();
+        const uint32_t total_ms = seconds * 1000;
+        uint32_t last_log = 0;
+
+        while (true) {
+            const uint32_t elapsed = osKernelGetTickCount() - start;
+
+            if (elapsed >= total_ms) {
+                logger_queue.log("CD\t%s countdown done\n", name);
+                return;
+            }
+
+            if (break_when()) {
+                logger_queue.log("CD\t%s countdown broken at %lu ms\n", name, (unsigned long)elapsed);
+                return;
+            }
+
+            if (elapsed - last_log >= log_interval) {
+                const uint32_t remaining = (total_ms - elapsed) / 1000;
+                logger_queue.log("CD\t%s countdown: %lu s remaining\n", name, (unsigned long)remaining);
+                last_log = elapsed;
+            }
+
+            osDelay(100);
+        }
+    }
+
     void change_state_to(state& new_state) {
         logger_queue.log("SM\t-> %s\n", new_state.get_name());
         // do_debug_pause("change_state");
@@ -807,6 +896,14 @@ private:
         if (qr_code_sub_.TryGet(&qr_code_msg)) {
             cmd = qr_code_msg.data;
             logger_queue.log("R1-CMD\tqr cmd: 0x%02X\n", cmd);
+        }
+        
+        if (cmd != 0x00) {
+            TailClawController::Instance().weapon_claw_open_ = true;
+            osDelay(200);
+            TailClawController::Instance().weapon_claw_open_ = false;
+            osDelay(200);
+            TailClawController::Instance().weapon_claw_open_ = true;
         }
         return cmd;
     }
