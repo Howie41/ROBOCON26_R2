@@ -433,26 +433,32 @@ public:
 
     // 前往距斜坡最近的KFS前 装载KFS
     STATE(load_kfs) {
-        sm.move_to_pos(waypoint::load_kfs);
-        sm.do_debug_pause("load_kfs_1");
-        arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-        arm_action::load_kfs();
+        if (sm.current_startup_config_.arena_load_kfs_amount >= 1) {
+            sm.move_to_pos(waypoint::load_kfs);
+            arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+            arm_action::load_kfs();
+        }
 
         sm.change_state_to(load_kfs_2::instance());
     } STATE_END
 
     STATE(load_kfs_2) {
         sm.move_to_pos(waypoint::load_kfs_2);
-        // sm.do_debug_pause("load_kfs_2");
-        arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+        if (sm.current_startup_config_.arena_load_kfs_amount >= 2) {
+            arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+        }
+        sm.change_state_to(go_to_grid::instance());
+    } STATE_END
+
+    STATE(go_to_grid) {
+        // 转身 load_kfs_2.x -> grid_left.x
+        sm.move_to_pos(waypoint::load_kfs_2.x, waypoint::load_kfs_2.y, -90);
+        sm.move_to_pos(waypoint::grid_left.x, waypoint::load_kfs_2.y, -90);
         sm.change_state_to(wait_r1_cmd::instance());
     } STATE_END
 
     // 等待指令，然后放置中层KFS
     STATE(wait_r1_cmd) {
-        // 转身 load_kfs_2.x -> grid_left.x
-        sm.move_to_pos(waypoint::load_kfs_2.x, waypoint::load_kfs_2.y, -90);
-        sm.move_to_pos(waypoint::grid_left.x, waypoint::load_kfs_2.y, -90);
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
             switch (sm.get_cmd_from_r1()) {
