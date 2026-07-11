@@ -46,24 +46,50 @@ public:
 constexpr location before_shr{500, 0, 0, "before_shr"};
 
 constexpr int16_t sh_aim_y = -692;
-
+//起点：-95，210
+//起点2：-83，212
+//-88,195
 constexpr std::array<location, SH_COUNT> sh_aim{
-    location{-275, sh_aim_y, 90, "sh_aim"},
-    location{-75, sh_aim_y, 90, "sh_aim"},
-    location{125, sh_aim_y, 90, "sh_aim"},
-    location{725, sh_aim_y, 90, "sh_aim"},
-    location{525, sh_aim_y, 90, "sh_aim"},
-    location{325, sh_aim_y, 90, "sh_aim"},
+    /*
+    location{-275+50, sh_aim_y-45, 90, "sh_aim"},
+    location{-75+50, sh_aim_y-45, 90, "sh_aim"},
+    location{125+50, sh_aim_y-45, 90, "sh_aim"},
+    location{725+50, sh_aim_y-45, 90, "sh_aim"},
+    location{525+50, sh_aim_y-45, 90, "sh_aim"},
+    location{325+50, sh_aim_y-45, 90, "sh_aim"},
+    */
+    //662，-465
+    //-520
+
+    //670，-500
+    //-540
+
+    //659,-585
+    //-640
+    location{-275+50, sh_aim_y-45, 90, "sh_aim"},
+    location{-75+50, sh_aim_y-45, 90, "sh_aim"},
+    location{125+50, sh_aim_y-45, 90, "sh_aim"},
+    location{753+15, -780, 90, "sh_aim"},
+    location{753+15-200, -780, 90, "sh_aim"},
+    location{753+15-400, -780, 90, "sh_aim"},
 };
 constexpr int16_t sh_close_y = -772;
 
 constexpr std::array<location, SH_COUNT> sh_close{
-    location{sh_aim[0].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[1].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[2].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[3].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[4].x, sh_close_y, 90, "sh_close"},
-    location{sh_aim[5].x, sh_close_y, 90, "sh_close"},
+    /*
+    location{sh_aim[0].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[1].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[2].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[3].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[4].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[5].x, sh_close_y-18, 90, "sh_close"},
+    */
+    location{sh_aim[0].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[1].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[2].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[3].x, -835+10, 90, "sh_close"},
+    location{sh_aim[4].x, -835+10, 90, "sh_close"},
+    location{sh_aim[5].x, -835+10, 90, "sh_close"},
 };
 
 constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
@@ -164,8 +190,6 @@ public:
         sm.startup_config_sub_.TryGet(&dummy_config);
 
         sm.wait_for_startup_config();
-        //sm.change_state_to(stop::instance());
-        //return;
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
 
@@ -186,6 +210,19 @@ public:
                 break;
         }
     } STATE_END
+    
+    STATE(ir_debug) {
+        logger_queue.log("IR\tdebug_on\n");
+        sm.clean_previous_cmd();
+        sm.wait_until([&]() -> bool {
+            auto cmd = sm.get_cmd_from_r1();
+            if (cmd != 0x00) {
+                logger_queue.log("IR\treceived\n");
+                return true;
+            }
+            return false;
+        });
+    } STATE_END
 
     // 停止
     STATE(stop) {
@@ -202,13 +239,17 @@ public:
         }
 
         sm.move_to_pos(waypoint::before_shr, 5000);
+        sm.move_to_pos(500,0,90,5000);
+        osDelay(500);
+        //sm.do_debug_pause("before_shr_stop");
         sm.change_state_to(go_to_shr::instance());
     } STATE_END
 
     // 前往端头架
     STATE(go_to_shr) {
-        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_], 5000);
-        
+        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_]);
+        osDelay(500);
+        //sm.do_debug_pause("sh_aim_stop");
         TailClawController::Instance().weapon_claw_open_ = true;
         constexpr float target = 37.0f;
         TailClawController::Instance().roll_target_deg_ = target;
@@ -217,16 +258,19 @@ public:
             return sm.tail_claw_status_valid_
                 && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
                 && sm.tail_claw_status_cache_.roll_arrived;
-        }, 3000U, 20U);
+        },3000, 20U);
+        osDelay(1500);
         sm.change_state_to(catch_weapon::instance());
     } STATE_END
 
     // 夹爪夹取武器
     STATE(catch_weapon) {
-        sm.move_to_pos(waypoint::sh_close[sm.sh_index_], 5000);
+        sm.move_to_pos(waypoint::sh_close[sm.sh_index_],5000);
+        //sm.do_debug_pause("sh_close_stop");
 
         TailClawController::Instance().weapon_claw_open_ = false;
         osDelay(500);
+        //sm.do_debug_pause("claw");
         sm.change_state_to(rotate_weapon_claw::instance());
     } STATE_END
 
@@ -237,14 +281,16 @@ public:
         sm.wait_until_timeout_or([&sm]() -> bool {
             sm.tail_claw_update_status();
             return sm.tail_claw_status_valid_ && sm.tail_claw_status_cache_.roll_arrived;
-        }, 3000U, 10U);
+        },5000, 20);
         sm.change_state_to(match_rod::instance());
     } STATE_END
 
     // 端头架对齐武器杆
     STATE(match_rod) {
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
+        osDelay(500);
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
+        osDelay(500);
         if (g_config_area_type.load() == area_type::blue) {
             sm.move_to_pos(waypoint::match_rod_blue, 5000);
         } else {
@@ -256,11 +302,11 @@ public:
     // 等待操作手决策，决定是否拼装新的武器
     STATE(wait_for_decision_cmd) {
         sm.clean_previous_cmd();
-        uint8_t cmd = 0;
+        uint8_t cmd = 0x00;
         sm.wait_until([&]() -> bool {
             cmd = sm.get_cmd_from_r1();
             return (cmd == cmd_open_weapon_claw || cmd == cmd_catch_new_sh || cmd == cmd_go_to_mf);
-        }, 25);
+        });
         switch (cmd) {
             case cmd_open_weapon_claw: // 松开夹爪
                 TailClawController::Instance().weapon_claw_open_ = true;
@@ -268,10 +314,14 @@ public:
             case cmd_catch_new_sh: // 夹取新的武器头
                 if (sm.sh_index_ < SH_COUNT - 1) {
                     sm.sh_index_ += 1;
-                    logger_queue.log("CLAW\tsh_index is now %d", sm.sh_index_);
+                    logger_queue.log("CLAW\tsh_index is now %d\n", sm.sh_index_);
                 } else {
-                    logger_queue.log("CLAW\tsh_index is at max!");   
+                    logger_queue.log("CLAW\tsh_index is at max!\n");   
                 }
+                sm.move_to_pos(500,0,-90,5000);
+                osDelay(500);
+                sm.move_to_pos(500,0,90,5000);
+                osDelay(500);
                 sm.change_state_to(go_to_shr::instance());
                 return;
             case cmd_go_to_mf: // 进梅林
@@ -313,8 +363,6 @@ public:
             case path_cmd::code::move_backward:
             case path_cmd::code::turn_left_90:
             case path_cmd::code::turn_right_90:
-            case path_cmd::code::move_left:
-            case path_cmd::code::move_right:
             case path_cmd::code::turn_around:
             case path_cmd::code::move_to_col1:
             case path_cmd::code::move_to_col2:
@@ -901,20 +949,20 @@ private:
         auto ir_result = infrared_group.tryGet();
         if (ir_result.has_value()) {
             cmd = static_cast<uint8_t>(ir_result.value().data);
-            logger_queue.log("R1-CMD\tir cmd: 0x%02X\n", cmd);
+            logger_queue.log("R1-CMD\tir cmd: 0x%02X, uid=%d\n", cmd, ir_result.value().uid);
         }
         if (qr_code_sub_.TryGet(&qr_code_msg)) {
             cmd = qr_code_msg.data;
             logger_queue.log("R1-CMD\tqr cmd: 0x%02X\n", cmd);
         }
         
-        if (cmd != 0x00) {
-            TailClawController::Instance().weapon_claw_open_ = true;
-            osDelay(200);
-            TailClawController::Instance().weapon_claw_open_ = false;
-            osDelay(200);
-            TailClawController::Instance().weapon_claw_open_ = true;
-        }
+        // if (cmd != 0x00) {
+        //     TailClawController::Instance().weapon_claw_open_ = true;
+        //     osDelay(200);
+        //     TailClawController::Instance().weapon_claw_open_ = false;
+        //     osDelay(200);
+        //     TailClawController::Instance().weapon_claw_open_ = true;
+        // }
         return cmd;
     }
 
