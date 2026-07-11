@@ -14,7 +14,7 @@ void stateMachineTask(void *argument);
 
 #ifdef __cplusplus
 
-constexpr bool ENABLE_DEBUG_PAUSE = false;
+constexpr bool ENABLE_DEBUG_PAUSE = true;
 
 namespace path_cmd {
 enum class code: uint16_t {
@@ -33,6 +33,10 @@ enum class code: uint16_t {
     drop_and_grab_new_kfs = 0x031A, // 抛弃手中R2KFS并抓新的KFS（已有3个方块时触发）
     no_more_commands = 0x031B,      // 已经无命令可获取（已经走出梅林）
     turn_around = 0x031C,           // 直接转180°
+
+    move_to_col1 = 0x031E,
+    move_to_col2 = 0x031F,
+    move_to_col3 = 0x0320,
 }; // ! 记得改 is_path_cmd 的逻辑 !
 inline bool is_path_cmd(uint16_t code) {
     return (code & 0xFF00) == 0x0300;

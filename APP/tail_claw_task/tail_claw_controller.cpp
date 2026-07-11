@@ -1,3 +1,4 @@
+#include "pid_controller.h"
 #ifndef TAIL_CLAW_CLASS_VERSION_ENABLE
 #define TAIL_CLAW_CLASS_VERSION_ENABLE 1
 #endif
@@ -89,25 +90,43 @@ void TailClawController::init_pid()
     roll_pos_pid_ = {};
     roll_pos_pid_.Kp = 40.0f;
     roll_pos_pid_.Ki = 0.0f;
-    roll_pos_pid_.Kd = 1.0f;
+    roll_pos_pid_.Kd = 8.0f;
     roll_pos_pid_.MaxOut = 100.0f;
     roll_pos_pid_.DeadBand = 0.3f;
     roll_pos_pid_.Improve = NONE;
 
     roll_speed_pid_ = {};
-    roll_speed_pid_.Kp = 100.0f;
+    roll_speed_pid_.Kp = 70.0f;
     roll_speed_pid_.Ki = 0.4;
-    roll_speed_pid_.Kd = 0.6f;
-    roll_speed_pid_.MaxOut = 4000.0f;
+    roll_speed_pid_.Kd = 4.0f;
+    roll_speed_pid_.MaxOut = 3500.0f;
     roll_speed_pid_.DeadBand = 0.3f;
     roll_speed_pid_.Improve = NONE;
+
+    roll_heigh_pos_pid_ = {};
+    roll_heigh_pos_pid_.Kp = 70.0f;
+    roll_heigh_pos_pid_.Ki = 0.0f;
+    roll_heigh_pos_pid_.Kd = 1.0f;
+    roll_heigh_pos_pid_.MaxOut = 100.0f;
+    roll_heigh_pos_pid_.DeadBand = 0.3f;
+    roll_heigh_pos_pid_.Improve = NONE;
+
+    roll_heigh_speed_pid_ = {};
+    roll_heigh_speed_pid_.Kp = 110.0f;
+    roll_heigh_speed_pid_.Ki = 0.4;
+    roll_heigh_speed_pid_.Kd = 1.0f;
+    roll_heigh_speed_pid_.IntegralLimit=1000.0f;
+    roll_heigh_speed_pid_.MaxOut = 5000.0f;
+    roll_heigh_speed_pid_.DeadBand = 0.3f;
+    roll_heigh_speed_pid_.Improve = Integral_Limit;
 
     PID_Init(&move_pos_pid_);
     PID_Init(&move_speed_pid_);
     PID_Init(&roll_pos_pid_);
     PID_Init(&roll_speed_pid_);
+    PID_Init(&roll_heigh_speed_pid_);
+    PID_Init(&roll_heigh_pos_pid_);
 }
-
 void TailClawController::Tick1ms()
 {
     consume_commands();
@@ -453,12 +472,37 @@ float TailClawController::calcRollCmd(float target_deg)
     }
 
     const float target_pos = target_deg * roll_reduction_ratio;
-    const float speed_cmd = PID_Calculate(&roll_pos_pid_,
+    const float current_pos=roll_motor_->getCurrentSumPos();
+    const float pos_error = target_pos - current_pos;
+    if (pos_error >= 0.1f) {
+        // 正转方向：使用 roll_pos_pid_ / roll_speed_pid_
+        if (roll_last_direction_ != 1) {
+            // 刚从反转/初始切换到正转，清零正转 PID 的冻结积分，防止突变
+            PID_Reset(&roll_pos_pid_);
+            PID_Reset(&roll_speed_pid_);
+            roll_last_direction_ = 1;
+        }
+        const float speed_cmd = PID_Calculate(&roll_pos_pid_,
                                           roll_motor_->getCurrentSumPos(),
                                           target_pos);
-    return PID_Calculate(&roll_speed_pid_,
+        return PID_Calculate(&roll_speed_pid_,
                          roll_motor_->getCurrentSpeed(),
                          speed_cmd);
+    } else {
+        // 反转方向：使用 roll_heigh_pos_pid_ / roll_heigh_speed_pid_
+        if (roll_last_direction_ != -1) {
+            // 刚从正转/初始切换到反转，清零反转 PID 的冻结积分，防止突变
+            PID_Reset(&roll_heigh_pos_pid_);
+            PID_Reset(&roll_heigh_speed_pid_);
+            roll_last_direction_ = -1;
+        }
+        const float speed_cmd = PID_Calculate(&roll_heigh_pos_pid_,
+                                          roll_motor_->getCurrentSumPos(),
+                                          target_pos);
+        return PID_Calculate(&roll_heigh_speed_pid_,
+                         roll_motor_->getCurrentSpeed(),
+                         speed_cmd);
+    }
 }
 
 #endif
