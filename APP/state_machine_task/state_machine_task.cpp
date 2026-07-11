@@ -19,6 +19,7 @@
 #include "NavProtocol.hpp"
 #include "infrared_com.hpp"
 #include "memory_map.h"
+#include "merlin_map.h"
 #include "tail_claw_controller.hpp"
 #include "tail_claw_task.hpp"
 #include "topic_pool.h"
@@ -97,13 +98,20 @@ constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
 constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red",
                                   false};
 
-constexpr location mf_entrance_mid{2150, 1496+30+30, 0, "mf_entrance_mid"};
-constexpr location mf_entrance_left{2150, 1496+30+30+1200, 0, "mf_entrance_left"};
-constexpr location mf_entrance_right{2150, 1496+30+30-1200, 0, "mf_entrance_right"};
+inline location mf_col1() {
+    merlin_map::MerlinPose pose = merlin_map::g_blue_layout.entry_pose[0];
+    return location{pose.x, pose.y, pose.yaw, "mf_col1"};
+}
 
-// constexpr location mf_entrance_mid_close{2085, mf_entrance_mid.y, 0, "mf_entrance_mid_close"};
-// constexpr location mf_entrance_left_close{2085, mf_entrance_left.y, 0, "mf_entrance_left_close"};
-// constexpr location mf_entrance_right_close{2085, mf_entrance_right.y, 0, "mf_entrance_right_close"};
+inline location mf_col2() {
+    merlin_map::MerlinPose pose = merlin_map::g_blue_layout.entry_pose[1];
+    return location{pose.x, pose.y, pose.yaw, "mf_col2"};
+}
+
+inline location mf_col3() {
+    merlin_map::MerlinPose pose = merlin_map::g_blue_layout.entry_pose[2];
+    return location{pose.x, pose.y, pose.yaw, "mf_col3"};
+}
 
 // ======== 三区 ========
 constexpr location before_uphill{1000, 200, 0, "before_uphill"};
@@ -313,7 +321,7 @@ public:
 
     // 前往梅林入口
     STATE(go_to_mf_entrance) {
-        sm.move_to_pos(waypoint::mf_entrance_mid);
+        sm.move_to_pos(waypoint::mf_col2());
         sm.change_state_to(request_for_path_cmd::instance());
     } STATE_END
 
@@ -347,6 +355,9 @@ public:
             case path_cmd::code::move_left:
             case path_cmd::code::move_right:
             case path_cmd::code::turn_around:
+            case path_cmd::code::move_to_col1:
+            case path_cmd::code::move_to_col2:
+            case path_cmd::code::move_to_col3:
                 sm.change_state_to(execute_chassis_action::instance());
                 break;
             case path_cmd::code::grab_low_r2kfs:
@@ -377,22 +388,21 @@ public:
                 break;
             case path_cmd::code::turn_left_90:
                 chassis_action::turn_left_90_deg();
-                osDelay(1000);
                 break;
             case path_cmd::code::turn_right_90:
                 chassis_action::turn_right_90_deg();
-                osDelay(1000);
                 break;
             case path_cmd::code::turn_around:
                 chassis_action::turn_right_180_deg();
-                osDelay(1000);
-                // chassis_action::start_return_to_center();
                 break;
-            case path_cmd::code::move_left:
-                sm.move_left();
+            case path_cmd::code::move_to_col1:
+                sm.move_to_pos(waypoint::mf_col1());
                 break;
-            case path_cmd::code::move_right:
-                sm.move_right();
+            case path_cmd::code::move_to_col2:
+                sm.move_to_pos(waypoint::mf_col2());
+                break;
+            case path_cmd::code::move_to_col3:
+                sm.move_to_pos(waypoint::mf_col3());
                 break;
             default:
                 break;
@@ -428,7 +438,7 @@ public:
 
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
-            sm.move_to_pos(waypoint::mf_entrance_mid.x - 300, nav_control::current_y, 0, 5000);
+            sm.move_to_pos(waypoint::mf_col2().x - 300, nav_control::current_y, 0, 5000);
         }
 
         sm.current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
@@ -945,30 +955,6 @@ private:
         //     TailClawController::Instance().weapon_claw_open_ = true;
         // }
         return cmd;
-    }
-
-    void move_left() {
-        if (moved_left_right_ == 0) {
-            moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_left);
-        } else if (moved_left_right_ == 1) {
-            moved_left_right_ -= 1;
-            move_to_pos(waypoint::mf_entrance_mid);
-        } else {
-            return; // 已经在最左边了，不能再左移
-        }
-    }
-
-    void move_right() {
-        if (moved_left_right_ == 0) {
-            moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_right);
-        } else if (moved_left_right_ == -1) {
-            moved_left_right_ += 1;
-            move_to_pos(waypoint::mf_entrance_mid);
-        } else {
-            return; // 已经在最右边了，不能再右移
-        }
     }
 
     /**
