@@ -58,10 +58,10 @@ bool raise_kfs(LOAD_TYPE step) {
     auto result = arm.fetch_step(step); 
     if (result) {
         switch (step) {
-            case LOAD_TYPE::MEDIUM: osDelay(2000); break;
-            case LOAD_TYPE::HIGH: osDelay(2000); break;
-            case LOAD_TYPE::LOW: osDelay(2800); break;
-            case LOAD_TYPE::PLAIN: osDelay(1700); break;
+            case LOAD_TYPE::MEDIUM: { { osDelay(2000); break; }
+            case LOAD_TYPE::HIGH: { osDelay(2000); break; }
+            case LOAD_TYPE::LOW: { osDelay(2800); break; }
+            case LOAD_TYPE::PLAIN: { osDelay(1700); break; }
         }
     } else {
         logger_queue.log("ARM\traise_kfs failed!\n");
@@ -78,9 +78,9 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
     if (result) {
         if (level.has_value()) {
             switch (level.value()) {
-                case UNLOAD_TYPE::LOW: osDelay(4200); break;
-                case UNLOAD_TYPE::MEDIUM: osDelay(3200); break;
-                case UNLOAD_TYPE::TOP: osDelay(400); break;
+                case UNLOAD_TYPE::LOW: { osDelay(4200); break; }
+                case UNLOAD_TYPE::MEDIUM: { osDelay(3200); break; }
+                case UNLOAD_TYPE::TOP: { osDelay(800); break; }
             }
         } else {
             osDelay(4200);
@@ -106,14 +106,33 @@ bool release_kfs() {
  * @brief 将举起的kfs放入储存
  */
 bool load_kfs() { 
-    auto result = arm.load_kfs(); 
+    auto result = arm.load_kfs();
     if (result) {
-        osDelay(1800);
+        switch (arm.get_kfs_amount()) {
+            case 1: { osDelay(1800); break; }
+            case 2: { osDelay(1800); break; }
+        }
     } else {
         logger_queue.log("ARM\tload_kfs failed!\n");
     }
     return result;
 }
+/**
+ * @brief 丢掉kfs（举着的kfs）
+ */
+bool drop_kfs() {
+    auto result = arm.drop_kfs();
+    if (result) {
+        switch (arm.get_kfs_amount()) {
+            case 1: case 2: { osDelay(1800); break; }  // 第二层没kfs挡着
+            case 3: { osDelay(1800); break; }  // 第二层有kfs挡着，动作链会多一个伸出动作
+        }
+    } else {
+        logger_queue.log("ARM\tdrop_kfs failed!\n");
+    }
+    return result;
+}
+
 } // namespace arm_action
 
 
@@ -136,6 +155,8 @@ void armTask(void *argument) {
         else if (arm.get_attr().is_place_releasing) arm.run_place_releasing();  // 释放KFS，回归默认姿态
         // loading_kfs 类
         else if (arm.get_attr().is_loading_kfs) arm.run_loading_kfs();  // 存入KFS
+        // dropping_kfs 类
+        else if (arm.get_attr().is_dropping_kfs) arm.run_dropping_kfs();  // 丢弃KFS
 
         // starting 类
         else if (arm.get_attr().is_starting) arm.run_starting();  // 启动时初始化
