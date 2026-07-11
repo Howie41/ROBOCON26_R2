@@ -54,7 +54,7 @@ bool raise_kfs(LOAD_TYPE step);
  * @note 抬起、伸入储存区、吸取、抬起、伸出
  * @param std::nullopt:自动识别高度，UNLOAD_TYPE::LOW, UNLOAD_TYPE::MEDIUM, UNLOAD_TYPE::TOP : 指定高度
  */
-bool unload_kfs(std::optional<UNLOAD_TYPE> level);
+bool unload_kfs(std::optional<UNLOAD_TYPE> level = std::nullopt, bool is_layer3 = false);
 /**
  * @brief 承接unload_kfs，释放kfs并恢复默认动作、kfs_amount-1
  */
@@ -81,6 +81,8 @@ struct ArmAttr {
     bool is_placing_kfs_L{false};
     bool is_placing_kfs_M{false};
     bool is_placing_kfs_T{false};
+    // 是否放置第三层
+    bool is_placing_to_layer3{false};
     // 放置后释放
     bool is_place_releasing{false};
     // 存入kfs
@@ -104,8 +106,8 @@ public:
 
     // 电机控制类行为基，为电机角度控制提供相对的基准值
     void setHeight(float pos_deg, float speed_deg) { arm_lift_.posWithSpeedControl(pos_deg - 30.0f, speed_deg); }
-    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 82.6f, 0.0025f * speed); }
-    void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1080.0f), 4.3f * speed); }
+    void setRotate(float pos, float speed) { arm_rotate_.posWithSpeedControl(-pos - 84.3f, 0.0025f * speed); }
+    void setExpand(float pos, float speed) { arm_expand_.posWithSpeedControl(std::clamp(pos, 30.0f, 1170.0f), 4.3f * speed); }
     void setFlip(float pos_deg, float speed_deg) { arm_flip_.posWithSpeedControl(3.0f - pos_deg, speed_deg); }
     
     // 核心动作行为，姿态控制类接口，以此将config中的姿态解析并执行。动作链末端需要主动增加kfs_num_，且返回true
@@ -136,7 +138,7 @@ public:
         }
         return true;
     }
-    bool place_kfs(std::optional<UNLOAD_TYPE> kfs_layer = std::nullopt) {
+    bool place_kfs(std::optional<UNLOAD_TYPE> kfs_layer = std::nullopt, bool is_layer3 = false) {
         if (kfs_layer.has_value()) {  // 取特定层KFS
             if ((kfs_layer.value() != UNLOAD_TYPE::TOP && attr_.is_kfs_raised) || (kfs_layer.value() == UNLOAD_TYPE::TOP && !attr_.is_kfs_raised)) return false;
             reset_timeline();
@@ -155,6 +157,7 @@ public:
                 case 3: { attr_.is_placing_kfs_T = true; break; }
             }
         }
+        attr_.is_placing_to_layer3 = is_layer3;
         return true;
     }
     bool place_release() {
@@ -233,13 +236,13 @@ public:
     void addKFS() {
         if (get_kfs_amount() < 3) {
             kfs_num_++;
-            logger_queue.log("ARM add_kfs -> %d", kfs_num_);
+            logger_queue.log("ARM\tadd_kfs -> %d\n", kfs_num_);
         }
     }
     void rmvKFS() {
         if (get_kfs_amount() > 0) {
             kfs_num_--;
-            logger_queue.log("ARM remove_kfs -> %d", kfs_num_);
+            logger_queue.log("ARM\tremove_kfs -> %d\n", kfs_num_);
         }
     }
     uint8_t get_kfs_amount() { return kfs_num_; }
@@ -276,14 +279,28 @@ public:
         now_t_ = DWT_GetTimeline_s() - last_t_;  // now_t记录以last_t为基准的相对时间
         float delta_t;
         bool* setter;
-        using namespace arm_actions_config::place_proceed;
-        switch (layer) {
-            case UNLOAD_TYPE::LOW: { delta_t = kfs_1[act_index_].delta_t; setter = &attr_.is_placing_kfs_L; break; }
-            case UNLOAD_TYPE::MEDIUM: { delta_t = kfs_2[act_index_].delta_t; setter = &attr_.is_placing_kfs_M; break; }
-            case UNLOAD_TYPE::TOP: { delta_t = kfs_3[act_index_].delta_t; setter = &attr_.is_placing_kfs_T; break; }
+        if (attr_.is_placing_to_layer3) {
+            using namespace arm_actions_config::place3_proceed;
+            switch (layer) {
+                case UNLOAD_TYPE::LOW: { delta_t = kfs_1[act_index_].delta_t; setter = &attr_.is_placing_kfs_L; break; }
+                case UNLOAD_TYPE::MEDIUM: { delta_t = kfs_2[act_index_].delta_t; setter = &attr_.is_placing_kfs_M; break; }
+                case UNLOAD_TYPE::TOP: { delta_t = kfs_3[act_index_].delta_t; setter = &attr_.is_placing_kfs_T; break; }
+            }
+        } else {
+            using namespace arm_actions_config::place_proceed;
+            switch (layer) {
+                case UNLOAD_TYPE::LOW: { delta_t = kfs_1[act_index_].delta_t; setter = &attr_.is_placing_kfs_L; break; }
+                case UNLOAD_TYPE::MEDIUM: { delta_t = kfs_2[act_index_].delta_t; setter = &attr_.is_placing_kfs_M; break; }
+                case UNLOAD_TYPE::TOP: { delta_t = kfs_3[act_index_].delta_t; setter = &attr_.is_placing_kfs_T; break; }
+            }
         }
         if (now_t_ > delta_t) {
-            if (place_proceed(act_index_++)) { attr_.is_kfs_raised = false; rmvKFS(); *setter = false; }
+            if (place_proceed(act_index_++)) {
+                attr_.is_kfs_raised = false;
+                attr_.is_placing_to_layer3 = false;
+                rmvKFS();
+                *setter = false;
+            }
             else last_t_ = DWT_GetTimeline_s();
         }
     }
