@@ -39,15 +39,6 @@ static uint8_t flag = 0;  // 当前功能状态值
 static uint8_t test_flag = 0;  // 上位机进行速度规划调试用时的flag
 
 
-float get_total_time(arm_pose *poses, uint16_t size) {
-    float total_time = 0.0f;
-    for (uint8_t i = 0; i < size; i++) {
-        total_time += poses[i].delta_t;
-    }
-    return total_time;
-}
-
-
 namespace arm_action {
 /**
  * @brief 吸取对应层高的kfs、kfs_amount+1
