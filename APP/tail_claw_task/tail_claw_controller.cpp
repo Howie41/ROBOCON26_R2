@@ -472,7 +472,9 @@ float TailClawController::calcRollCmd(float target_deg)
     }
 
     const float target_pos = target_deg * roll_reduction_ratio;
-    if (target_deg - roll_motor_->getCurrentSumPos() >= 0.1f) {
+    const float current_pos=roll_motor_->getCurrentSumPos();
+    const float pos_error = target_pos - current_pos;
+    if (pos_error >= 0.1f) {
         // 正转方向：使用 roll_pos_pid_ / roll_speed_pid_
         if (roll_last_direction_ != 1) {
             // 刚从反转/初始切换到正转，清零正转 PID 的冻结积分，防止突变

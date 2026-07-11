@@ -70,7 +70,7 @@ constexpr std::array<location, SH_COUNT> sh_aim{
     location{125+50, sh_aim_y-45, 90, "sh_aim"},
     location{753+15, -780, 90, "sh_aim"},
     location{753+15-200, -780, 90, "sh_aim"},
-    location{753+15-200, -780, 90, "sh_aim"},
+    location{753+15-400, -780, 90, "sh_aim"},
 };
 constexpr int16_t sh_close_y = -772;
 
@@ -86,9 +86,9 @@ constexpr std::array<location, SH_COUNT> sh_close{
     location{sh_aim[0].x, sh_close_y-18, 90, "sh_close"},
     location{sh_aim[1].x, sh_close_y-18, 90, "sh_close"},
     location{sh_aim[2].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[3].x, -835, 90, "sh_close"},
-    location{sh_aim[4].x, -835, 90, "sh_close"},
-    location{sh_aim[5].x, -835, 90, "sh_close"},
+    location{sh_aim[3].x, -835+10, 90, "sh_close"},
+    location{sh_aim[4].x, -835+10, 90, "sh_close"},
+    location{sh_aim[5].x, -835+10, 90, "sh_close"},
 };
 
 constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
@@ -239,13 +239,14 @@ public:
             return sm.tail_claw_status_valid_
                 && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
                 && sm.tail_claw_status_cache_.roll_arrived;
-        }, 3000U, 20U);
+        },3000, 20U);
+        osDelay(1500);
         sm.change_state_to(catch_weapon::instance());
     } STATE_END
 
     // 夹爪夹取武器
     STATE(catch_weapon) {
-        sm.move_to_pos(waypoint::sh_close[sm.sh_index_]);
+        sm.move_to_pos(waypoint::sh_close[sm.sh_index_],5000);
         //sm.do_debug_pause("sh_close_stop");
 
         TailClawController::Instance().weapon_claw_open_ = false;
@@ -305,7 +306,7 @@ public:
                 sm.change_state_to(go_to_shr::instance());
                 return;
             case cmd_go_to_mf: // 进梅林
-                sm.change_state_to(stop::instance());
+                sm.change_state_to(go_to_mf_entrance::instance());
                 return;
         }
     } STATE_END
@@ -936,13 +937,13 @@ private:
             logger_queue.log("R1-CMD\tqr cmd: 0x%02X\n", cmd);
         }
         
-        if (cmd != 0x00) {
-            TailClawController::Instance().weapon_claw_open_ = true;
-            osDelay(200);
-            TailClawController::Instance().weapon_claw_open_ = false;
-            osDelay(200);
-            TailClawController::Instance().weapon_claw_open_ = true;
-        }
+        // if (cmd != 0x00) {
+        //     TailClawController::Instance().weapon_claw_open_ = true;
+        //     osDelay(200);
+        //     TailClawController::Instance().weapon_claw_open_ = false;
+        //     osDelay(200);
+        //     TailClawController::Instance().weapon_claw_open_ = true;
+        // }
         return cmd;
     }
 
