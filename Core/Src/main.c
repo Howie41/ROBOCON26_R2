@@ -94,6 +94,12 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+  /* 强制复位 DMA 控制器，清除热启动/调试器复位残留状态 */
+  __HAL_RCC_DMA1_FORCE_RESET();
+  __HAL_RCC_DMA1_RELEASE_RESET();
+  __HAL_RCC_DMA2_FORCE_RESET();
+  __HAL_RCC_DMA2_RELEASE_RESET();
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */

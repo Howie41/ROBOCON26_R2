@@ -99,7 +99,7 @@ void TailClawController::init_pid()
     roll_speed_pid_.Kp = 70.0f;
     roll_speed_pid_.Ki = 0.4;
     roll_speed_pid_.Kd = 4.0f;
-    roll_speed_pid_.MaxOut = 3500.0f;
+    roll_speed_pid_.MaxOut =4000.0f;
     roll_speed_pid_.DeadBand = 0.3f;
     roll_speed_pid_.Improve = NONE;
 
@@ -112,11 +112,11 @@ void TailClawController::init_pid()
     roll_heigh_pos_pid_.Improve = NONE;
 
     roll_heigh_speed_pid_ = {};
-    roll_heigh_speed_pid_.Kp = 110.0f;
+    roll_heigh_speed_pid_.Kp = 150.0f;
     roll_heigh_speed_pid_.Ki = 0.4;
     roll_heigh_speed_pid_.Kd = 1.0f;
     roll_heigh_speed_pid_.IntegralLimit=1000.0f;
-    roll_heigh_speed_pid_.MaxOut = 5000.0f;
+    roll_heigh_speed_pid_.MaxOut = 6000.0f;
     roll_heigh_speed_pid_.DeadBand = 0.3f;
     roll_heigh_speed_pid_.Improve = Integral_Limit;
 
