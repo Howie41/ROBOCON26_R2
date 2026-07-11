@@ -190,8 +190,6 @@ public:
         sm.startup_config_sub_.TryGet(&dummy_config);
 
         sm.wait_for_startup_config();
-        //sm.change_state_to(stop::instance());
-        //return;
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
 
@@ -211,6 +209,19 @@ public:
             default:
                 break;
         }
+    } STATE_END
+    
+    STATE(ir_debug) {
+        logger_queue.log("IR\tdebug_on\n");
+        sm.clean_previous_cmd();
+        sm.wait_until([&]() -> bool {
+            auto cmd = sm.get_cmd_from_r1();
+            if (cmd != 0x00) {
+                logger_queue.log("IR\treceived\n");
+                return true;
+            }
+            return false;
+        });
     } STATE_END
 
     // 停止
@@ -291,11 +302,11 @@ public:
     // 等待操作手决策，决定是否拼装新的武器
     STATE(wait_for_decision_cmd) {
         sm.clean_previous_cmd();
-        uint8_t cmd = 0;
+        uint8_t cmd = 0x00;
         sm.wait_until([&]() -> bool {
             cmd = sm.get_cmd_from_r1();
             return (cmd == cmd_open_weapon_claw || cmd == cmd_catch_new_sh || cmd == cmd_go_to_mf);
-        }, 25);
+        });
         switch (cmd) {
             case cmd_open_weapon_claw: // 松开夹爪
                 TailClawController::Instance().weapon_claw_open_ = true;
@@ -303,9 +314,9 @@ public:
             case cmd_catch_new_sh: // 夹取新的武器头
                 if (sm.sh_index_ < SH_COUNT - 1) {
                     sm.sh_index_ += 1;
-                    logger_queue.log("CLAW\tsh_index is now %d", sm.sh_index_);
+                    logger_queue.log("CLAW\tsh_index is now %d\n", sm.sh_index_);
                 } else {
-                    logger_queue.log("CLAW\tsh_index is at max!");   
+                    logger_queue.log("CLAW\tsh_index is at max!\n");   
                 }
                 sm.move_to_pos(500,0,-90,5000);
                 osDelay(500);
@@ -352,8 +363,6 @@ public:
             case path_cmd::code::move_backward:
             case path_cmd::code::turn_left_90:
             case path_cmd::code::turn_right_90:
-            case path_cmd::code::move_left:
-            case path_cmd::code::move_right:
             case path_cmd::code::turn_around:
             case path_cmd::code::move_to_col1:
             case path_cmd::code::move_to_col2:
@@ -940,7 +949,7 @@ private:
         auto ir_result = infrared_group.tryGet();
         if (ir_result.has_value()) {
             cmd = static_cast<uint8_t>(ir_result.value().data);
-            logger_queue.log("R1-CMD\tir cmd: 0x%02X\n", cmd);
+            logger_queue.log("R1-CMD\tir cmd: 0x%02X, uid=%d\n", cmd, ir_result.value().uid);
         }
         if (qr_code_sub_.TryGet(&qr_code_msg)) {
             cmd = qr_code_msg.data;
