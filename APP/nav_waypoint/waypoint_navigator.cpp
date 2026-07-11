@@ -328,6 +328,128 @@ bool hasFreshPoseSample(TickType_t now) {
           kPassFreshWindowTicks);
 }
 
+int16_t normalizeYawDeg(int32_t yaw_deg) {
+  while (yaw_deg > 180) {
+    yaw_deg -= 360;
+  }
+  while (yaw_deg < -180) {
+    yaw_deg += 360;
+  }
+  return static_cast<int16_t>(yaw_deg);
+}
+
+bool tryHeadingFromYawDeg(int16_t yaw_deg, merlin_map::Heading *out_heading) {
+  if (out_heading == nullptr) {
+    return false;
+  }
+
+  if (yaw_deg >= -30 && yaw_deg <= 30) {
+    *out_heading = merlin_map::Heading::PosX;
+    return true;
+  }
+  if (yaw_deg >= 60 && yaw_deg <= 120) {
+    *out_heading = merlin_map::Heading::PosY;
+    return true;
+  }
+  if (yaw_deg >= 150 || yaw_deg <= -150) {
+    *out_heading = merlin_map::Heading::NegX;
+    return true;
+  }
+  if (yaw_deg >= -120 && yaw_deg <= -60) {
+    *out_heading = merlin_map::Heading::NegY;
+    return true;
+  }
+
+  return false;
+}
+
+merlin_map::Heading rotateHeadingByYawDelta(merlin_map::Heading heading,
+                                            int16_t delta_yaw_deg) {
+  if (delta_yaw_deg == 180 || delta_yaw_deg == -180) {
+    switch (heading) {
+      case merlin_map::Heading::PosX:
+        return merlin_map::Heading::NegX;
+      case merlin_map::Heading::PosY:
+        return merlin_map::Heading::NegY;
+      case merlin_map::Heading::NegX:
+        return merlin_map::Heading::PosX;
+      case merlin_map::Heading::NegY:
+        return merlin_map::Heading::PosY;
+    }
+  }
+
+  if (delta_yaw_deg > 0) {
+    switch (heading) {
+      case merlin_map::Heading::PosX:
+        return merlin_map::Heading::PosY;
+      case merlin_map::Heading::PosY:
+        return merlin_map::Heading::NegX;
+      case merlin_map::Heading::NegX:
+        return merlin_map::Heading::NegY;
+      case merlin_map::Heading::NegY:
+        return merlin_map::Heading::PosX;
+    }
+  }
+
+  switch (heading) {
+    case merlin_map::Heading::PosX:
+      return merlin_map::Heading::NegY;
+    case merlin_map::Heading::PosY:
+      return merlin_map::Heading::PosX;
+    case merlin_map::Heading::NegX:
+      return merlin_map::Heading::PosY;
+    case merlin_map::Heading::NegY:
+      return merlin_map::Heading::NegX;
+  }
+
+  return heading;
+}
+
+bool tryBuildTurnAnchorPose(field::StairPose *out_pose, bool *out_is_cell_center) {
+  if (out_pose == nullptr || out_is_cell_center == nullptr) {
+    return false;
+  }
+
+  if (g_saved_center_pose.valid) {
+    *out_pose = g_saved_center_pose.pose;
+    *out_is_cell_center = true;
+    return true;
+  }
+
+  merlin_map::Cell current_cell{};
+  if (refreshCurrentMerlinCell() && merlin_map::tryGetCurrentCell(&current_cell)) {
+    *out_pose = field::StairPose{
+        current_cell.center_x,
+        current_cell.center_y,
+        headingYawDeg(),
+    };
+    *out_is_cell_center = true;
+    return true;
+  }
+
+  return false;
+}
+
+int16_t resolveTurnTargetYawDeg(int16_t delta_yaw_deg, bool anchor_is_cell_center) {
+  if (anchor_is_cell_center) {
+    const merlin_map::Heading target_heading =
+        rotateHeadingByYawDelta(merlin_map::heading(), delta_yaw_deg);
+    switch (target_heading) {
+      case merlin_map::Heading::PosX:
+        return 0;
+      case merlin_map::Heading::PosY:
+        return 90;
+      case merlin_map::Heading::NegX:
+        return 180;
+      case merlin_map::Heading::NegY:
+        return -90;
+    }
+  }
+
+  return normalizeYawDeg(static_cast<int32_t>(nav_control::current_yaw) +
+                         static_cast<int32_t>(delta_yaw_deg));
+}
+
 float poseDistanceMm(const field::StairPose &pose) {
   const field::StairPose world_pose = localToWorldPose(pose);
   const float error_x =
@@ -598,6 +720,7 @@ void stairWaypointRunUp() {
 
   g_stair_waypoint_step.store(6);
   move_to_pose(center_pose, true);
+  saveCenterPose(center_pose);
   (void)refreshCurrentMerlinCell();
 
   if (has_next_cell) {
@@ -809,6 +932,7 @@ void stairWaypointRunDown() {
   g_stair_waypoint_step.store(17);
   if (has_lower_cell) {
     move_to_pose(lower_center_pose, true);
+    saveCenterPose(lower_center_pose);
     (void)refreshCurrentMerlinCell();
   } else {
     taskENTER_CRITICAL();
@@ -981,6 +1105,7 @@ void stairWaypointRunReturnToCenter() {
           headingYawDeg(),
       };
       move_to_pose(center_pose, true);
+      saveCenterPose(center_pose);
     }
   }
 
@@ -993,3 +1118,45 @@ uint8_t stairWaypointStep() { return g_stair_waypoint_step.load(); }
 uint8_t stairWaypointLevel() { return g_stair_waypoint_level.load(); }
 
 bool stairWaypointArmed() { return g_stair_waypoint_armed.load(); }
+
+bool stairWaypointCanUsePoseAnchoredTurn() {
+  return merlinOriginReady() && hasFreshPoseSample(osKernelGetTickCount());
+}
+
+bool stairWaypointRotateByYawDelta(int16_t delta_yaw_deg) {
+  if (!stairWaypointCanUsePoseAnchoredTurn()) {
+    return false;
+  }
+
+  const bool was_auto_enabled = nav_control::auto_enabled;
+
+  field::StairPose anchor_pose{};
+  bool anchor_is_cell_center = false;
+  if (!tryBuildTurnAnchorPose(&anchor_pose, &anchor_is_cell_center)) {
+    return false;
+  }
+
+  const int16_t target_yaw =
+      resolveTurnTargetYawDeg(delta_yaw_deg, anchor_is_cell_center);
+  const field::StairPose target_pose{
+      anchor_pose.x,
+      anchor_pose.y,
+      target_yaw,
+  };
+
+  const bool arrived = move_to_pose(target_pose, false);
+  if (arrived) {
+    saveCenterPose(target_pose);
+    merlin_map::Heading matched_heading{};
+    if (tryHeadingFromYawDeg(target_yaw, &matched_heading)) {
+      merlin_map::setHeading(matched_heading);
+    }
+    (void)refreshCurrentMerlinCell();
+  }
+
+  if (!was_auto_enabled) {
+    stop_auto_nav();
+  }
+
+  return arrived;
+}
