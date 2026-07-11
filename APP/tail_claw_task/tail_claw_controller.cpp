@@ -98,8 +98,8 @@ void TailClawController::init_pid()
     roll_speed_pid_ = {};
     roll_speed_pid_.Kp = 70.0f;
     roll_speed_pid_.Ki = 0.4;
-    roll_speed_pid_.Kd = 1.0f;
-    roll_speed_pid_.MaxOut = 3000.0f;
+    roll_speed_pid_.Kd = 4.0f;
+    roll_speed_pid_.MaxOut = 3500.0f;
     roll_speed_pid_.DeadBand = 0.3f;
     roll_speed_pid_.Improve = NONE;
 
@@ -114,7 +114,7 @@ void TailClawController::init_pid()
     roll_heigh_speed_pid_ = {};
     roll_heigh_speed_pid_.Kp = 110.0f;
     roll_heigh_speed_pid_.Ki = 0.4;
-    roll_heigh_speed_pid_.Kd = 0.6f;
+    roll_heigh_speed_pid_.Kd = 1.0f;
     roll_heigh_speed_pid_.IntegralLimit=1000.0f;
     roll_heigh_speed_pid_.MaxOut = 5000.0f;
     roll_heigh_speed_pid_.DeadBand = 0.3f;
@@ -472,7 +472,7 @@ float TailClawController::calcRollCmd(float target_deg)
     }
 
     const float target_pos = target_deg * roll_reduction_ratio;
-    if (target_deg - roll_motor_->getCurrentSumPos() >= 0.0f) {
+    if (target_deg - roll_motor_->getCurrentSumPos() >= 0.1f) {
         // 正转方向：使用 roll_pos_pid_ / roll_speed_pid_
         if (roll_last_direction_ != 1) {
             // 刚从反转/初始切换到正转，清零正转 PID 的冻结积分，防止突变
