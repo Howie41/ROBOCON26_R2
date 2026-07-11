@@ -565,7 +565,7 @@ void laserMeasureTask(void *argument) {
       laser1_tick = now_tick;
     }
 
-    if ((now_tick - laser2_tick) >= 40U) {
+    if ((now_tick - laser2_tick) >= 50U) {
       (void)laser2.triggerSingleMeasure();
       laser2_tick = now_tick;
     }

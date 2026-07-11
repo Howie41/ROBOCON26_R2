@@ -29,7 +29,7 @@ volatile float g_nav_yaw_slowdown_start_deg = 12.0f;
 volatile float g_nav_yaw_slowdown_min_scale = 0.40f;
 volatile float g_nav_arrive_dist_mm = 15.0f;
 volatile float g_nav_arrive_yaw_deg = 1.0f;
-volatile uint8_t g_nav_arrive_hold_count_target = 3U;
+volatile uint8_t g_nav_arrive_hold_count_target = 5U;
 
 volatile float g_ozone_nav_dist_mm = 0.0f;
 volatile float g_ozone_nav_yaw_err_deg = 0.0f;
@@ -56,19 +56,19 @@ volatile float g_ozone_nav_brake_dist_mm = 0.0f;
 volatile uint8_t g_ozone_nav_arrive_hold_count = 0U;
 
 PID_t pid_x = {
-    .Kp = 2.2f,
-    .Ki = 0.22f,
-    .Kd = 0.0f,
-    .MaxOut = 1500.0f,
+    .Kp = 2.5f,
+    .Ki = 0.25f,
+    .Kd = 0.01f,
+    .MaxOut = 1000.0f,
     .IntegralLimit = 100.0f,
-    .DeadBand = 20.0f,
+    .DeadBand = 10.0f,
     .Improve = Integral_Limit,
 };
 
 PID_t pid_y = {
     .Kp = 2.5f,
     .Ki = 0.25f,
-    .Kd = 0.01f,
+    .Kd = 0.015f,
     .MaxOut = 800.0f,
     .IntegralLimit = 80.0f,
     .DeadBand = 10.0f,
