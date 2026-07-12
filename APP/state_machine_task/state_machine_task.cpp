@@ -508,8 +508,15 @@ public:
             arm.get_kfs_amount(),
             sm.has_loaded_in_arena_ ? 'T' : 'F',
             sm.current_startup_config_.arena_load_kfs_amount);
+        // 红方场地 Y 轴镜像，R1 视角的左右与地图坐标相反
+        const bool is_red = (g_config_area_type.load() == area_type::red);
+        const auto& L  = is_red ? waypoint::grid_right : waypoint::grid_left;
+        const auto& LC = is_red ? waypoint::grid_right_close : waypoint::grid_left_close;
+        const auto& R  = is_red ? waypoint::grid_left : waypoint::grid_right;
+        const auto& RC = is_red ? waypoint::grid_left_close : waypoint::grid_right_close;
+
         sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
+        sm.wait_until([&sm, &L, &LC, &R, &RC]() -> bool {
             uint8_t cmd = sm.get_cmd_from_r1();
 
             // 合体指令：直接退出到合体流程
@@ -518,25 +525,19 @@ public:
                 return true;
             }
 
-            // 放置指令：执行放置
+            // 放置指令
             switch (cmd) {
                 case cmd_place_kfs_on_left:
-                    logger_queue.log("SM\twait_for_r1_cmd: place on LEFT, kfs remaining=%d\n",
-                        arm.get_kfs_amount() - 1);
-                    sm.do_place_kfs(waypoint::grid_left, waypoint::grid_left_close);
+                    sm.do_place_kfs(L, LC);
                     break;
                 case cmd_place_kfs_on_mid:
-                    logger_queue.log("SM\twait_for_r1_cmd: place on MID, kfs remaining=%d\n",
-                        arm.get_kfs_amount() - 1);
                     sm.do_place_kfs(waypoint::grid_mid, waypoint::grid_mid_close);
                     break;
                 case cmd_place_kfs_on_right:
-                    logger_queue.log("SM\twait_for_r1_cmd: place on RIGHT, kfs remaining=%d\n",
-                        arm.get_kfs_amount() - 1);
-                    sm.do_place_kfs(waypoint::grid_right, waypoint::grid_right_close);
+                    sm.do_place_kfs(R, RC);
                     break;
                 default:
-                    return false;  // 无效指令，继续等待
+                    return false;
             }
 
             // 放置完毕后，判断是否需要去装载更多 KFS
