@@ -58,10 +58,10 @@ bool raise_kfs(LOAD_TYPE step) {
     auto result = arm.fetch_step(step); 
     if (result) {
         switch (step) {
-            case LOAD_TYPE::MEDIUM: osDelay(2000); break;
-            case LOAD_TYPE::HIGH: osDelay(2000); break;
-            case LOAD_TYPE::LOW: osDelay(2800); break;
-            case LOAD_TYPE::PLAIN: osDelay(1700); break;
+            case LOAD_TYPE::MEDIUM: osDelay(2000+1500); break;
+            case LOAD_TYPE::HIGH: osDelay(2000+1500); break;
+            case LOAD_TYPE::LOW: osDelay(2800+1500); break;
+            case LOAD_TYPE::PLAIN: osDelay(1700+1500); break;
         }
     } else {
         logger_queue.log("ARM\traise_kfs failed!\n");
@@ -78,12 +78,12 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
     if (result) {
         if (level.has_value()) {
             switch (level.value()) {
-                case UNLOAD_TYPE::LOW: osDelay(4200); break;
-                case UNLOAD_TYPE::MEDIUM: osDelay(3200); break;
-                case UNLOAD_TYPE::TOP: osDelay(400); break;
+                case UNLOAD_TYPE::LOW: osDelay(4200+1500); break;
+                case UNLOAD_TYPE::MEDIUM: osDelay(3200+1500); break;
+                case UNLOAD_TYPE::TOP: osDelay(400+1500); break;
             }
         } else {
-            osDelay(4200);
+            osDelay(4200+1500);
         }
     } else {
         logger_queue.log("ARM\tunload_kfs failed!\n");
@@ -96,7 +96,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
 bool release_kfs() {
     auto result = arm.place_release();
     if (result) {
-        osDelay(100);
+        osDelay(100+1500);
     } else {
         logger_queue.log("ARM\trelease_kfs failed!\n");
     }
@@ -108,7 +108,7 @@ bool release_kfs() {
 bool load_kfs() { 
     auto result = arm.load_kfs(); 
     if (result) {
-        osDelay(1800);
+        osDelay(1800+1500);
     } else {
         logger_queue.log("ARM\tload_kfs failed!\n");
     }
