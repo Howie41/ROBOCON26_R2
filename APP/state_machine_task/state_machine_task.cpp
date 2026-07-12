@@ -12,7 +12,6 @@
 #include <cstdint>
 #include <mutex>
 #include <optional>
-#include <sys/_pthreadtypes.h>
 
 #include "state_machine_task.h"
 #include "com_config.h"
@@ -32,6 +31,11 @@ extern Arm arm;  // 取矿机构实例
 extern LoggerQueue logger_queue;
 
 constexpr size_t SH_COUNT = 6;
+volatile bool debug_pause{false};
+std::atomic<bool> g_config_valid{false};
+std::atomic<int16_t> g_config_origin_x{0};
+std::atomic<int16_t> g_config_origin_y{0};
+std::atomic<area_type> g_config_area_type{area_type::blue};
 
 namespace waypoint {
 class location{
@@ -66,9 +70,9 @@ constexpr std::array<location, SH_COUNT> sh_aim{
 
     //659,-585
     //-640
-    location{-275+50, sh_aim_y-45, 90, "sh_aim"},
-    location{-75+50, sh_aim_y-45, 90, "sh_aim"},
-    location{125+50, sh_aim_y-45, 90, "sh_aim"},
+    location{753+15-1000, -780, 90, "sh_aim"},
+    location{753+15-800, -780, 90, "sh_aim"},
+    location{753+15-600, -780, 90, "sh_aim"},
     location{753+15, -780, 90, "sh_aim"},
     location{753+15-200, -780, 90, "sh_aim"},
     location{753+15-400, -780, 90, "sh_aim"},
@@ -84,9 +88,9 @@ constexpr std::array<location, SH_COUNT> sh_close{
     location{sh_aim[4].x, sh_close_y-18, 90, "sh_close"},
     location{sh_aim[5].x, sh_close_y-18, 90, "sh_close"},
     */
-    location{sh_aim[0].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[1].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[2].x, sh_close_y-18, 90, "sh_close"},
+    location{sh_aim[0].x, -835+10, 90, "sh_close"},
+    location{sh_aim[1].x, -835+10, 90, "sh_close"},
+    location{sh_aim[2].x, -835+10, 90, "sh_close"},
     location{sh_aim[3].x, -835+10, 90, "sh_close"},
     location{sh_aim[4].x, -835+10, 90, "sh_close"},
     location{sh_aim[5].x, -835+10, 90, "sh_close"},
@@ -98,25 +102,21 @@ constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
 constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red",
                                   false};
 
-inline location mf_col1() {
-    merlin_map::MerlinPose pose = merlin_map::g_blue_layout.entry_pose[0];
-    return location{pose.x, pose.y, pose.yaw, "mf_col1"};
-}
-
-inline location mf_col2() {
-    merlin_map::MerlinPose pose = merlin_map::g_blue_layout.entry_pose[1];
-    return location{pose.x, pose.y, pose.yaw, "mf_col2"};
-}
-
-inline location mf_col3() {
-    merlin_map::MerlinPose pose = merlin_map::g_blue_layout.entry_pose[2];
-    return location{pose.x, pose.y, pose.yaw, "mf_col3"};
+inline location mf_col(uint8_t num) {
+    static const char* names[] = {"mf_col1", "mf_col2", "mf_col3"};
+    merlin_map::MerlinPose pose;
+    if (g_config_area_type.load() == area_type::blue) {
+        pose = merlin_map::g_blue_layout.entry_pose[num - 1];
+    } else {
+        pose = merlin_map::g_red_layout.entry_pose[num - 1];
+    }
+    return location{pose.x, pose.y, pose.yaw, names[num - 1], false};
 }
 
 // ======== 三区 ========
 constexpr location before_uphill{1000, 200, 0, "before_uphill"};
 constexpr location after_uphill{3700, 200, 0, "after_uphill"};
-constexpr location beside_after_uphill{3500, -1480, 0, "beside_after_uphill"};
+constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill"};
 /** @brief 赛中装填 KFS 点位 */
 
 
@@ -144,12 +144,6 @@ constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500
 constexpr location combination_area{grid_mid.x, left_fence_back.y, -90, "combination_area"};
 } // namespace waypoint
 
-volatile bool debug_pause{false};
-std::atomic<bool> g_config_valid{false};
-std::atomic<int16_t> g_config_origin_x{0};
-std::atomic<int16_t> g_config_origin_y{0};
-std::atomic<area_type> g_config_area_type{area_type::blue};
-
 class StateMachine {
 public:
     class state {
@@ -161,14 +155,14 @@ public:
         ~state() = default;
     public:
         virtual void on_tick(StateMachine& sm) = 0;
-        virtual char* get_name() = 0;
+        virtual const char* get_name() = 0;
     };
 
 #define STATE(name) \
     class name : public state { \
     public: \
         static name& instance() { static name i; return i; } \
-        char* get_name() override { return (char*)#name; } \
+        const char* get_name() override { return #name; } \
         void on_tick(StateMachine& sm) override
 
 #define STATE_END };
@@ -204,7 +198,7 @@ public:
                 sm.change_state_to(begin_jgcb::instance());
                 break;
             case begin_type::arena_retry_zone:
-                sm.change_state_to(go_to_arena::instance());
+                sm.change_state_to(go_to_grid::instance());
                 break;
             default:
                 break;
@@ -332,7 +326,7 @@ public:
 
     // 前往梅林入口
     STATE(go_to_mf_entrance) {
-        sm.move_to_pos(waypoint::mf_col2());
+        sm.move_to_pos(waypoint::mf_col(2));
         sm.change_state_to(request_for_path_cmd::instance());
     } STATE_END
 
@@ -405,13 +399,16 @@ public:
                 chassis_action::turn_right_180_deg();
                 break;
             case path_cmd::code::move_to_col1:
-                sm.move_to_pos(waypoint::mf_col1());
+                sm.current_mf_col = 1;
+                sm.move_to_pos(waypoint::mf_col(1));
                 break;
             case path_cmd::code::move_to_col2:
-                sm.move_to_pos(waypoint::mf_col2());
+                sm.current_mf_col = 2;
+                sm.move_to_pos(waypoint::mf_col(2));
                 break;
             case path_cmd::code::move_to_col3:
-                sm.move_to_pos(waypoint::mf_col3());
+                sm.current_mf_col = 3;
+                sm.move_to_pos(waypoint::mf_col(3));
                 break;
             default:
                 break;
@@ -447,7 +444,7 @@ public:
 
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
-            sm.move_to_pos(waypoint::mf_col2().x - 300, nav_control::current_y, 0, 5000);
+            sm.move_to_pos(waypoint::mf_col(sm.current_mf_col).x - 300, waypoint::mf_col(sm.current_mf_col).y, 0, 5000, false);
         }
 
         sm.current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
@@ -478,8 +475,7 @@ public:
     // 上坡、前往竞技场
     STATE(go_to_arena) {
         sm.move_to_pos(waypoint::after_uphill);
-        sm.move_to_pos(waypoint::beside_after_uphill);
-        sm.move_to_pos(waypoint::beside_after_uphill.x, waypoint::beside_after_uphill.y, -90);
+        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90);
         sm.change_state_to(wait_for_arena_action::instance());
     } STATE_END
 
@@ -488,128 +484,107 @@ public:
         sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", [&]() -> bool {
             return sm.get_cmd_from_r1() == cmd_go_uphill;
         });
-        sm.change_state_to(go_to_grid_1::instance());
+        sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
-    STATE(go_to_grid_1) {   
+    // 导航至九宫格（首次进入或装载后返回）
+    STATE(go_to_grid) {
+        if (!sm.has_loaded_in_arena_) {
+            // 首次进入：从坡道 / 重试区导航至九宫格
+            sm.move_to_pos(waypoint::beside_after_uphill);
+            if (sm.current_startup_config_.kfs_amount == 0) {
+                // 无初始 KFS：跳过放置，直接进入装载流程
+                sm.change_state_to(load_kfs::instance());
+                return;
+            }
+        }
         sm.move_to_pos(waypoint::grid_mid);
-        sm.change_state_to(wait_r1_cmd_1::instance());
+        sm.change_state_to(wait_for_r1_cmd::instance());
     } STATE_END
 
-    STATE(wait_r1_cmd_1) {
+    // 统一的放置等待状态：等待 R1 指令（放置KFS 或 合体）
+    STATE(wait_for_r1_cmd) {
+        logger_queue.log("SM\twait_for_r1_cmd, kfs=%d loaded=%c load_cfg=%d\n",
+            arm.get_kfs_amount(),
+            sm.has_loaded_in_arena_ ? 'T' : 'F',
+            sm.current_startup_config_.arena_load_kfs_amount);
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {
-            switch (sm.get_cmd_from_r1()) {
-                case cmd_place_kfs_on_left: {
-                    auto res = arm_action::unload_kfs(std::nullopt);
-                    if (res) {
-                        sm.move_to_pos(waypoint::grid_left);
-                        sm.move_to_pos(waypoint::grid_left_close);
-                        arm_action::release_kfs();
-                        sm.move_to_pos(waypoint::grid_left);
-                    }
-                    return true;
-                }
-                case cmd_place_kfs_on_mid: {
-                    auto res = arm_action::unload_kfs(std::nullopt);
-                    if (res) {
-                        sm.move_to_pos(waypoint::grid_mid);
-                        sm.move_to_pos(waypoint::grid_mid_close);
-                        arm_action::release_kfs();
-                        sm.move_to_pos(waypoint::grid_mid);
-                    }
-                    return true;
-                }
-                case cmd_place_kfs_on_right: {
-                    auto res = arm_action::unload_kfs(std::nullopt);
-                    if (res) {
-                        sm.move_to_pos(waypoint::grid_right);
-                        sm.move_to_pos(waypoint::grid_right_close);
-                        arm_action::release_kfs();
-                        sm.move_to_pos(waypoint::grid_right);
-                    }
-                    return true;
-                }
-                default:
-                    return false;
+            uint8_t cmd = sm.get_cmd_from_r1();
+
+            // 合体指令：直接退出到合体流程
+            if (cmd == cmd_combination) {
+                sm.change_state_to(go_to_combination_area::instance());
+                return true;
             }
+
+            // 放置指令：执行放置
+            switch (cmd) {
+                case cmd_place_kfs_on_left:
+                    logger_queue.log("SM\twait_for_r1_cmd: place on LEFT, kfs remaining=%d\n",
+                        arm.get_kfs_amount() - 1);
+                    sm.do_place_kfs(waypoint::grid_left, waypoint::grid_left_close);
+                    break;
+                case cmd_place_kfs_on_mid:
+                    logger_queue.log("SM\twait_for_r1_cmd: place on MID, kfs remaining=%d\n",
+                        arm.get_kfs_amount() - 1);
+                    sm.do_place_kfs(waypoint::grid_mid, waypoint::grid_mid_close);
+                    break;
+                case cmd_place_kfs_on_right:
+                    logger_queue.log("SM\twait_for_r1_cmd: place on RIGHT, kfs remaining=%d\n",
+                        arm.get_kfs_amount() - 1);
+                    sm.do_place_kfs(waypoint::grid_right, waypoint::grid_right_close);
+                    break;
+                default:
+                    return false;  // 无效指令，继续等待
+            }
+
+            // 放置完毕后，判断是否需要去装载更多 KFS
+            if (arm.get_kfs_amount() == 0
+                && !sm.has_loaded_in_arena_
+                && sm.current_startup_config_.arena_load_kfs_amount > 0) {
+                logger_queue.log("SM\twait_for_r1_cmd: all placed, going to load (loaded=%c, load_cfg=%d)\n",
+                    sm.has_loaded_in_arena_ ? 'T' : 'F',
+                    sm.current_startup_config_.arena_load_kfs_amount);
+                sm.change_state_to(load_kfs::instance());
+                return true;
+            }
+            return false;  // 还有 KFS 或已装载过，留在等待循环
         });
-        sm.change_state_to(load_kfs::instance());
     } STATE_END
 
-    // 前往距斜坡最近的KFS前 装载KFS
+    // 装填 KFS（从赛场装填点）
     STATE(load_kfs) {
-        if (sm.current_startup_config_.arena_load_kfs_amount == 1) {
-            sm.move_to_pos(waypoint::load_kfs);
-            arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+        logger_queue.log("SM\tload_kfs: has_loaded=%c->T, load_cfg=%d, kfs_before=%d\n",
+            sm.has_loaded_in_arena_ ? 'T' : 'F',
+            sm.current_startup_config_.arena_load_kfs_amount,
+            arm.get_kfs_amount());
+        sm.has_loaded_in_arena_ = true;
+        switch (sm.current_startup_config_.arena_load_kfs_amount) {
+            case 0:
+                logger_queue.log("SM\tload_kfs: skip (load_cfg=0)\n");
+                break;
+            case 1:
+                logger_queue.log("SM\tload_kfs: loading 1 KFS at load_kfs waypoint\n");
+                sm.move_to_pos(waypoint::load_kfs);
+                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+                break;
+            case 2:
+                logger_queue.log("SM\tload_kfs: loading 2 KFS (step 1/2 at load_kfs)\n");
+                sm.move_to_pos(waypoint::load_kfs);
+                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+                arm_action::load_kfs();
+                logger_queue.log("SM\tload_kfs: loading 2 KFS (step 2/2 at load_kfs)\n");
+                sm.move_to_pos(waypoint::load_kfs_2);
+                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
+                break;
+            default:
+                logger_queue.log("SM\tload_kfs: unexpected load_cfg=%d, skipping\n",
+                    sm.current_startup_config_.arena_load_kfs_amount);
+                break;
         }
-        if (sm.current_startup_config_.arena_load_kfs_amount > 1) {
-            arm_action::load_kfs();
-        }
-
-        sm.change_state_to(load_kfs_2::instance());
-    } STATE_END
-
-    STATE(load_kfs_2) {
-        if (sm.current_startup_config_.arena_load_kfs_amount >= 2) {
-            sm.move_to_pos(waypoint::load_kfs_2);
-            arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-        }
-        sm.change_state_to(go_to_grid_2::instance());
-    } STATE_END
-
-    STATE(go_to_grid_2) {
-        // 转身 load_kfs_2.x -> grid_left.x
-        // sm.move_to_pos(waypoint::load_kfs_2.x, waypoint::load_kfs_2.y, -90);
-        // sm.move_to_pos(waypoint::grid_left.x, waypoint::load_kfs_2.y, -90);
-        if (sm.current_startup_config_.arena_load_kfs_amount > 0) {
-            sm.move_to_pos(waypoint::grid_mid);
-        }
-        sm.change_state_to(wait_r1_cmd_2::instance());
-    } STATE_END
-
-    // 等待指令，然后放置中层KFS
-    STATE(wait_r1_cmd_2) {
-        sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
-            switch (sm.get_cmd_from_r1()) {
-                case cmd_place_kfs_on_left: {
-                    auto res = arm_action::unload_kfs(std::nullopt);
-                    if (res) {
-                        sm.move_to_pos(waypoint::grid_left);
-                        sm.move_to_pos(waypoint::grid_left_close);
-                        arm_action::release_kfs();
-                        sm.move_to_pos(waypoint::grid_left);
-                    }
-                    return false;
-                }
-                case cmd_place_kfs_on_mid: {
-                    auto res = arm_action::unload_kfs(std::nullopt);
-                    if (res) {
-                        sm.move_to_pos(waypoint::grid_mid);
-                        sm.move_to_pos(waypoint::grid_mid_close);
-                        arm_action::release_kfs();
-                        sm.move_to_pos(waypoint::grid_mid);
-                    }
-                    return false;
-                }
-                case cmd_place_kfs_on_right: {
-                    auto res = arm_action::unload_kfs(std::nullopt);
-                    if (res) {
-                        sm.move_to_pos(waypoint::grid_right);
-                        sm.move_to_pos(waypoint::grid_right_close);
-                        arm_action::release_kfs();
-                        sm.move_to_pos(waypoint::grid_right);
-                    }
-                    return false;
-                }
-                case cmd_combination:
-                    sm.change_state_to(go_to_combination_area::instance());
-                    return true;
-                default:
-                    return false;
-            }
-        });
+        logger_queue.log("SM\tload_kfs done: kfs_after=%d\n", arm.get_kfs_amount());
+        sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
     // 前往合体点位
@@ -699,9 +674,11 @@ private:
     };
 
     bool has_entered_mf{false}; // 是否进入了梅林（用于梅林前底盘动作）
-    int8_t moved_left_right_{0}; // 左右移动计数
+    uint8_t current_mf_col{1};
+
 
     uint8_t sh_index_{0};        // 武器夹取计数
+    bool has_loaded_in_arena_{false}; // 是否已进入过arena装载流程
 
     startup_config current_startup_config_{};
     std::optional<waypoint::location> current_origin_location_{};
@@ -723,7 +700,7 @@ private:
 
     pub_tail_claw_status tail_claw_status_cache_{};
     bool tail_claw_status_valid_{};
-    bool state_machine_view_last_{};
+
 
     /**
      * @brief 等待上位机发送启动配置
@@ -853,14 +830,14 @@ private:
         prev_x = x;
         prev_y = y;
         prev_yaw = yaw;
+        // 红区镜像变换
+        if (enable_area_red_mirror && g_config_area_type.load() == area_type::red) {
+            y = -y;
+            yaw = -yaw;
+        }
         if (current_origin_location_.has_value()) {
             x += current_origin_location_->x;
             y += current_origin_location_->y;
-        }
-        // 红区镜像变换
-        if (enable_area_red_mirror && g_config_area_type == area_type::red) {
-            y = -y;
-            yaw = -yaw;
         }
 
         if (name) {
@@ -868,7 +845,7 @@ private:
         } else {
             logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
         }
-        // do_debug_pause("move_to_pos");
+        do_debug_pause("move_to_pos");
 
         taskENTER_CRITICAL();
         nav_control::target_x = x;
@@ -897,14 +874,19 @@ private:
      */
     bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0) {
         return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.enable_red_area_mirror, loc.name);
-    }
-    
-    bool is_loosely_arrived() {
-        constexpr int16_t LOOSE_ARRIVED_THRESHOLD = 50; // 单位mm
-        int16_t delta_x = nav_control::target_x - nav_control::current_x;
-        int16_t delta_y = nav_control::target_y - nav_control::current_y;
-        return (delta_x < LOOSE_ARRIVED_THRESHOLD && delta_x > -LOOSE_ARRIVED_THRESHOLD
-             && delta_y < LOOSE_ARRIVED_THRESHOLD && delta_y > -LOOSE_ARRIVED_THRESHOLD);
+    }    /**
+     * @brief 放置KFS到指定格子的公共逻辑
+     * @param grid 目标格子位置
+     * @param grid_close 贴合格子位置
+     */
+    void do_place_kfs(const waypoint::location& grid, const waypoint::location& grid_close) {
+        auto res = arm_action::unload_kfs(std::nullopt);
+        if (res) {
+            move_to_pos(grid);
+            move_to_pos(grid_close);
+            arm_action::release_kfs();
+            move_to_pos(grid);
+        }
     }
 
     /**
