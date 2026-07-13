@@ -103,7 +103,7 @@ public:
     * @param debounce    防抖次数（默认 1，即首次超时就触发）
     */
     SoftwareWatchdog(uint32_t timeout_ms, Action action, WatchdogMode mode = WatchdogMode::AUTO_REARM, uint32_t debounce = 1) :
-        timeout_ms_(timeout_ms), actions_({}), mode_(mode), debounce_(debounce > 0 ? debounce : 1) {}
+        timeout_ms_(timeout_ms), actions_({action}), actions_count_(1), mode_(mode), debounce_(debounce > 0 ? debounce : 1) {}
 
     // 喂狗 — 在数据到达路径中调用
     void feed() {
@@ -179,7 +179,11 @@ public:
     void setTimeout(uint32_t ms) { timeout_ms_ = ms; }
     void setDebounce(uint32_t count) { debounce_ = count > 0 ? count : 1; }
     void setMode(WatchdogMode mode) { mode_ = mode; }
-    void addAction(Action action) {actions_[actions_count_] = action; actions_count_++; }
+    void addAction(Action action) {
+        if (actions_count_ < actions_.size()) {
+            actions_[actions_count_++] = action;
+        }
+    }
 
 private:
     uint32_t timeout_ms_{100};
