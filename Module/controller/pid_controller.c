@@ -12,9 +12,7 @@
  * @versioninfo :
  */
 #include "pid_controller.h"
-// #include <cstdlib>
-float aaa = 0.0f;
-float bbb = 0.0f;
+
 /******************************* PID CONTROL *********************************/
 // PID优化环节函数声明
 static void f_Feedforward(PID_t *pid);                  // 前馈控制
