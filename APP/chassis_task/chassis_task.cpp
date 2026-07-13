@@ -16,6 +16,7 @@
 #include "Motor.hpp"
 #include "NavProtocol.hpp"
 #include "chassis_solution.hpp"
+#include "com_config.h"
 #include "merlin_map/merlin_map.h"
 #include "pid_controller.h"
 #include "topic_pool.h"
@@ -28,6 +29,8 @@
 osThreadId_t ChassisTaskHandle;
 
 extern C620Motor chassis_motor1, chassis_motor2, chassis_motor3, chassis_motor4;
+extern Omni45Chassis chassis_solver;
+
 extern volatile float g_hwt101_yaw_deg;
 extern volatile uint32_t g_hwt101_frame_count;
 
@@ -154,9 +157,6 @@ bool tryPoseAnchoredTurn(int16_t delta_deg) {
 
   return stairWaypointRotateByYawDelta(delta_deg);
 }
-
-Omni45Chassis chassis_solver(chassis_motor1, chassis_motor2, chassis_motor3,
-                             chassis_motor4);
 
 const std::array<Omni45Chassis::SpeedPidParam, Omni45Chassis::kWheelCount>
     kWheelPidParams = {

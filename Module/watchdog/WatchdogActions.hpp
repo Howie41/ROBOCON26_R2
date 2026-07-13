@@ -42,6 +42,5 @@ inline void actionIncrementCounter(void *ctx) {
  */
 template <typename T, void (T::*Method)()>
 inline WatchdogAction actionCallMember(T *obj) {
-  return WatchdogAction{[](void *ctx) { (static_cast<T *>(ctx)->*Method)(); },
-                        static_cast<void *>(obj)};
+    return WatchdogAction{[](void *ctx) { (static_cast<T *>(ctx)->*Method)(); }, static_cast<void *>(obj) };
 }

@@ -181,6 +181,7 @@ public:
     STATE(ready) {
         logger_queue.log("\n");
         logger_queue.log("SM\t======== READY ========\n");
+        screen_display_packet::send(0x486241, "READY");
 
         // 清理之前可能收到过的配置
         startup_config dummy_config;
@@ -245,6 +246,7 @@ public:
     // 前往端头架
     STATE(go_to_shr) {
         sm.move_to_pos(waypoint::sh_aim[sm.sh_index_]);
+        screen_display_packet::send(0xD1EDEE, "%d <-", sm.sh_index_ + 1);
         osDelay(500);
         //sm.do_debug_pause("sh_aim_stop");
         TailClawController::Instance().weapon_claw_open_ = true;
@@ -369,7 +371,7 @@ public:
             case path_cmd::code::grab_low_r2kfs:
             case path_cmd::code::grab_mid_r2kfs:
             case path_cmd::code::grab_high_r2kfs:
-            case path_cmd::code::drop_and_grab_new_kfs:
+            case path_cmd::code::drop_kfs:
                 sm.change_state_to(execute_arm_action::instance());
                 break;
             case path_cmd::code::no_more_commands:
@@ -429,21 +431,22 @@ public:
         switch (executing_cmd) {
             case path_cmd::code::grab_low_r2kfs:
                 arm_action::raise_kfs(LOAD_TYPE::LOW);
+                arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_mid_r2kfs:
                 arm_action::raise_kfs(LOAD_TYPE::MEDIUM);
+                arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_high_r2kfs:
                 arm_action::raise_kfs(LOAD_TYPE::HIGH);
+                arm_action::load_kfs();
                 break;
-            case path_cmd::code::drop_and_grab_new_kfs:
-                // 忽略这个指令
+            case path_cmd::code::drop_kfs:
+                arm_action::drop_kfs();
                 break;
             default:
                 break;
         }
-
-        arm_action::load_kfs();
 
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
@@ -469,7 +472,7 @@ public:
             return (sm.get_cmd_from_r1() == cmd_go_uphill);
         });
         // TODO: 改回 20秒！
-        sm.countdown(10, "go_uphill", [&]() -> bool {
+        sm.countdown(20, "go_uphill", [&]() -> bool {
             return false;
         });
         sm.move_to_pos(waypoint::before_uphill);
@@ -618,6 +621,7 @@ public:
     // 等待合体指令
     STATE(wait_for_combination_cmd) {
         sm.clean_previous_cmd();
+        screen_display_packet::send(0xEF9A49, "? R1+R2 ?");
         sm.wait_until([&sm]() -> bool {
             return (sm.get_cmd_from_r1() == cmd_combination);
         });
@@ -824,6 +828,7 @@ private:
         uint32_t last_log = 0;
 
         logger_queue.log("CD\t%s countdown start: %lu s\n", name, (unsigned long)seconds);
+        screen_display_packet::send(0xE5D249, "CD %lu", (unsigned long)seconds);
 
         while (true) {
             const uint32_t elapsed = osKernelGetTickCount() - start;
@@ -841,6 +846,7 @@ private:
             if (elapsed - last_log >= log_interval) {
                 const uint32_t remaining = (total_ms - elapsed) / 1000;
                 logger_queue.log("CD\t%s countdown: %lu s remaining\n", name, (unsigned long)remaining);
+                screen_display_packet::send(0xE5D249, "CD %lu", (unsigned long)remaining);
                 last_log = elapsed;
             }
 
@@ -849,6 +855,7 @@ private:
     }
 
     void change_state_to(state& new_state) {
+        screen_display_packet::send(0xFFFFFF, "");
         logger_queue.log("SM\t-> %s\n", new_state.get_name());
         // do_debug_pause("change_state");
         current_state_ = &new_state;
@@ -885,7 +892,7 @@ private:
             logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
         }
         do_debug_pause("move_to_pos");
-
+        screen_display_packet::send(0xD30F3F, "Moving");
         taskENTER_CRITICAL();
         nav_control::target_x = x;
         nav_control::target_y = y;
@@ -899,9 +906,16 @@ private:
 
         if (timeout_ms == 0) {
             wait_until([]() { return nav_control::arrived; });
+            screen_display_packet::send(0x00504B, "Arrived");
             return true;
         } else {
-            return wait_until_timeout_or([]() { return nav_control::arrived; }, timeout_ms);
+            auto result = wait_until_timeout_or([]() { return nav_control::arrived; }, timeout_ms);
+            if (result) {
+                screen_display_packet::send(0x00504B, "Arrived");
+            } else {
+                screen_display_packet::send(0xC22147, "Timeout");
+            }
+            return result;
         }
     }
 
@@ -949,6 +963,7 @@ private:
     * @note 不要放入 wait_until，只清理一次就好了
     */
     void clean_previous_cmd() {
+        screen_display_packet::send(0xEF9A49, "??");
         pub_qr_code_parsed temp_qr{};
         qr_code_sub_.TryGet(&temp_qr);
         (void)infrared_group.tryGet();

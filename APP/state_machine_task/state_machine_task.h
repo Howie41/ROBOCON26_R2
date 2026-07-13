@@ -30,7 +30,7 @@ enum class code: uint16_t {
     grab_low_r2kfs = 0x0317,        // 抓取低位R2KFS
     grab_mid_r2kfs = 0x0318,        // 抓取中位R2KFS
     grab_high_r2kfs = 0x0319,       // 抓取高位R2KFS
-    drop_and_grab_new_kfs = 0x031A, // 抛弃手中R2KFS并抓新的KFS（已有3个方块时触发）
+    drop_kfs = 0x031A, // 抛弃手中R2KFS并抓新的KFS（已有3个方块时触发）
     no_more_commands = 0x031B,      // 已经无命令可获取（已经走出梅林）
     turn_around = 0x031C,           // 直接转180°
 

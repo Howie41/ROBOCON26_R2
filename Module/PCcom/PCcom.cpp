@@ -215,7 +215,11 @@ void PcCom::ProcessTx() {
            reinterpret_cast<uint8_t*>(formatted), n);
     }
   }
-
+  // 上位机显示屏幕信息
+  screen_display_packet screen_msg{};
+  if (pc_screen_display_sub_.TryGet(&screen_msg)) {
+    send(static_cast<uint16_t>(PcCmd::screen_display), screen_msg);
+  }
 }
 
 template <typename T>
