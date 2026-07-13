@@ -117,6 +117,9 @@ inline location mf_col(uint8_t num) {
 constexpr location before_uphill{1000, 200, 0, "before_uphill"};
 constexpr location after_uphill{3700, 200, 0, "after_uphill"};
 constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill"};
+
+constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red"};
+constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue"};
 /** @brief 赛中装填 KFS 点位 */
 
 
@@ -128,7 +131,7 @@ constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
 constexpr int16_t grid_close_y = -4165 - 20;
 constexpr int16_t grid_y = grid_close_y + 350;
 
-constexpr location grid_mid{3050, grid_y, -90, "grid_mid"};
+constexpr location grid_mid{3050+50, grid_y, -90, "grid_mid"};
 constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left"};
 constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right"};
 
@@ -137,7 +140,7 @@ constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_cl
 constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close"};
 
 /** @brief 贴左侧围栏、近九宫格点位 */
-constexpr location left_fence_front{grid_left.x, grid_y, -90, "left_fence_front"};
+constexpr location left_fence_front{grid_left.x + 100, grid_y, -90, "left_fence_front"};
 /** @brief 贴左侧围栏、后侧点位 */
 constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500, -90, "left_fence_back"};
 /** @brief R1 R2 合体预备点 */
@@ -198,7 +201,7 @@ public:
                 sm.change_state_to(begin_jgcb::instance());
                 break;
             case begin_type::arena_retry_zone:
-                sm.change_state_to(go_to_grid::instance());
+                sm.change_state_to(retry_after_uphill::instance());
                 break;
             default:
                 break;
@@ -340,11 +343,11 @@ public:
         }, 3000); // 3秒超时
 
         if (!if_received) {
-            logger_queue.log("PATH\ttimeout No.%d!\n", sm.current_path_cmd_index_);
+            logger_queue.log("PATH\ttimeout at path step No.%d! Check connection between PC and chip!\n", sm.current_path_cmd_index_);
             return; // 超时未收到指令，保持当前状态重试
         }
 
-        logger_queue.log("PATH\treceived No.%d 0x%02X\n", sm.current_path_cmd_index_, static_cast<uint8_t>(cmd));
+        logger_queue.log("PATH\treceived path step No.%d: 0x%02X\n", sm.current_path_cmd_index_, static_cast<uint8_t>(cmd));
         sm.current_path_cmd_index_ += 1;
         sm.current_path_cmd_ = cmd; // 给其他后续状态读取
 
@@ -370,7 +373,7 @@ public:
                 sm.change_state_to(execute_arm_action::instance());
                 break;
             case path_cmd::code::no_more_commands:
-                logger_queue.log("PATH\tend\n");
+                logger_queue.log("PATH\tPC sent no more commands! Path planning complete.\n");
                 sm.change_state_to(go_to_mf_exit::instance());
                 break;
             default:
@@ -465,7 +468,8 @@ public:
         sm.wait_until([&]() -> bool {
             return (sm.get_cmd_from_r1() == cmd_go_uphill);
         });
-        sm.countdown(20, "go_uphill", [&]() -> bool {
+        // TODO: 改回 20秒！
+        sm.countdown(10, "go_uphill", [&]() -> bool {
             return false;
         });
         sm.move_to_pos(waypoint::before_uphill);
@@ -487,6 +491,11 @@ public:
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
+    STATE(retry_after_uphill) {
+        sm.move_to_pos(waypoint::after_uphill);
+        sm.change_state_to(go_to_grid::instance());
+    } STATE_END
+
     // 导航至九宫格（首次进入或装载后返回）
     STATE(go_to_grid) {
         if (!sm.has_loaded_in_arena_) {
@@ -504,10 +513,16 @@ public:
 
     // 统一的放置等待状态：等待 R1 指令（放置KFS 或 合体）
     STATE(wait_for_r1_cmd) {
-        logger_queue.log("SM\twait_for_r1_cmd, kfs=%d loaded=%c load_cfg=%d\n",
-            arm.get_kfs_amount(),
-            sm.has_loaded_in_arena_ ? 'T' : 'F',
-            sm.current_startup_config_.arena_load_kfs_amount);
+        logger_queue.log("SM\twaiting for R1 cmd...\n");
+        logger_queue.log("SM\twait_for_r1_cmd: kfs_amount = %d\n",
+            arm.get_kfs_amount()
+        );
+        logger_queue.log("SM\twait_for_r1_cmd: has_loaded_in_arena = %c\n",
+            sm.has_loaded_in_arena_ ? 'T' : 'F'
+        );
+        logger_queue.log("SM\twait_for_r1_cmd: arena_load_kfs_amount = %d\n",
+            sm.current_startup_config_.arena_load_kfs_amount
+        );
         // 红方场地 Y 轴镜像，R1 视角的左右与地图坐标相反
         const bool is_red = (g_config_area_type.load() == area_type::red);
         const auto& L  = is_red ? waypoint::grid_right : waypoint::grid_left;
@@ -544,9 +559,7 @@ public:
             if (arm.get_kfs_amount() == 0
                 && !sm.has_loaded_in_arena_
                 && sm.current_startup_config_.arena_load_kfs_amount > 0) {
-                logger_queue.log("SM\twait_for_r1_cmd: all placed, going to load (loaded=%c, load_cfg=%d)\n",
-                    sm.has_loaded_in_arena_ ? 'T' : 'F',
-                    sm.current_startup_config_.arena_load_kfs_amount);
+                logger_queue.log("SM\twait_for_r1_cmd: KFS placed. Going to load more KFS...");
                 sm.change_state_to(load_kfs::instance());
                 return true;
             }
@@ -556,35 +569,40 @@ public:
 
     // 装填 KFS（从赛场装填点）
     STATE(load_kfs) {
-        logger_queue.log("SM\tload_kfs: has_loaded=%c->T, load_cfg=%d, kfs_before=%d\n",
-            sm.has_loaded_in_arena_ ? 'T' : 'F',
-            sm.current_startup_config_.arena_load_kfs_amount,
-            arm.get_kfs_amount());
+        logger_queue.log("SM\tload_kfs: has_loaded_in_arena = %c\n",
+            sm.has_loaded_in_arena_ ? 'T' : 'F'
+        );
+        logger_queue.log("SM\tload_kfs: arena_load_kfs_amount = %d\n",
+            sm.current_startup_config_.arena_load_kfs_amount
+        );
+        logger_queue.log("SM\tload_kfs: kfs_amount = %d\n",
+            arm.get_kfs_amount()
+        );
         sm.has_loaded_in_arena_ = true;
         switch (sm.current_startup_config_.arena_load_kfs_amount) {
             case 0:
-                logger_queue.log("SM\tload_kfs: skip (load_cfg=0)\n");
+                logger_queue.log("SM\tload_kfs: loading 0 KFS due to startup config\n");
                 break;
             case 1:
-                logger_queue.log("SM\tload_kfs: loading 1 KFS at load_kfs waypoint\n");
+                logger_queue.log("SM\tload_kfs: loading 1/1 KFS\n");
                 sm.move_to_pos(waypoint::load_kfs);
                 arm_action::raise_kfs(LOAD_TYPE::PLAIN);
                 break;
             case 2:
-                logger_queue.log("SM\tload_kfs: loading 2 KFS (step 1/2 at load_kfs)\n");
+                logger_queue.log("SM\tload_kfs: loading 1/2 KFS\n");
                 sm.move_to_pos(waypoint::load_kfs);
                 arm_action::raise_kfs(LOAD_TYPE::PLAIN);
                 arm_action::load_kfs();
-                logger_queue.log("SM\tload_kfs: loading 2 KFS (step 2/2 at load_kfs)\n");
+                logger_queue.log("SM\tload_kfs: loading 2/2 KFS\n");
                 sm.move_to_pos(waypoint::load_kfs_2);
                 arm_action::raise_kfs(LOAD_TYPE::PLAIN);
                 break;
             default:
-                logger_queue.log("SM\tload_kfs: unexpected load_cfg=%d, skipping\n",
+                logger_queue.log("SM\tload_kfs: ERROR! Check startup config!\n",
                     sm.current_startup_config_.arena_load_kfs_amount);
                 break;
         }
-        logger_queue.log("SM\tload_kfs done: kfs_after=%d\n", arm.get_kfs_amount());
+        logger_queue.log("SM\tload_kfs: Complete! KFS amount is now %d!\n", arm.get_kfs_amount());
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
@@ -633,7 +651,7 @@ public:
     STATE(release_kfs) {
         arm_action::release_kfs();
         if (arm.get_kfs_amount() > 0) {
-            logger_queue.log("ARM\t%d kfs remaining can be unloaded...", arm.get_kfs_amount());
+            logger_queue.log("ARM\t%d kfs remaining...", arm.get_kfs_amount());
             sm.change_state_to(unload_kfs::instance());
         } else {
             logger_queue.log("ARM\tNo kfs left!");
@@ -723,17 +741,35 @@ private:
         config.arena_delay_seconds = clamp(config.arena_delay_seconds, 10, 60);
 
         logger_queue.log("SM\tstartup config received:\n");
-        logger_queue.log("SM\tarea=%s begin=%d own_kfs=%d O(%d,%d)\n",
-            config.area_type_value == area_type::blue ? "BLUE" : "RED",
-            static_cast<int>(config.begin_type_value),
-            config.kfs_amount,
-            config.origin_x,
+        logger_queue.log("SM\tarea_type_value = %s\n",
+            config.area_type_value == area_type::blue ? "BLUE" : "RED"
+        );
+        logger_queue.log("SM\tbegin_type_value = %d\n",
+            static_cast<int>(config.begin_type_value)
+        );
+        logger_queue.log("SM\tkfs_amount = %d\n",
+            config.kfs_amount
+        );
+        logger_queue.log("SM\torigin_x = %d\n",
+            config.origin_x
+        );
+        logger_queue.log("SM\torigin_y = %d\n",
             config.origin_y
         );
-        logger_queue.log("SM\tarena load_kfs=%d delay=%ds\n", 
-            config.arena_load_kfs_amount,
+        logger_queue.log("SM\tarena_load_kfs_amount = %d\n",
+            config.arena_load_kfs_amount
+        );
+        logger_queue.log("SM\tarena_delay_seconds = %d\n",
             config.arena_delay_seconds
         );
+        // 在三区重试区启动时，将上位机发来的原点减去重试区相对启动区的坐标
+        if (config.begin_type_value == begin_type::arena_retry_zone) {
+            const auto& retry_zone = (config.area_type_value == area_type::blue) ? waypoint::retry_zone_blue : waypoint::retry_zone_red;
+            config.origin_x -= retry_zone.x; // 假设重试区相对启动区的x坐标
+            config.origin_y -= retry_zone.y; // 假设重试区相对启动区的y坐标
+            logger_queue.log("SM\tRETRY MODE! origin_x = %d\n", config.origin_x);
+            logger_queue.log("SM\tRETRY MODE! origin_y = %d\n", config.origin_y);
+        }
         current_startup_config_ = config;
         current_origin_location_.emplace(waypoint::location{config.origin_x, config.origin_y, 0});
         g_config_origin_x.store(config.origin_x);
@@ -786,6 +822,8 @@ private:
         const uint32_t start = osKernelGetTickCount();
         const uint32_t total_ms = seconds * 1000;
         uint32_t last_log = 0;
+
+        logger_queue.log("CD\t%s countdown start: %lu s\n", name, (unsigned long)seconds);
 
         while (true) {
             const uint32_t elapsed = osKernelGetTickCount() - start;
@@ -882,12 +920,10 @@ private:
      */
     void do_place_kfs(const waypoint::location& grid, const waypoint::location& grid_close) {
         auto res = arm_action::unload_kfs(std::nullopt);
-        if (res) {
-            move_to_pos(grid);
-            move_to_pos(grid_close);
-            arm_action::release_kfs();
-            move_to_pos(grid);
-        }
+        move_to_pos(grid, 5000);
+        move_to_pos(grid_close);
+        if (res) arm_action::release_kfs();
+        move_to_pos(grid, 5000);
     }
 
     /**
