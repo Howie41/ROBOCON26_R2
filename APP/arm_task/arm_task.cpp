@@ -74,7 +74,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
                 case UNLOAD_TYPE::TOP: { osDelay(800); break; }
             }
         } else {
-            osDelay(4200);
+            osDelay(4200+1500);
         }
     } else {
         logger_queue.log("ARM\tunload_kfs failed!\n");
@@ -87,7 +87,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
 bool release_kfs() {
     auto result = arm.place_release();
     if (result) {
-        osDelay(100);
+        osDelay(100+1500);
     } else {
         logger_queue.log("ARM\trelease_kfs failed!\n");
     }
