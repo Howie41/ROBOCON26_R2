@@ -369,7 +369,7 @@ public:
             case path_cmd::code::grab_low_r2kfs:
             case path_cmd::code::grab_mid_r2kfs:
             case path_cmd::code::grab_high_r2kfs:
-            case path_cmd::code::drop_and_grab_new_kfs:
+            case path_cmd::code::drop_kfs:
                 sm.change_state_to(execute_arm_action::instance());
                 break;
             case path_cmd::code::no_more_commands:
@@ -429,21 +429,22 @@ public:
         switch (executing_cmd) {
             case path_cmd::code::grab_low_r2kfs:
                 arm_action::raise_kfs(LOAD_TYPE::LOW);
+                arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_mid_r2kfs:
                 arm_action::raise_kfs(LOAD_TYPE::MEDIUM);
+                arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_high_r2kfs:
                 arm_action::raise_kfs(LOAD_TYPE::HIGH);
+                arm_action::load_kfs();
                 break;
-            case path_cmd::code::drop_and_grab_new_kfs:
-                // 忽略这个指令
+            case path_cmd::code::drop_kfs:
+                arm_action::drop_kfs();
                 break;
             default:
                 break;
         }
-
-        arm_action::load_kfs();
 
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
