@@ -94,6 +94,7 @@ struct ArmAttr {
     // 其他
     bool is_kfs_raised{false};
     bool is_holding_kfs{false};
+    bool is_started{false};
 };
 
 
@@ -345,7 +346,7 @@ public:
     void run_starting() {
         now_t_ = DWT_GetTimeline_s() - last_t_;  // now_t记录以last_t为基准的相对时间
         if (now_t_ > arm_actions_config::start_proceed[act_index_].delta_t) {
-            if (start_proceed(act_index_++)) { attr_.is_starting = false; }
+            if (start_proceed(act_index_++)) { attr_.is_starting = false; attr_.is_started = true; }
             else last_t_ = DWT_GetTimeline_s();
         }
     }

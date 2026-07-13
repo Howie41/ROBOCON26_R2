@@ -129,10 +129,13 @@ bool drop_kfs() {
 
 
 void armTask(void *argument) {
-    arm.start();
+    arm.start();  // 手动在状态机里调用
 
     // 任务大循环
     for (;;) {
+        osDelay(1);
+        if (!arm.get_attr().is_started) continue;
+
         // fetching_step 类
         if (arm.get_attr().is_fetching_step_H) arm.run_fetching_step(LOAD_TYPE::HIGH);  // 抓取高台阶
         else if (arm.get_attr().is_fetching_step_M) arm.run_fetching_step(LOAD_TYPE::MEDIUM);  // 抓取中台阶
@@ -198,7 +201,6 @@ void armTask(void *argument) {
             }
         }
 
-        osDelay(1);
     }
 }
 
