@@ -442,7 +442,7 @@ public:
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::drop_kfs:
-                arm_action::drop_kfs();
+                // arm_action::drop_kfs();
                 break;
             default:
                 break;
@@ -642,7 +642,7 @@ public:
         sm.change_state_to(wait_for_release_kfs_cmd::instance());
     } STATE_END
 
-    // 等待放置高层KFS的指令
+    // 等待放置高层KFxS的指令
     STATE(wait_for_release_kfs_cmd) {
         sm.clean_previous_cmd();
         sm.wait_until([&sm]() -> bool {

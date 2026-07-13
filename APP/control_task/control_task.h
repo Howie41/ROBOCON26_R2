@@ -17,7 +17,6 @@
 #include "cmsis_os.h"
 #include "task.h"
 #include "topics.hpp"
-#include "lift_task.h"
 
 #define MAX_VELOCITY 3.0f // 最大线速度，单位m/s
 #define MAX_ROTATION_VELOCITY 3.14f // 最大旋转速度，单位rad/s

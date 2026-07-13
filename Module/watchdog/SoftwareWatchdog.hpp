@@ -19,7 +19,6 @@
 #pragma once
 
 #include <cstdint>
-#include <array>
 
 // 状态机
 enum class WatchdogState : uint8_t {
@@ -37,21 +36,21 @@ enum class WatchdogMode : uint8_t {
 
 /// 通用回调：函数指针 + 上下文指针（可捕获状态，零堆分配）
 struct WatchdogAction {
-    using Fn = void (*)(void *);
+  using Fn = void (*)(void *);
 
-    // 函数指针
-    Fn fn{nullptr};
-    // 上下文指针
-    void *ctx{nullptr};
+  // 函数指针
+  Fn fn{nullptr};
+  // 上下文指针
+  void *ctx{nullptr};
 
-    // 调用运算符，允许把对象像函数一样调用来触发回调
-    void operator()() const {
-        if (fn) {
-            fn(ctx);
-        }
+  // 调用运算符，允许把对象像函数一样调用来触发回调
+  void operator()() const {
+    if (fn) {
+      fn(ctx);
     }
+  }
 
-    explicit operator bool() const { return fn != nullptr; }
+  explicit operator bool() const { return fn != nullptr; }
 };
 
 // 链表节点，基类
@@ -93,107 +92,109 @@ public:
 template <typename TimeSource, typename Action = WatchdogAction>
 class SoftwareWatchdog : public IWatchdogNode {
 public:
-    SoftwareWatchdog() = default;
-    /**
-    * @brief Construct a new Software Watchdog object
-    *
-    * @param timeout_ms  超时阈值 (ms)
-    * @param action      超时回调
-    * @param mode        触发模式（默认自动重武装）
-    * @param debounce    防抖次数（默认 1，即首次超时就触发）
-    */
-    SoftwareWatchdog(uint32_t timeout_ms, Action action, WatchdogMode mode = WatchdogMode::AUTO_REARM, uint32_t debounce = 1) :
-        timeout_ms_(timeout_ms), actions_({action}), actions_count_(1), mode_(mode), debounce_(debounce > 0 ? debounce : 1) {}
+  SoftwareWatchdog() = default;
+  /**
+   * @brief Construct a new Software Watchdog object
+   *
+   * @param timeout_ms  超时阈值 (ms)
+   * @param action      超时回调
+   * @param mode        触发模式（默认自动重武装）
+   * @param debounce    防抖次数（默认 1，即首次超时就触发）
+   */
+  SoftwareWatchdog(uint32_t timeout_ms, Action action, WatchdogMode mode = WatchdogMode::AUTO_REARM, uint32_t debounce = 1) :
+    timeout_ms_(timeout_ms), action_(action), mode_(mode), debounce_(debounce > 0 ? debounce : 1) {}
 
-    // 喂狗 — 在数据到达路径中调用
-    void feed() {
-        last_feed_time_ = TimeSource::now();
-        miss_count_ = 0;
-        // 如果超时已触发，并且非LATCHED模式，即为AUTO_REARM/ONE_SHOT
-        if (state_ == WatchdogState::TRIGGERED && mode_ != WatchdogMode::LATCHED) {
-            // 再次feed可以重恢复看门狗状态
-            state_ = WatchdogState::ARMED;
-        }
+  /// 喂狗 — 在数据到达路径中调用
+  void feed() {
+    last_feed_time_ = TimeSource::now();
+    miss_count_ = 0;
+    // 如果超时已触发，并且非LATCHED模式，即为AUTO_REARM/ONE_SHOT
+    if (state_ == WatchdogState::TRIGGERED && mode_ != WatchdogMode::LATCHED) {
+      // 再次feed可以重恢复看门狗状态
+      state_ = WatchdogState::ARMED;
+    }
+  }
+
+  /// 启用看门狗
+  void arm() {
+    last_feed_time_ = TimeSource::now();
+    miss_count_ = 0;
+    state_ = WatchdogState::ARMED;
+  }
+
+  /// 停用看门狗
+  void disarm() { state_ = WatchdogState::IDLE; }
+
+  /// 复位看门狗（disarm + arm）
+  void reset() {
+    disarm();
+    arm();
+  }
+
+  /// 周期轮询 — 评估是否超时，若超时则执行回调
+  void poll() override {
+    if (state_ != WatchdogState::ARMED) {
+      return;
     }
 
-    // 启用看门狗
-    void arm() {
-        last_feed_time_ = TimeSource::now();
-        miss_count_ = 0;
-        state_ = WatchdogState::ARMED;
+    const uint32_t now = TimeSource::now();
+    if (now - last_feed_time_ < timeout_ms_) {
+      return;
     }
 
-    // 停用看门狗
-    void disarm() { state_ = WatchdogState::IDLE; }
-
-    // 复位看门狗（disarm + arm）
-    void reset() {
-        disarm();
-        arm();
+    // 超时窗口满足，累计防抖计数
+    if (++miss_count_ < debounce_) {
+      return;
     }
 
-    // 周期轮询 — 评估是否超时，若超时则执行回调
-    void poll() override {
-        if (state_ != WatchdogState::ARMED) return;
+    // 确认超时
+    state_ = WatchdogState::TRIGGERED;
+    miss_count_ = debounce_; // 防止溢出
 
-        const uint32_t now = TimeSource::now();
-        if (now - last_feed_time_ < timeout_ms_) return;
+    // 执行看门回调动作
+    action_();
 
-        // 超时窗口满足，累计防抖计数
-        if (++miss_count_ < debounce_) return;
-
-        // 确认超时
-        state_ = WatchdogState::TRIGGERED;
-        miss_count_ = debounce_; // 防止溢出
-
-        // 执行看门回调动作
-        for (uint8_t i = 0; i < actions_count_; ++i) actions_[i]();
-
-        // 自动复位
-        if (mode_ == WatchdogMode::AUTO_REARM) {
-            last_feed_time_ = now;
-            miss_count_ = 0;
-            state_ = WatchdogState::ARMED;
-        }
+    // 自动复位
+    if (mode_ == WatchdogMode::AUTO_REARM) {
+      last_feed_time_ = now;
+      miss_count_ = 0;
+      state_ = WatchdogState::ARMED;
     }
+  }
 
-    /* ---------- 状态查询 -------------------------------------------------- */
+  /* ---------- 状态查询 -------------------------------------------------- */
 
-    bool isAlive() const override { return state_ != WatchdogState::TRIGGERED; }
-    bool isArmed() const { return state_ == WatchdogState::ARMED; }
-    bool isIdle() const { return state_ == WatchdogState::IDLE; }
-    WatchdogState state() const { return state_; }
-    WatchdogMode mode() const { return mode_; }
+  bool isAlive() const override { return state_ != WatchdogState::TRIGGERED; }
+  bool isArmed() const { return state_ == WatchdogState::ARMED; }
+  bool isIdle() const { return state_ == WatchdogState::IDLE; }
+  WatchdogState state() const { return state_; }
+  WatchdogMode mode() const { return mode_; }
 
-    /// 距上次喂狗已过去多少 ms（仅在 ARMED 状态有意义）
-    uint32_t elapsed() const {
-        if (state_ == WatchdogState::IDLE) return 0;
-        return TimeSource::now() - last_feed_time_;
-    }
+  /// 距上次喂狗已过去多少 ms（仅在 ARMED 状态有意义）
+  uint32_t elapsed() const {
+    if (state_ == WatchdogState::IDLE)
+      return 0;
+    return TimeSource::now() - last_feed_time_;
+  }
 
-    uint32_t missCount() const { return miss_count_; }
-    uint32_t debounce() const { return debounce_; }
+  uint32_t missCount() const { return miss_count_; }
+  uint32_t debounce() const { return debounce_; }
 
-    /* ---------- 参数配置 -------------------------------------------------- */
+  /* ---------- 参数配置 -------------------------------------------------- */
 
-    void setTimeout(uint32_t ms) { timeout_ms_ = ms; }
-    void setDebounce(uint32_t count) { debounce_ = count > 0 ? count : 1; }
-    void setMode(WatchdogMode mode) { mode_ = mode; }
-    void addAction(Action action) {
-        if (actions_count_ < actions_.size()) {
-            actions_[actions_count_++] = action;
-        }
-    }
+  void setTimeout(uint32_t ms) { timeout_ms_ = ms; }
+  void setDebounce(uint32_t count) { debounce_ = count > 0 ? count : 1; }
+  void setMode(WatchdogMode mode) { mode_ = mode; }
+  void setAction(Action action) { action_ = action; }
 
 private:
-    uint32_t timeout_ms_{100};
-    std::array<Action, 8> actions_{};
-    uint8_t actions_count_{0};
-    WatchdogMode mode_{WatchdogMode::AUTO_REARM};
-    uint32_t debounce_{1};
+  uint32_t timeout_ms_{100};
+  Action action_{};
+  WatchdogMode mode_{WatchdogMode::AUTO_REARM};
+  uint32_t debounce_{1};
 
-    uint32_t last_feed_time_{0};
-    uint32_t miss_count_{0};
-    WatchdogState state_{WatchdogState::IDLE};
+  uint32_t last_feed_time_{0};
+  uint32_t miss_count_{0};
+  WatchdogState state_{WatchdogState::IDLE};
 
 };

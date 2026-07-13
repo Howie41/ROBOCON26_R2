@@ -87,9 +87,6 @@ public:
             motor_planning_units_[i]->motor->setMotorCmd(motor_planning_units_[i]->output);
         }
     }
-    uint8_t get_motor_count() const { return motor_count_; }
-    MotorPlanningUnit *get_motor_planning_unit(uint8_t index) { return motor_planning_units_[index]; }
-    
 private:
     MotorPlanningUnit *motor_planning_units_[16];
     uint8_t motor_count_ = 0;
