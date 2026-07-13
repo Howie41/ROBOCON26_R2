@@ -181,7 +181,7 @@ public:
     STATE(ready) {
         logger_queue.log("\n");
         logger_queue.log("SM\t======== READY ========\n");
-        screen_display_packet::send(0x486241, "READY");
+        screen_display_packet::send(0xFFFFFF, "CONFIG");
 
         // 清理之前可能收到过的配置
         startup_config dummy_config;
@@ -190,6 +190,12 @@ public:
         sm.wait_for_startup_config();
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
+        screen_display_packet::send(0xFFFFFF, "Starting");
+        arm.start();
+        sm.wait_until([&]() -> bool {
+            return arm.get_attr().is_started;
+        }, 50);
+        screen_display_packet::send(0x208468, "READY");
 
         switch (sm.current_startup_config_.begin_type_value) {
             case begin_type::mc:
