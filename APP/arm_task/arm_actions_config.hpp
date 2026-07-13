@@ -45,8 +45,8 @@ namespace arm_actions_config {
     namespace fetch_proceed {
         // 吸取 +200 台阶 KFS
         RAM_D1_ATTR const arm_pose step_M[] = {  // height, flip, rotate, expand
-            { 0.01f, {520.0f, 1000.0f}, {82.0f, 120.0f}, {9.0f, 2.2f}, {1200.0f, 20.0f} },
-            { 0.78f, {365.0f, 1000.0f}, {82.0f, 120.0f}, {21.5f, 2.1f}, {1200.0f, 20.0f}, FETCH_ },
+            { 0.01f, {520.0f, 1000.0f}, {82.0f, 120.0f}, {4.0f, 2.2f}, {1200.0f, 20.0f} },
+            { 0.98f, {365.0f, 1000.0f}, {82.0f, 120.0f}, {21.5f, 2.1f}, {1200.0f, 20.0f}, FETCH_ },
             { 0.47f, {660.0f, 1000.0f}, {82.0f, 120.0f}, {0.0f, 2.1f}, {600.0f, 18.0f} },
             { 0.3, {570.0f, 1000.0f}, {-90.0f, 100.0f}, {0.0f, 2.8f}, {0.0f, 20.0f} },
             { 0.01f }
@@ -151,8 +151,8 @@ namespace arm_actions_config {
     namespace drop_kfs_proceed {
         // 将 KFS 丢掉（当前剩1或2个KFS）
         RAM_D1_ATTR const arm_pose kfs_12[] = {
-            { 0.01f, {720.0f, 1000.0f}, {-60.0f, 120.0f}, {-120.0f, 6.8f}, {780.0f, 18.0f} },
-            { 0.8f, RELEASE_ },
+            { 0.01f, {720.0f, 1000.0f}, {0.0f, 120.0f}, {-150.0f, 6.8f}, {1080.0f, 18.0f} },
+            { 0.9f, RELEASE_ },
             { 0.1f, RESET_ },
             { 0.01f }
         };
@@ -160,7 +160,7 @@ namespace arm_actions_config {
         RAM_D1_ATTR const arm_pose kfs_3[] = {
             { 0.01f, {720.0f, 1000.0f}, {-60.0f, 120.0f}, {0.0f, 6.8f}, {900.0f, 18.0f} },
             { 0.45f, {720.0f, 1000.0f}, {-60.0f, 120.0f}, {-120.0f, 6.8f}, {900.0f, 18.0f} },
-            { 0.8f, RELEASE_ },
+            { 0.6f, RELEASE_ },
             { 0.2f, {720.0f, 1000.0f}, {-60.0f, 120.0f}, {0.0f, 6.8f}, {900.0f, 18.0f} },
             { 1.0f, RESET_ },
             { 0.01f }

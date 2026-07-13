@@ -182,7 +182,9 @@ public:
         return true;
     }
     bool start() {
+        if (arm.get_attr().is_started) return false;
         reset_timeline();
+        attr_.is_started = true; 
         attr_.is_starting = true;
         return true;
     }
@@ -357,7 +359,7 @@ public:
         float delta_t = arm_actions_config::start_proceed[act_index_].delta_t;
         delta_t += DELTA_DELAY;
         if (now_t_ > delta_t) {
-            if (start_proceed(act_index_++)) { attr_.is_starting = false; attr_.is_started = true; }
+            if (start_proceed(act_index_++)) { attr_.is_starting = false; }
             else last_t_ = DWT_GetTimeline_s();
         }
     }

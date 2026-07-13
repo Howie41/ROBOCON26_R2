@@ -87,7 +87,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
 bool release_kfs() {
     auto result = arm.place_release();
     if (result) {
-        osDelay(100+1500);
+        osDelay(600);
     } else {
         logger_queue.log("ARM\trelease_kfs failed!\n");
     }
@@ -129,39 +129,21 @@ bool drop_kfs() {
 
 
 void armTask(void *argument) {
-    arm.start();  // 手动在状态机里调用
+    // arm.start();  // 手动在状态机里调用
 
     // 任务大循环
     for (;;) {
         osDelay(1);
-        if (!arm.get_attr().is_started) continue;
-
-        // fetching_step 类
-        if (arm.get_attr().is_fetching_step_H) arm.run_fetching_step(LOAD_TYPE::HIGH);  // 抓取高台阶
-        else if (arm.get_attr().is_fetching_step_M) arm.run_fetching_step(LOAD_TYPE::MEDIUM);  // 抓取中台阶
-        else if (arm.get_attr().is_fetching_step_L) arm.run_fetching_step(LOAD_TYPE::LOW);  // 抓取低台阶
-        else if (arm.get_attr().is_fetching_step_P) arm.run_fetching_step(LOAD_TYPE::PLAIN);  // 抓取平地
-        // placing_kfs 类
-        else if (arm.get_attr().is_placing_kfs_L) arm.run_placing_kfs(UNLOAD_TYPE::LOW);  // 放置最底层的KFS进第一层下的KFS进第二层
-        else if (arm.get_attr().is_placing_kfs_M) arm.run_placing_kfs(UNLOAD_TYPE::MEDIUM);  // 放置中间层的KFS进第二层
-        else if (arm.get_attr().is_placing_kfs_T) arm.run_placing_kfs(UNLOAD_TYPE::TOP);  // 放置举起的KFS进第二层
-        // place_releasing 类
-        else if (arm.get_attr().is_place_releasing) arm.run_place_releasing();  // 释放KFS，回归默认姿态
-        // loading_kfs 类
-        else if (arm.get_attr().is_loading_kfs) arm.run_loading_kfs();  // 存入KFS
-        // dropping_kfs 类
-        else if (arm.get_attr().is_dropping_kfs) arm.run_dropping_kfs();  // 丢弃KFS
-
-        // starting 类
-        else if (arm.get_attr().is_starting) arm.run_starting();  // 启动时初始化
-
-
+        if (arm.get_attr().is_starting) arm.run_starting();  // 启动时初始化
 
         // 测试用（Xbox手柄）
         if (arm_cmd_sub.TryGet(&arm_cmd) || test_flag) {
             if (arm_cmd.update) flag++;
             if (arm_cmd.fetch || test_flag) {
                 switch (flag) {
+                    case 0:
+                        arm.start();
+                        break;
                     case 1:
                         arm.fetch_step(LOAD_TYPE::MEDIUM);
                         break;
@@ -201,6 +183,24 @@ void armTask(void *argument) {
             }
         }
 
+        
+        if (!arm.get_attr().is_started || arm.get_attr().is_starting) continue;
+
+        // fetching_step 类
+        if (arm.get_attr().is_fetching_step_H) arm.run_fetching_step(LOAD_TYPE::HIGH);  // 抓取高台阶
+        else if (arm.get_attr().is_fetching_step_M) arm.run_fetching_step(LOAD_TYPE::MEDIUM);  // 抓取中台阶
+        else if (arm.get_attr().is_fetching_step_L) arm.run_fetching_step(LOAD_TYPE::LOW);  // 抓取低台阶
+        else if (arm.get_attr().is_fetching_step_P) arm.run_fetching_step(LOAD_TYPE::PLAIN);  // 抓取平地
+        // placing_kfs 类
+        else if (arm.get_attr().is_placing_kfs_L) arm.run_placing_kfs(UNLOAD_TYPE::LOW);  // 放置最底层的KFS进第一层下的KFS进第二层
+        else if (arm.get_attr().is_placing_kfs_M) arm.run_placing_kfs(UNLOAD_TYPE::MEDIUM);  // 放置中间层的KFS进第二层
+        else if (arm.get_attr().is_placing_kfs_T) arm.run_placing_kfs(UNLOAD_TYPE::TOP);  // 放置举起的KFS进第二层
+        // place_releasing 类
+        else if (arm.get_attr().is_place_releasing) arm.run_place_releasing();  // 释放KFS，回归默认姿态
+        // loading_kfs 类
+        else if (arm.get_attr().is_loading_kfs) arm.run_loading_kfs();  // 存入KFS
+        // dropping_kfs 类
+        else if (arm.get_attr().is_dropping_kfs) arm.run_dropping_kfs();  // 丢弃KFS
+
     }
 }
-
