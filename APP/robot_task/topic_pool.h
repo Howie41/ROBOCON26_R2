@@ -206,6 +206,25 @@ struct screen_display_packet {
     pc_screen_display_pub_.Publish(packet);
   }
 
+  /**
+   * @brief 直接构造并发送屏幕显示数据包
+   * @param rgb 颜色，形如 0xff8800
+   * @param format 格式化字符串
+   *
+   * 用法： screen_display_packet::send(0xff8800, "count=%d", n);
+   */
+  static void send(uint32_t rgb, const char* format, ...) {
+    screen_display_packet packet;
+    packet.red = static_cast<uint8_t>(rgb >> 16);
+    packet.green = static_cast<uint8_t>(rgb >> 8);
+    packet.blue = static_cast<uint8_t>(rgb);
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(packet.text, sizeof(packet.text), format, args);
+    va_end(args);
+    screen_display_packet::send(packet);
+  }
+
 private:
   static inline TypedTopicPublisher<screen_display_packet> pc_screen_display_pub_{"pc_screen_display"};
 };
