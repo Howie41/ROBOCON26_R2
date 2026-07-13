@@ -16,8 +16,12 @@
 #pragma once
 #include "fdcan.h"
 #include "state_machine_task.h"
+#include "topics.hpp"
 #include "usart.h"
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <stdbool.h>
 
 #pragma pack(1)
@@ -174,6 +178,55 @@ struct startup_config {
   int16_t kfs_amount;                 // 初始KFS数量，有效值 0~3
   int16_t arena_load_kfs_amount;      // 在三区装载KFS的数量，有效值 0~2
   int16_t arena_delay_seconds;        // 以三区启动时的等待时间，单位秒，有效值 10~60 秒
+};
+
+struct screen_display_packet {
+  uint8_t red{};
+  uint8_t green{};
+  uint8_t blue{};
+  char text[16]{};
+
+  screen_display_packet() = default;
+
+  /**
+   * @brief 构造一个给上位机发的屏幕显示数据包
+   * @param r 背景颜色红色分量 (0~255)
+   * @param g 背景颜色绿色分量 (0~255)
+   * @param b 背景颜色蓝色分量 (0~255)
+   * @param format 格式化字符串
+   */
+  screen_display_packet(uint8_t r, uint8_t g, uint8_t b, const char* format, ...) : red(r), green(g), blue(b) {
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+  }
+
+  static void send(const screen_display_packet& packet) {
+    pc_screen_display_pub_.Publish(packet);
+  }
+
+  /**
+   * @brief 直接构造并发送屏幕显示数据包
+   * @param rgb 颜色，形如 0xff8800
+   * @param format 格式化字符串
+   *
+   * 用法： screen_display_packet::send(0xff8800, "count=%d", n);
+   */
+  static void send(uint32_t rgb, const char* format, ...) {
+    screen_display_packet packet;
+    packet.red = static_cast<uint8_t>(rgb >> 16);
+    packet.green = static_cast<uint8_t>(rgb >> 8);
+    packet.blue = static_cast<uint8_t>(rgb);
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(packet.text, sizeof(packet.text), format, args);
+    va_end(args);
+    screen_display_packet::send(packet);
+  }
+
+private:
+  static inline TypedTopicPublisher<screen_display_packet> pc_screen_display_pub_{"pc_screen_display"};
 };
 
 #pragma pack()

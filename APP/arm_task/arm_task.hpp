@@ -26,6 +26,7 @@
 #include <optional>
 #include "arm_actions_config.hpp"
 #include "logger.hpp"
+#include "topic_pool.h"
 
 
 #define DELTA_DELAY 0.08f  // 动作统一延时(s)
@@ -243,12 +244,14 @@ public:
         if (get_kfs_amount() < 3) {
             kfs_num_++;
             logger_queue.log("ARM\tadd_kfs -> %d\n", kfs_num_);
+            screen_display_packet::send(0x5BA8FF, "KFS %d", kfs_num_);
         }
     }
     void rmvKFS() {
         if (get_kfs_amount() > 0) {
             kfs_num_--;
             logger_queue.log("ARM\tremove_kfs -> %d\n", kfs_num_);
+            screen_display_packet::send(0x5BA8FF, "KFS %d", kfs_num_);
         }
     }
     uint8_t get_kfs_amount() { return kfs_num_; }

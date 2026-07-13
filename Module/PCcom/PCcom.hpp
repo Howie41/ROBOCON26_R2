@@ -43,6 +43,7 @@ enum class PcCmd : uint16_t {
   startup_config_ack = 0x000A, // 下位机回复配置
 
   log_message = 0x0501, // 下位机发送日志给上位机
+  screen_display = 0x0502, // 下位机发送屏幕显示给上位机
 };
 class PcCom {
 public:
@@ -92,4 +93,6 @@ private:
 
     TypedTopicSubscriber<bool> pc_startup_config_ack_sub_{"pc_startup_config_ack", 1};
     TypedTopicPublisher<startup_config> pc_startup_config_pub_{"pc_startup_config"};
+
+    TypedTopicSubscriber<screen_display_packet> pc_screen_display_sub_{"pc_screen_display", 2};
 };
