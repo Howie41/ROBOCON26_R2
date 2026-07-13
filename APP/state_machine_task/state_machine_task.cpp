@@ -49,7 +49,7 @@ public:
 
 constexpr location before_shr{500, 0, 0, "before_shr"};
 
-constexpr int16_t sh_aim_y = -692;
+constexpr int16_t sh_aim_y = -780;
 //起点：-95，210
 //起点2：-83，212
 //-88,195
@@ -70,14 +70,14 @@ constexpr std::array<location, SH_COUNT> sh_aim{
 
     //659,-585
     //-640
-    location{753+15-1000, -780, 90, "sh_aim"},
-    location{753+15-800, -780, 90, "sh_aim"},
-    location{753+15-600, -780, 90, "sh_aim"},
-    location{753+15, -780, 90, "sh_aim"},
-    location{753+15-200, -780, 90, "sh_aim"},
-    location{753+15-400, -780, 90, "sh_aim"},
+    location{245+10, -800, 90, "sh_aim"},
+    location{245+10+200, -800, 90, "sh_aim"},
+    location{245+10+400, -800, 90, "sh_aim"},
+    location{753+15+30, -780-15, 90, "sh_aim"},
+    location{753+15+30-200, -780-15, 90, "sh_aim"},
+    location{753+15+30-400, -780-15, 90, "sh_aim"},
 };
-constexpr int16_t sh_close_y = -772;
+constexpr int16_t sh_close_y = -825;
 
 constexpr std::array<location, SH_COUNT> sh_close{
     /*
@@ -88,12 +88,12 @@ constexpr std::array<location, SH_COUNT> sh_close{
     location{sh_aim[4].x, sh_close_y-18, 90, "sh_close"},
     location{sh_aim[5].x, sh_close_y-18, 90, "sh_close"},
     */
-    location{sh_aim[0].x, -835+10, 90, "sh_close"},
-    location{sh_aim[1].x, -835+10, 90, "sh_close"},
-    location{sh_aim[2].x, -835+10, 90, "sh_close"},
-    location{sh_aim[3].x, -835+10, 90, "sh_close"},
-    location{sh_aim[4].x, -835+10, 90, "sh_close"},
-    location{sh_aim[5].x, -835+10, 90, "sh_close"},
+    location{sh_aim[0].x, -900, 90, "sh_close"},
+    location{sh_aim[1].x, -900, 90, "sh_close"},
+    location{sh_aim[2].x, -900, 90, "sh_close"},
+    location{sh_aim[3].x, -835-20-10, 90, "sh_close"},
+    location{sh_aim[4].x, -835-20-10, 90, "sh_close"},
+    location{sh_aim[5].x, -835-20-10, 90, "sh_close"},
 };
 
 constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
@@ -250,22 +250,24 @@ public:
         osDelay(500);
         //sm.do_debug_pause("sh_aim_stop");
         TailClawController::Instance().weapon_claw_open_ = true;
-        constexpr float target = 37.0f;
+        constexpr float target = 36.6f;
         TailClawController::Instance().roll_target_deg_ = target;
-        sm.wait_until_timeout_or([&sm, target]() -> bool {
-            sm.tail_claw_update_status();
-            return sm.tail_claw_status_valid_
-                && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
-                && sm.tail_claw_status_cache_.roll_arrived;
-        },3000, 20U);
+        sm.wait_until([&sm, target]() -> bool {
+        const bool updated = sm.tail_claw_update_status();
+
+        return updated
+        && sm.tail_claw_status_valid_
+        && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
+        && sm.tail_claw_status_cache_.roll_arrived;
+        }, 20U);
         osDelay(1500);
         sm.change_state_to(catch_weapon::instance());
     } STATE_END
 
     // 夹爪夹取武器
     STATE(catch_weapon) {
-        sm.move_to_pos(waypoint::sh_close[sm.sh_index_],5000);
-        //sm.do_debug_pause("sh_close_stop");
+        sm.move_to_pos(waypoint::sh_close[sm.sh_index_],3000);
+        sm.do_debug_pause("sh_close_stop");
 
         TailClawController::Instance().weapon_claw_open_ = false;
         osDelay(500);
@@ -275,22 +277,28 @@ public:
 
     // 夹爪反转
     STATE(rotate_weapon_claw) {
-        TailClawController::Instance().roll_target_deg_ = 1.0f;
+        constexpr float target = 1.0f;
+        TailClawController::Instance().roll_target_deg_ = target;
         osDelay(1000);
-        sm.wait_until_timeout_or([&sm]() -> bool {
-            sm.tail_claw_update_status();
-            return sm.tail_claw_status_valid_ && sm.tail_claw_status_cache_.roll_arrived;
-        },5000, 20);
+        sm.wait_until([&sm, target]() -> bool {
+        const bool updated = sm.tail_claw_update_status();
+
+        return updated
+        && sm.tail_claw_status_valid_
+        && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
+        && sm.tail_claw_status_cache_.roll_arrived;
+        }, 20U);
+        osDelay(1500);
         sm.change_state_to(match_rod::instance());
     } STATE_END
 
     // 端头架对齐武器杆
     STATE(match_rod) {
-        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
-        osDelay(500);
-        sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
-        osDelay(500);
         if (g_config_area_type.load() == area_type::blue) {
+            sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, waypoint::sh_aim[sm.sh_index_].yaw, 5000);
+            osDelay(500);
+            sm.move_to_pos(waypoint::sh_aim[sm.sh_index_].x, waypoint::sh_aim[sm.sh_index_].y + 300, -90, 5000);
+            osDelay(500);
             sm.move_to_pos(waypoint::match_rod_blue, 5000);
         } else {
             sm.move_to_pos(waypoint::match_rod_red, 5000);
