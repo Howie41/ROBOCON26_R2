@@ -15,6 +15,7 @@
 
 #include "NavProtocol.hpp"
 #include "chassis_task.h"
+#include "lift_task.h"
 #include "merlin_map/merlin_map.h"
 #include "pid_controller.h"
 #include "state_machine_task.h"

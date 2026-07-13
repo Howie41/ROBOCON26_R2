@@ -165,6 +165,7 @@ public:
   std::array<float, kWheelCount> hold_pos_error_{};
   std::array<float, kWheelCount> hold_target_pos_{};
 
+private:
   static constexpr float kPi = 3.14159265358979323846f;
 
   static void applyPidParam(PID_t &pid, const SpeedPidParam &param) {
