@@ -956,7 +956,8 @@ private:
     void do_debug_pause(const char *msg) {
         if constexpr (ENABLE_DEBUG_PAUSE) {
             debug_pause = true;
-            logger_queue.log("DEBUG\t|| %s\n", msg);
+            logger_queue.log("DEBUG\tpause at %s\n", msg);
+            logger_queue.log("DEBUG\tDEBUG IS ON. Turn it off at state_machine_task.h!", msg);
             wait_until([]() -> bool { return !debug_pause; });
             logger_queue.log("DEBUG\t>> \n", msg);
         }
