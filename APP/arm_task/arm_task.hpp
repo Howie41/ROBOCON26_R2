@@ -128,7 +128,7 @@ public:
 
     // 对外KFS控制接口
     bool fetch_step(LOAD_TYPE step) {
-        if (attr_.is_kfs_raised) return false;
+        // if (attr_.is_kfs_raised) return false;
         reset_timeline();
         switch (step) {
             case LOAD_TYPE::MEDIUM: { attr_.is_fetching_step_M = true; break; }
@@ -140,7 +140,7 @@ public:
     }
     bool place_kfs(std::optional<UNLOAD_TYPE> kfs_layer = std::nullopt, bool is_layer3 = false) {
         if (kfs_layer.has_value()) {  // 取特定层KFS
-            if ((kfs_layer.value() != UNLOAD_TYPE::TOP && attr_.is_kfs_raised) || (kfs_layer.value() == UNLOAD_TYPE::TOP && !attr_.is_kfs_raised)) return false;
+            // if ((kfs_layer.value() != UNLOAD_TYPE::TOP && attr_.is_kfs_raised) || (kfs_layer.value() == UNLOAD_TYPE::TOP && !attr_.is_kfs_raised)) return false;
             reset_timeline();
             switch (kfs_layer.value()) {
                 case UNLOAD_TYPE::LOW: { attr_.is_placing_kfs_L = true; break; }
@@ -148,7 +148,7 @@ public:
                 case UNLOAD_TYPE::TOP: { attr_.is_placing_kfs_T = true; break; }
             }
         } else {  // 默认值
-            if (get_kfs_amount() == 0) return false;
+            // if (get_kfs_amount() == 0) return false;
             reset_timeline();
             if (attr_.is_kfs_raised) attr_.is_placing_kfs_T = true;
             else switch (get_kfs_amount()) {
@@ -166,13 +166,13 @@ public:
         return true;
     }
     bool load_kfs() {
-        if (!attr_.is_kfs_raised) return false;
+        // if (!attr_.is_kfs_raised) return false;
         reset_timeline();
         attr_.is_loading_kfs = true;
         return true;
     }
     bool drop_kfs() {
-        if (!attr_.is_kfs_raised) return false;
+        // if (!attr_.is_kfs_raised) return false;
         reset_timeline();
         attr_.is_dropping_kfs = true;
         return true;
