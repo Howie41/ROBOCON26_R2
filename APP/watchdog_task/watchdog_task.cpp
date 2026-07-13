@@ -96,7 +96,7 @@ void watchdogInit(void) {
     lift_2006_motor1.offline_wd_.addAction(WatchdogAction{clearPidOutput, &lift_2006_motor1_pid});
     lift_2006_motor1.offline_wd_.addAction(WatchdogAction{clearPidOutput, &high_yaw_lock_pid});
     wd_mgr.registerWd(&lift_2006_motor1.offline_wd_);
-    lift_2006_motor2.offline_wd_.addAction(WatchdogAction{clearPidOutput, &lift_2006_motor1_pid});
+    lift_2006_motor2.offline_wd_.addAction(WatchdogAction{clearPidOutput, &lift_2006_motor2_pid});
     lift_2006_motor2.offline_wd_.addAction(WatchdogAction{clearPidOutput, &high_yaw_lock_pid});
     wd_mgr.registerWd(&lift_2006_motor2.offline_wd_);
     lift_3508_motor1.offline_wd_.addAction(WatchdogAction{clearPidOutput, &lift_3508_motor1_pid});
