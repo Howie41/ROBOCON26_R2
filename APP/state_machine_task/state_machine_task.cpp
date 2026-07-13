@@ -468,8 +468,7 @@ public:
         sm.wait_until([&]() -> bool {
             return (sm.get_cmd_from_r1() == cmd_go_uphill);
         });
-        // TODO: 改回 20秒！
-        sm.countdown(10, "go_uphill", [&]() -> bool {
+        sm.countdown(20, "go_uphill", [&]() -> bool {
             return false;
         });
         sm.move_to_pos(waypoint::before_uphill);
