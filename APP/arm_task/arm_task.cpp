@@ -74,7 +74,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
                 case UNLOAD_TYPE::TOP: { osDelay(800); break; }
             }
         } else {
-            osDelay(4200+1500);
+            osDelay(4200);
         }
     } else {
         logger_queue.log("ARM\tunload_kfs failed!\n");
@@ -115,8 +115,8 @@ bool drop_kfs() {
     auto result = arm.drop_kfs();
     if (result) {
         switch (arm.get_kfs_amount()) {
-            case 1: case 2: { osDelay(1800); break; }  // 第二层没kfs挡着
-            case 3: { osDelay(1800); break; }  // 第二层有kfs挡着，动作链会多一个伸出动作
+            case 1: case 2: { osDelay(1000); break; }  // 第二层没kfs挡着
+            case 3: { osDelay(1600); break; }  // 第二层有kfs挡着，动作链会多一个伸出动作
         }
     } else {
         logger_queue.log("ARM\tdrop_kfs failed!\n");
@@ -178,12 +178,18 @@ void armTask(void *argument) {
                         arm.place_kfs();
                         break;
                     case 7:
-                        arm.place_release();
+                        arm.place_kfs(std::nullopt, true);
                         break;
                     case 8:
-                        arm.fetch();
+                        arm.place_release();
                         break;
                     case 9:
+                        arm.drop_kfs();
+                        break;
+                    case 10:
+                        arm.fetch();
+                        break;
+                    case 11:
                         arm.release();
                         break;
                 }
