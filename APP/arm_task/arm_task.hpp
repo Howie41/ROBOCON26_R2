@@ -28,7 +28,7 @@
 #include "logger.hpp"
 
 
-#define DELTA_DELAY 0.08f  // 动作统一延时(s)
+#define DELTA_DELAY 0.09f  // 动作统一延时(s)
 
 extern LoggerQueue logger_queue;
 
@@ -207,11 +207,20 @@ public:
     }
     // 取出KFS出储存的具体原子动作序列（包含姿态点位，不包含时间序列）
     bool place_proceed(uint8_t index) {  // 此函数不会减少kfs_num_，需要在外部结束动作链后主动减少kfs_num_
-        if (attr_.is_kfs_raised) {
-            return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
+        if (attr_.is_placing_to_layer3) {
+            if (attr_.is_kfs_raised) {
+                return set_pose(arm_actions_config::place3_proceed::kfs_3[index]);
+            } else {
+                if (kfs_num_ == 1) return set_pose(arm_actions_config::place3_proceed::kfs_1[index]);
+                else if (kfs_num_ == 2) return set_pose(arm_actions_config::place3_proceed::kfs_2[index]);
+            }
         } else {
-            if (kfs_num_ == 1) return set_pose(arm_actions_config::place_proceed::kfs_1[index]);
-            else if (kfs_num_ == 2) return set_pose(arm_actions_config::place_proceed::kfs_2[index]);
+            if (attr_.is_kfs_raised) {
+                return set_pose(arm_actions_config::place_proceed::kfs_3[index]);
+            } else {
+                if (kfs_num_ == 1) return set_pose(arm_actions_config::place_proceed::kfs_1[index]);
+                else if (kfs_num_ == 2) return set_pose(arm_actions_config::place_proceed::kfs_2[index]);
+            }
         }
         return false;
     }
@@ -348,7 +357,7 @@ public:
         }
         delta_t += DELTA_DELAY;
         if (now_t_ > delta_t) {
-            if (drop_kfs_proceed(act_index_++)) { attr_.is_dropping_kfs = false; attr_.is_kfs_raised = false; }
+            if (drop_kfs_proceed(act_index_++)) { attr_.is_dropping_kfs = false; attr_.is_kfs_raised = false; rmvKFS(); }
             else last_t_ = DWT_GetTimeline_s();
         }
     }
