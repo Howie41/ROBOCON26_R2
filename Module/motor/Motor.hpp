@@ -266,10 +266,10 @@ void init(float reduction_ratio = 36, float max_cmd = 10000.f,
         if (len < 8)
             return;
 
-        if (offline_wd_.isIdle()) {
-            offline_wd_.arm();
-        }
-        offline_wd_.feed();
+    if (offline_wd_.isIdle()) {
+      offline_wd_.arm();
+    }
+    offline_wd_.feed();
 
         // byte 0-1: 编码器(单圈位置 0-8191)
         encoder_ = (uint16_t)(data[0] << 8 | data[1]);
@@ -291,7 +291,8 @@ void init(float reduction_ratio = 36, float max_cmd = 10000.f,
             single_pos_ = raw_single_pos_ / reduction_ratio_;
             sum_pos_ = raw_sum_pos_ / reduction_ratio_;
             single_pos_ = std::fmod(sum_pos_, 360.0f);
-            if (single_pos_ < 0.0f) single_pos_ += 360.0f;
+            if (single_pos_ < 0.0f)
+                single_pos_ += 360.0f;
         } else {
             encoder_offset_ = encoder_;
             is_encoder_init = true;

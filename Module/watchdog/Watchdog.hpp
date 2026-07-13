@@ -28,5 +28,5 @@ struct DWTMsSource {
 };
 
 constexpr uint32_t ms_to_cycles(uint32_t ms) {
-    return ms * (SYSTEMCORECLOCK / 1000U);
+  return ms * (SYSTEMCORECLOCK / 1000U);
 }
