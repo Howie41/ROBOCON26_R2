@@ -182,7 +182,7 @@ public:
         return true;
     }
     bool start() {
-        if (arm.get_attr().is_started) return false;
+        if (attr_.is_started) return false;
         reset_timeline();
         attr_.is_started = true; 
         attr_.is_starting = true;
