@@ -98,6 +98,7 @@ public:
         int len = vsnprintf(msg.raw_text, sizeof(msg.raw_text), format, args);
         va_end(args);
         msg.raw_text[sizeof(msg.raw_text) - 1] = '\0'; // 显式截断
+        osDelay(1);
         if (len > 0) {
             msg.log_id = next_log_id_.fetch_add(1);
             msg.log_time = osKernelGetTickCount();
