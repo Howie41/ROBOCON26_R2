@@ -36,6 +36,7 @@
 #include "topic_pool.h"
 #include "usart.h"
 #include "motor_task.hpp"
+#include "chassis_solution.hpp"
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
@@ -69,6 +70,8 @@ C620Motor chassis_motor2(&fdcan3_bus, 0x202, 0, 0x200, 0);
 C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
 
+Omni45Chassis chassis_solver(chassis_motor1, chassis_motor2, chassis_motor3,
+                             chassis_motor4);
 
 // 取矿电机
 C610Motor arm2006_motor(&fdcan2_bus, 0x203, 0, 0x200, 0);  // 伸缩

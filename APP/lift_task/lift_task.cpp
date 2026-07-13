@@ -26,19 +26,6 @@ extern C610Motor lift_2006_motor2;
 extern C620Motor lift_3508_motor1;
 extern C620Motor lift_3508_motor2;
 
-// 引用 NavProtocol.cpp 中定义的全局导航事件发布者
-extern TypedTopicPublisher<pc_nav_event_t> pc_nav_event_pub;
-
-osThreadId_t LiftTaskHandle;
-
-static TypedTopicSubscriber<pub_lift_cmd> lift_cmd_sub("lift_cmd", 8);
-static pub_lift_cmd lift_cmd{};
-
-static TypedTopicSubscriber<pub_high_nav_cmd> high_nav_sub("high_nav_cmd", 4);
-static pub_high_nav_cmd high_nav_cmd{};
-
-extern volatile float g_chassis_yaw_deg;
-
 float lift_2006_speed = 0.0f;
 float lift_3508_target_pos = 0.0f;
 float lift_3508_pos_pid_out = 0.0f;
@@ -63,27 +50,60 @@ float lift_2006_motor2_pid_out = 0.0f;
 float lift_3508_motor1_pid_out = 0.0f;
 float lift_3508_motor2_pid_out = 0.0f;
 
+PID_t lift_3508_pos_pid = {
+    .Kp = 9.0f, .Ki = 0.1f, .Kd = 0.0f,
+    .MaxOut = MAX_LIFT_3508_SPEED, .IntegralLimit = 5000.0f, .DeadBand = 0.0f,
+    .Improve = Integral_Limit,
+};
+
+// 速度PID — 电机电流控制, 保持原始配置确保出力够
+PID_t lift_3508_motor1_pid = {
+    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.3f, .MaxOut = 30000, .DeadBand = 0.1f,
+    .Improve = NONE,
+};
+PID_t lift_3508_motor2_pid = {
+    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.3f, .MaxOut = 30000, .DeadBand = 0.1f,
+    .Improve = NONE,
+};
+
+PID_t lift_2006_motor1_pid = {
+    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.0f,
+    .MaxOut = 10000, .DeadBand = 0.3f,
+    .Improve = NONE,
+};
+PID_t lift_2006_motor2_pid = {
+    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.0f,
+    .MaxOut = 10000, .DeadBand = 0.3f,
+    .Improve = NONE,
+};
+
+PID_t lift_3508_sync_pid = {
+    .Kp = 0.88f, .Ki = 0.1f, .Kd = 0.0f,
+    .MaxOut = MAX_LIFT_3508_SYNC_COMP, .DeadBand = 0.1f,
+    .Improve = NONE,
+};
+
+// Phase 2: 高位模式手动yaw锁角PID
+PID_t high_yaw_lock_pid = {
+    .Kp = 15.0f, .Ki = 0.05f, .Kd = 0.0f, .MaxOut = 400.0f,
+    .IntegralLimit = 150.0f, .DeadBand = 0.3f, .Improve = Integral_Limit,
+};
+// 引用 NavProtocol.cpp 中定义的全局导航事件发布者
+extern TypedTopicPublisher<pc_nav_event_t> pc_nav_event_pub;
+
+osThreadId_t LiftTaskHandle;
+
+static TypedTopicSubscriber<pub_lift_cmd> lift_cmd_sub("lift_cmd", 8);
+static pub_lift_cmd lift_cmd{};
+
+static TypedTopicSubscriber<pub_high_nav_cmd> high_nav_sub("high_nav_cmd", 4);
+static pub_high_nav_cmd high_nav_cmd{};
+
+extern volatile float g_chassis_yaw_deg;
+
 // ============================================================================
 //  常量定义
 // ============================================================================
-
-constexpr float MAX_LIFT_2006_SPEED = 600.0f;
-constexpr float MAX_LIFT_3508_SPEED = 300.0f;
-constexpr float MAX_LIFT_3508_SYNC_COMP = 30.0f;
-
-constexpr float LIFT_RISE_SPEED    = 125.0f;   // 自动上升速度 (3508 RPM)
-constexpr float LIFT_FALL_SPEED    = 100.0f;   // 自动下降速度 (可以和上升不同)
-constexpr float LIFT_POS_TOLERANCE =  2.0f;   // 位置到达判定容差 (度)
-
-constexpr float LIFT_SPEED_RAMP = 10000.0f; // 速度斜坡 (RPM/s), 出力爬升速率
-
-constexpr float LIFT_LOW_POS = -50.0f;
-constexpr float LIFT_HIGH_POS = 500.0f;
-
-constexpr float LIFT_2006_MOTOR1_DIR = 1.0f;
-constexpr float LIFT_2006_MOTOR2_DIR = -1.0f;
-constexpr float LIFT_3508_MOTOR1_DIR = -1.0f;
-constexpr float LIFT_3508_MOTOR2_DIR = -1.0f;
 
 // ============================================================================
 //  梯形轨迹规划器 (Trapezoidal Velocity Profile)
@@ -232,44 +252,7 @@ static LiftPhase lift_phase = LiftPhase::HOLDING;
 static float prev_base_speed = 0.0f;
 
 // 位置PID — IntegralLimit=50 RPM 防止积分饱和, 但允许足够的稳态出力
-PID_t lift_3508_pos_pid = {
-    .Kp = 9.0f, .Ki = 0.1f, .Kd = 0.0f,
-    .MaxOut = MAX_LIFT_3508_SPEED, .IntegralLimit = 5000.0f, .DeadBand = 0.0f,
-    .Improve = Integral_Limit,
-};
 
-// 速度PID — 电机电流控制, 保持原始配置确保出力够
-PID_t lift_3508_motor1_pid = {
-    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.3f, .MaxOut = 30000, .DeadBand = 0.1f,
-    .Improve = NONE,
-};
-PID_t lift_3508_motor2_pid = {
-    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.3f, .MaxOut = 30000, .DeadBand = 0.1f,
-    .Improve = NONE,
-};
-
-PID_t lift_2006_motor1_pid = {
-    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.0f,
-    .MaxOut = 10000, .DeadBand = 0.3f,
-    .Improve = NONE,
-};
-PID_t lift_2006_motor2_pid = {
-    .Kp = 100.0f, .Ki = 30.0f, .Kd = 0.0f,
-    .MaxOut = 10000, .DeadBand = 0.3f,
-    .Improve = NONE,
-};
-
-PID_t lift_3508_sync_pid = {
-    .Kp = 0.88f, .Ki = 0.1f, .Kd = 0.0f,
-    .MaxOut = MAX_LIFT_3508_SYNC_COMP, .DeadBand = 0.1f,
-    .Improve = NONE,
-};
-
-// Phase 2: 高位模式手动yaw锁角PID
-PID_t high_yaw_lock_pid = {
-    .Kp = 15.0f, .Ki = 0.05f, .Kd = 0.0f, .MaxOut = 400.0f,
-    .IntegralLimit = 150.0f, .DeadBand = 0.3f, .Improve = Integral_Limit,
-};
 static float high_yaw_lock_ref = 0.0f;
 static bool high_was_active = false;
 

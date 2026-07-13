@@ -19,9 +19,9 @@
 
 #include "task.h"
 #include "topics.hpp"
+#include "chassis_solution.hpp"
 
 void chassisTask(void *argument);
-
 namespace chassis_action {
 
 void turn_left_90_deg();
