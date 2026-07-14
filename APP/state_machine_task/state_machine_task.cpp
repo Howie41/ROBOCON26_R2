@@ -520,11 +520,13 @@ public:
 
     STATE(retry_after_uphill) {
         sm.move_to_pos(waypoint::after_uphill);
+        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90);
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
     // 导航至九宫格（首次进入或装载后返回）
     STATE(go_to_grid) {
+        sm.move_to_pos(waypoint::grid_left, 5000);
         sm.move_to_pos(waypoint::grid_mid);
         sm.change_state_to(wait_for_r1_cmd::instance());
     } STATE_END
