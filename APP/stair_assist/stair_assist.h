@@ -49,6 +49,7 @@ struct StairAssistDebug {
 
   uint8_t laser1_near_count{0};
   uint8_t laser1_edge_count{0};
+  uint8_t laser1_go_edge_count{0};
   uint8_t laser3_near_count{0};
   uint8_t laser3_edge_count{0};
   uint8_t laser3_go_edge_count{0};
@@ -81,6 +82,10 @@ struct StairAssistDebug {
   bool should_lower_after_climb{false};
   bool should_lower_after_descend{false};
 
+  int32_t laser1_near_min_used_mm{0};
+  int32_t laser1_near_max_used_mm{0};
+  int32_t laser1_go_edge_min_used_mm{0};
+  int32_t laser1_go_edge_max_used_mm{0};
   int32_t laser3_near_min_used_mm{0};
   int32_t laser3_near_max_used_mm{0};
   int32_t laser3_go_edge_min_used_mm{0};
