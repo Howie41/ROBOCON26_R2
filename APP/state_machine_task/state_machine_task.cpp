@@ -115,6 +115,7 @@ inline location mf_col(uint8_t num) {
 
 // ======== 三区 ========
 constexpr location before_uphill{1000, 200, 0, "before_uphill"};
+constexpr location beside_before_uphill{1000, before_uphill.y - 1000, 90, "beside_before_uphill"};
 constexpr location after_uphill{3700, 200, 0, "after_uphill"};
 constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill"};
 
@@ -196,13 +197,13 @@ public:
 
         switch (sm.current_startup_config_.begin_type_value) {
             case begin_type::mc:
-                sm.change_state_to(begin_cwty::instance());
+                sm.change_state_to(begin_mc::instance());
                 break;
             case begin_type::mf:
                 sm.change_state_to(go_to_mf_entrance::instance());
                 break;
             case begin_type::arena_before_uphill:
-                sm.change_state_to(begin_jgcb::instance());
+                sm.change_state_to(go_to_arena::instance());
                 break;
             case begin_type::arena_retry_zone:
                 sm.change_state_to(retry_after_uphill::instance());
@@ -229,11 +230,8 @@ public:
     STATE(stop) {
     } STATE_END
 
-    // ===== 崇武探幽 =====
-
-    // 启动（崇武探幽）
-    STATE(begin_cwty) {
-        logger_queue.log("SM\tBEGIN CWTY ========\n");
+    STATE(begin_mc) {
+        logger_queue.log("SM\tBEGIN FULL MATCH =======\n");
 
         if (g_config_area_type.load() == area_type::blue) {
             sm.sh_index_ = 3;
@@ -482,38 +480,28 @@ public:
 
     // 前往梅林出口
     STATE(go_to_mf_exit) {
-        sm.change_state_to(stop::instance());
-    } STATE_END
-
-    // ===== 九宫藏宝 =====
-
-    // 启动（九宫藏宝）
-    STATE(begin_jgcb) {
-        logger_queue.log("SM\tBEGIN JGCB ========\n");
-        sm.clean_previous_cmd();
-        sm.wait_until([&]() -> bool {
-            return (sm.get_cmd_from_r1() == cmd_go_uphill);
-        });
-        // TODO: 改回 20秒！
-        sm.countdown(20, "go_uphill", [&]() -> bool {
-            return false;
-        });
-        sm.move_to_pos(waypoint::before_uphill);
-        sm.change_state_to(go_to_arena::instance());
-    } STATE_END
-
-    // 上坡、前往竞技场
-    STATE(go_to_arena) {
-        sm.move_to_pos(waypoint::after_uphill);
-        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90);
+        // 离开二区
+        sm.move_to_pos(nav_control::current_x + 300, nav_control::current_y, nav_control::current_yaw, 5000, false);
+        sm.move_to_pos(waypoint::beside_before_uphill);
         sm.change_state_to(wait_for_arena_action::instance());
     } STATE_END
 
     STATE(wait_for_arena_action) {
         sm.clean_previous_cmd();
-        sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", [&]() -> bool {
+        sm.wait_until([&sm]() -> bool {
             return sm.get_cmd_from_r1() == cmd_go_uphill;
         });
+        sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", []() -> bool {
+            return false;
+        });
+        sm.change_state_to(go_to_arena::instance());
+    } STATE_END
+
+    // 上坡、前往竞技场
+    STATE(go_to_arena) {
+        sm.move_to_pos(waypoint::before_uphill);
+        sm.move_to_pos(waypoint::after_uphill);
+        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90);
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
@@ -524,15 +512,6 @@ public:
 
     // 导航至九宫格（首次进入或装载后返回）
     STATE(go_to_grid) {
-        if (!sm.has_loaded_in_arena_) {
-            // 首次进入：从坡道 / 重试区导航至九宫格
-            sm.move_to_pos(waypoint::beside_after_uphill);
-            if (sm.current_startup_config_.kfs_amount == 0) {
-                // 无初始 KFS：跳过放置，直接进入装载流程
-                sm.change_state_to(load_kfs::instance());
-                return;
-            }
-        }
         sm.move_to_pos(waypoint::grid_mid);
         sm.change_state_to(wait_for_r1_cmd::instance());
     } STATE_END
@@ -542,12 +521,6 @@ public:
         logger_queue.log("SM\twaiting for R1 cmd...\n");
         logger_queue.log("SM\twait_for_r1_cmd: kfs_amount = %d\n",
             arm.get_kfs_amount()
-        );
-        logger_queue.log("SM\twait_for_r1_cmd: has_loaded_in_arena = %c\n",
-            sm.has_loaded_in_arena_ ? 'T' : 'F'
-        );
-        logger_queue.log("SM\twait_for_r1_cmd: arena_load_kfs_amount = %d\n",
-            sm.current_startup_config_.arena_load_kfs_amount
         );
         // 红方场地 Y 轴镜像，R1 视角的左右与地图坐标相反
         const bool is_red = (g_config_area_type.load() == area_type::red);
@@ -580,56 +553,8 @@ public:
                 default:
                     return false;
             }
-
-            // 放置完毕后，判断是否需要去装载更多 KFS
-            if (arm.get_kfs_amount() == 0
-                && !sm.has_loaded_in_arena_
-                && sm.current_startup_config_.arena_load_kfs_amount > 0) {
-                logger_queue.log("SM\twait_for_r1_cmd: KFS placed. Going to load more KFS...");
-                sm.change_state_to(load_kfs::instance());
-                return true;
-            }
             return false;  // 还有 KFS 或已装载过，留在等待循环
         });
-    } STATE_END
-
-    // 装填 KFS（从赛场装填点）
-    STATE(load_kfs) {
-        logger_queue.log("SM\tload_kfs: has_loaded_in_arena = %c\n",
-            sm.has_loaded_in_arena_ ? 'T' : 'F'
-        );
-        logger_queue.log("SM\tload_kfs: arena_load_kfs_amount = %d\n",
-            sm.current_startup_config_.arena_load_kfs_amount
-        );
-        logger_queue.log("SM\tload_kfs: kfs_amount = %d\n",
-            arm.get_kfs_amount()
-        );
-        sm.has_loaded_in_arena_ = true;
-        switch (sm.current_startup_config_.arena_load_kfs_amount) {
-            case 0:
-                logger_queue.log("SM\tload_kfs: loading 0 KFS due to startup config\n");
-                break;
-            case 1:
-                logger_queue.log("SM\tload_kfs: loading 1/1 KFS\n");
-                sm.move_to_pos(waypoint::load_kfs);
-                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-                break;
-            case 2:
-                logger_queue.log("SM\tload_kfs: loading 1/2 KFS\n");
-                sm.move_to_pos(waypoint::load_kfs);
-                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-                arm_action::load_kfs();
-                logger_queue.log("SM\tload_kfs: loading 2/2 KFS\n");
-                sm.move_to_pos(waypoint::load_kfs_2);
-                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-                break;
-            default:
-                logger_queue.log("SM\tload_kfs: ERROR! Check startup config!\n",
-                    sm.current_startup_config_.arena_load_kfs_amount);
-                break;
-        }
-        logger_queue.log("SM\tload_kfs: Complete! KFS amount is now %d!\n", arm.get_kfs_amount());
-        sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
     // 前往合体点位
