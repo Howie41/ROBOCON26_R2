@@ -81,7 +81,7 @@ volatile int32_t g_laser1_side_near_max_mm = 435;
 volatile int32_t g_laser1_center_go_edge_min_mm = 400;
 volatile int32_t g_laser1_center_go_edge_max_mm = 423;
 volatile int32_t g_laser1_side_go_edge_min_mm = 430;
-volatile int32_t g_laser1_side_go_edge_max_mm = 504;
+volatile int32_t g_laser1_side_go_edge_max_mm = 510;
 
 volatile int32_t g_laser3_center_near_min_mm = 400;
 volatile int32_t g_laser3_center_near_max_mm = 470;
