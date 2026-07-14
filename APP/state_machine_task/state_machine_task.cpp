@@ -70,9 +70,9 @@ constexpr std::array<location, SH_COUNT> sh_aim{
 
     //659,-585
     //-640
-    location{245+10, -800, 90, "sh_aim"},
-    location{245+10+200, -800, 90, "sh_aim"},
-    location{245+10+400, -800, 90, "sh_aim"},
+    location{245+10-5, 800, -90, "sh_aim", false},
+    location{245+10+200-5, 800, -90, "sh_aim", false},
+    location{245+10+400-5, 800, -90, "sh_aim", false},
     location{753+15+30, -780-15, 90, "sh_aim"},
     location{753+15+30-200, -780-15, 90, "sh_aim"},
     location{753+15+30-400, -780-15, 90, "sh_aim"},
@@ -88,15 +88,15 @@ constexpr std::array<location, SH_COUNT> sh_close{
     location{sh_aim[4].x, sh_close_y-18, 90, "sh_close"},
     location{sh_aim[5].x, sh_close_y-18, 90, "sh_close"},
     */
-    location{sh_aim[0].x, -900, 90, "sh_close"},
-    location{sh_aim[1].x, -900, 90, "sh_close"},
-    location{sh_aim[2].x, -900, 90, "sh_close"},
+    location{sh_aim[0].x, 930, -90, "sh_close", false},
+    location{sh_aim[1].x, 930, -90, "sh_close", false},
+    location{sh_aim[2].x, 930, -90, "sh_close", false},
     location{sh_aim[3].x, -835-20-10, 90, "sh_close"},
     location{sh_aim[4].x, -835-20-10, 90, "sh_close"},
     location{sh_aim[5].x, -835-20-10, 90, "sh_close"},
 };
 
-constexpr location match_rod_blue{-95, -822, -90, "match_rod_blue"};
+constexpr location match_rod_blue{-95+90, -822, -90, "match_rod_blue"};
 
 // 这个相对坐标已经基于红区坐标，不需要镜像
 constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red",
@@ -319,16 +319,28 @@ public:
                 TailClawController::Instance().weapon_claw_open_ = true;
                 break;
             case cmd_catch_new_sh: // 夹取新的武器头
-                if (sm.sh_index_ < SH_COUNT - 1) {
-                    sm.sh_index_ += 1;
-                    logger_queue.log("CLAW\tsh_index is now %d\n", sm.sh_index_);
+                if (sm.current_startup_config_.area_type_value == area_type::blue) {
+                    if (sm.sh_index_ < 2) {
+                        sm.sh_index_ += 1;
+                    } else {
+                        sm.sh_index_ = 0;
+                    }
                 } else {
-                    logger_queue.log("CLAW\tsh_index is at max!\n");   
+                    if (sm.sh_index_ < 5) {
+                        sm.sh_index_ += 1;
+                    } else {
+                        sm.sh_index_ = 3;
+                    }
                 }
-                sm.move_to_pos(500,0,-90,5000);
-                osDelay(500);
-                sm.move_to_pos(500,0,90,5000);
-                osDelay(500);
+                logger_queue.log("CLAW\tsh_index is now %d\n", sm.sh_index_);
+                if (g_config_area_type == area_type::blue) {
+                    sm.move_to_pos(500,0,-90,5000);
+                    osDelay(500);
+                    sm.move_to_pos(500,0,90,5000);
+                    osDelay(500);
+                } else {
+                    sm.move_to_pos(500, 0, -90, 5000, false);
+                }
                 sm.change_state_to(go_to_shr::instance());
                 return;
             case cmd_go_to_mf: // 进梅林
