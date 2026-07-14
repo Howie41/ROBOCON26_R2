@@ -23,7 +23,6 @@
 #include "topics.hpp"
 #include "logger.hpp"
 #include "bsp_dwt.h"
-#include <optional>
 
 
 osThreadId_t Arm_TaskHandle;
@@ -129,7 +128,7 @@ bool drop_kfs() {
 
 
 void armTask(void *argument) {
-    arm.start();  // 手动在状态机里调用
+    // arm.start();  // 手动在状态机里调用
 
     // 任务大循环
     for (;;) {
