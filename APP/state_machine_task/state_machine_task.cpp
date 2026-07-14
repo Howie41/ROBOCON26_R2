@@ -191,6 +191,9 @@ public:
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
 
+        arm.start();
+        osDelay(1500);
+
         switch (sm.current_startup_config_.begin_type_value) {
             case begin_type::mc:
                 sm.change_state_to(begin_cwty::instance());
