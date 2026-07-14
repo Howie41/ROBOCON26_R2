@@ -95,9 +95,11 @@ constexpr location beside_before_uphill{1000, before_uphill.y - 1000, 90, "besid
 constexpr location after_uphill{3700, 200, 0, "after_uphill", true, true};
 constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill", true, true};
 
-constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red", true, true};
-constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue", true, true};
+// 重试区相对三区起点的坐标，只用于计算
+constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red", true, false};
+constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue", true, false};
 
+// 三区起点相对一区起点的坐标，只用于计算
 constexpr location arena_offset_red{6940, -4045, 0, "arena_offset_red", false, false};
 constexpr location arena_offset_blue{6940, -arena_offset_red.y, 0, "arena_offset_blue", false, false};
 /** @brief 赛中装填 KFS 点位 */
@@ -239,14 +241,17 @@ public:
         TailClawController::Instance().weapon_claw_open_ = true;
         constexpr float target = 36.6f;
         TailClawController::Instance().roll_target_deg_ = target;
-        sm.wait_until([&sm, target]() -> bool {
-        const bool updated = sm.tail_claw_update_status();
+        bool roll_ok = sm.wait_until_timeout_or([&sm, target]() -> bool {
+            const bool updated = sm.tail_claw_update_status();
 
-        return updated
-        && sm.tail_claw_status_valid_
-        && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
-        && sm.tail_claw_status_cache_.roll_arrived;
-        }, 20U);
+            return updated
+                && sm.tail_claw_status_valid_
+                && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
+                && sm.tail_claw_status_cache_.roll_arrived;
+        }, 10 * 1000U, 20U);
+        if (!roll_ok) {
+            logger_queue.log("CLAW\tgo_to_shr roll timeout! target=%.1f\n", target);
+        }
         osDelay(1500);
         sm.change_state_to(catch_weapon::instance());
     } STATE_END
@@ -267,14 +272,17 @@ public:
         constexpr float target = 1.0f;
         TailClawController::Instance().roll_target_deg_ = target;
         osDelay(1000);
-        sm.wait_until([&sm, target]() -> bool {
-        const bool updated = sm.tail_claw_update_status();
+        bool roll_ok = sm.wait_until_timeout_or([&sm, target]() -> bool {
+            const bool updated = sm.tail_claw_update_status();
 
-        return updated
-        && sm.tail_claw_status_valid_
-        && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
-        && sm.tail_claw_status_cache_.roll_arrived;
-        }, 20U);
+            return updated
+                && sm.tail_claw_status_valid_
+                && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
+                && sm.tail_claw_status_cache_.roll_arrived;
+        }, 10 * 1000U, 20U);
+        if (!roll_ok) {
+            logger_queue.log("CLAW\trotate_weapon_claw roll timeout! target=%.1f\n", target);
+        }
         osDelay(1500);
         sm.change_state_to(match_rod::instance());
     } STATE_END
@@ -722,8 +730,8 @@ private:
         // 在三区重试区启动时，将上位机发来的原点减去重试区相对启动区的坐标
         if (config.begin_type_value == begin_type::arena_retry_zone) {
             const auto& retry_zone = (config.area_type_value == area_type::blue) ? waypoint::retry_zone_blue : waypoint::retry_zone_red;
-            config.origin_x -= retry_zone.x; // 假设重试区相对启动区的x坐标
-            config.origin_y -= retry_zone.y; // 假设重试区相对启动区的y坐标
+            config.origin_x -= retry_zone.x; // 重试区相对启动区的x坐标
+            config.origin_y -= retry_zone.y; // 重试区相对启动区的y坐标
             logger_queue.log("SM\tRETRY MODE! origin_x = %d\n", config.origin_x);
             logger_queue.log("SM\tRETRY MODE! origin_y = %d\n", config.origin_y);
         }
@@ -989,9 +997,9 @@ private:
         if constexpr (ENABLE_DEBUG_PAUSE) {
             debug_pause = true;
             logger_queue.log("DEBUG\tpause at %s\n", msg);
-            logger_queue.log("DEBUG\tDEBUG IS ON. Turn it off at state_machine_task.h!", msg);
+            logger_queue.log("DEBUG\tDEBUG IS ON. Turn it off at state_machine_task.h! \n");
             wait_until([]() -> bool { return !debug_pause; });
-            logger_queue.log("DEBUG\t>> \n", msg);
+            logger_queue.log("DEBUG\t>>\n");
         }
     }
 };
