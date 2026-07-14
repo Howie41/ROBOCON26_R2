@@ -20,13 +20,9 @@ constexpr uint8_t kStableFrames = 1;
 constexpr uint32_t kLaserDataTimeoutMs = 500;
 constexpr uint32_t kFrontPhotogateUnblockedHoldMs = 3;
 
-// Laser1 is mounted toward the stair front. These are placeholders and must be
-// tuned with real measurements on the robot.
-// NearStair is the main "ready to climb up" band.
-// EdgeOpen is only an auxiliary "arrived at stair edge" band for descend
-// workflows where there is still a front stair face to scan.
-constexpr int32_t kLaser1NearMinMm = 430;
-constexpr int32_t kLaser1NearMaxMm = 500;
+// Laser1 and laser3 are both front-facing stair lasers.
+// Laser1 keeps its own center/side thresholds so field tuning does not affect
+// laser3.
 constexpr int32_t kLaser1AutoLowerMinMm = 950;
 constexpr int32_t kLaser1AutoLowerMaxMm = 1120;
 constexpr int32_t kLaser1DescendLowerMinMm = 1650;
@@ -37,7 +33,7 @@ constexpr int32_t kLaser1EdgeMinMm = 800;
 // laser1, but keeps its own thresholds so field tuning does not affect laser1.
 constexpr int32_t kLaser3EdgeMinMm = 800;
 
-constexpr int32_t kLaser2ClimbHighMinMm = 210;
+constexpr int32_t kLaser2ClimbHighMinMm = 170;
 constexpr int32_t kLaser2ClimbHighMaxMm = 240;
 constexpr int32_t kLaser2GoToEdgeLowMinMm = 500;
 constexpr int32_t kLaser2GoToEdgeLowMaxMm = 700;
@@ -78,6 +74,15 @@ bool g_rear_photogate_descend_high_latched{false};
 uint32_t g_front_photogate_unblocked_since_tick{0};
 bool g_front_photogate_unblocked_hold_ready{false};
 
+volatile int32_t g_laser1_center_near_min_mm = 400;
+volatile int32_t g_laser1_center_near_max_mm = 435;
+volatile int32_t g_laser1_side_near_min_mm = 400;
+volatile int32_t g_laser1_side_near_max_mm = 435;
+volatile int32_t g_laser1_center_go_edge_min_mm = 400;
+volatile int32_t g_laser1_center_go_edge_max_mm = 423;
+volatile int32_t g_laser1_side_go_edge_min_mm = 430;
+volatile int32_t g_laser1_side_go_edge_max_mm = 504;
+
 volatile int32_t g_laser3_center_near_min_mm = 400;
 volatile int32_t g_laser3_center_near_max_mm = 470;
 volatile int32_t g_laser3_side_near_min_mm = 400;
@@ -103,6 +108,30 @@ void clearIfNotMatch(T &value, bool matched) {
 
 bool inRangeInclusive(int32_t value, int32_t min_value, int32_t max_value) {
   return value >= min_value && value <= max_value;
+}
+
+int32_t laser1NearMinMm() {
+  return (g_laser3_profile == StairAssistLaser3Profile::Center)
+             ? g_laser1_center_near_min_mm
+             : g_laser1_side_near_min_mm;
+}
+
+int32_t laser1NearMaxMm() {
+  return (g_laser3_profile == StairAssistLaser3Profile::Center)
+             ? g_laser1_center_near_max_mm
+             : g_laser1_side_near_max_mm;
+}
+
+int32_t laser1GoEdgeMinMm() {
+  return (g_laser3_profile == StairAssistLaser3Profile::Center)
+             ? g_laser1_center_go_edge_min_mm
+             : g_laser1_side_go_edge_min_mm;
+}
+
+int32_t laser1GoEdgeMaxMm() {
+  return (g_laser3_profile == StairAssistLaser3Profile::Center)
+             ? g_laser1_center_go_edge_max_mm
+             : g_laser1_side_go_edge_max_mm;
 }
 
 int32_t laser3NearMinMm() {
@@ -163,7 +192,7 @@ StairAssistLaser1State classifyLaser1(int32_t distance_mm, bool fresh) {
     return StairAssistLaser1State::EdgeOpen;
   }
 
-  if (inRangeInclusive(distance_mm, kLaser1NearMinMm, kLaser1NearMaxMm)) {
+  if (inRangeInclusive(distance_mm, laser1NearMinMm(), laser1NearMaxMm())) {
     return StairAssistLaser1State::NearStair;
   }
 
@@ -213,12 +242,20 @@ void updateLaser1Judge(uint32_t now_tick) {
   g_debug.laser1_mm = result.distance_mm;
   g_debug.laser1_frame_count = result.frame_count;
   g_debug.laser1_fresh = frameIsFresh(now_tick, g_laser1_track, result);
+  g_debug.laser1_near_min_used_mm = laser1NearMinMm();
+  g_debug.laser1_near_max_used_mm = laser1NearMaxMm();
+  g_debug.laser1_go_edge_min_used_mm = laser1GoEdgeMinMm();
+  g_debug.laser1_go_edge_max_used_mm = laser1GoEdgeMaxMm();
 
   g_laser1_state = classifyLaser1(result.distance_mm, g_debug.laser1_fresh);
   g_debug.laser1_state = toDebugState(g_laser1_state);
 
   const bool near_match = g_laser1_state == StairAssistLaser1State::NearStair;
   const bool edge_match = g_laser1_state == StairAssistLaser1State::EdgeOpen;
+  const bool go_edge_match =
+      g_debug.laser1_fresh &&
+      inRangeInclusive(result.distance_mm, laser1GoEdgeMinMm(),
+                       laser1GoEdgeMaxMm());
   const bool auto_lower_match =
       inRangeInclusive(result.distance_mm, kLaser1AutoLowerMinMm,
                        kLaser1AutoLowerMaxMm) &&
@@ -237,6 +274,11 @@ void updateLaser1Judge(uint32_t now_tick) {
     saturatingIncrement(g_debug.laser1_edge_count);
   }
   clearIfNotMatch(g_debug.laser1_edge_count, edge_match);
+
+  if (go_edge_match) {
+    saturatingIncrement(g_debug.laser1_go_edge_count);
+  }
+  clearIfNotMatch(g_debug.laser1_go_edge_count, go_edge_match);
 
   if (auto_lower_match) {
     saturatingIncrement(g_debug.laser1_auto_lower_count);
@@ -542,6 +584,9 @@ void stairAssistSetLaser3Profile(StairAssistLaser3Profile profile) {
 
   g_laser3_profile = profile;
   g_debug.laser3_profile = static_cast<uint8_t>(g_laser3_profile);
+  g_debug.laser1_near_count = 0;
+  g_debug.laser1_edge_count = 0;
+  g_debug.laser1_go_edge_count = 0;
   g_debug.laser3_near_count = 0;
   g_debug.laser3_edge_count = 0;
   g_debug.laser3_go_edge_count = 0;
@@ -557,6 +602,7 @@ void stairAssistSetAutoLowerEnabled(bool enabled) {
   g_debug.laser1_auto_lower_count = 0;
   g_debug.laser1_descend_ready_count = 0;
   g_debug.laser1_descend_lower_count = 0;
+  g_debug.laser1_go_edge_count = 0;
   g_debug.laser3_near_count = 0;
   g_debug.laser3_edge_count = 0;
   g_debug.laser3_go_edge_count = 0;
@@ -610,6 +656,7 @@ void stairAssistResetProgress() {
   g_debug.laser1_auto_lower_count = 0;
   g_debug.laser1_descend_ready_count = 0;
   g_debug.laser1_descend_lower_count = 0;
+  g_debug.laser1_go_edge_count = 0;
   g_debug.laser3_near_count = 0;
   g_debug.laser3_edge_count = 0;
   g_debug.laser3_go_edge_count = 0;
@@ -646,7 +693,8 @@ bool stairAssistSuggestDescendEdgeReady() {
 
 bool stairAssistSuggestGoToEdgeHigh() {
   return g_enabled &&
-         (g_debug.laser3_go_edge_count >= kStableFrames);
+         ((g_debug.laser1_go_edge_count >= kStableFrames) ||
+          (g_debug.laser3_go_edge_count >= kStableFrames));
 }
 
 bool stairAssistSuggestGoToEdgeLow() {
