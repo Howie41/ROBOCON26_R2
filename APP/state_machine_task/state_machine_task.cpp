@@ -89,7 +89,7 @@ inline location mf_col(uint8_t num) {
 
 // ======== 三区 ========
 // 三区的点都相对于斜坡下的起点，因此需要启用 arena_offset 加上斜坡下起点相对于一区起点的坐标
-// 注意！三区所有用到 move_to_pos 的情况都必须开启 enable_arena_offset！
+// 注意！三区所有用到 move_to_pos 的情况都必须开启 arena_offset！
 constexpr location before_uphill{1000, 200, 0, "before_uphill", true, true};
 constexpr location beside_before_uphill{1000, before_uphill.y - 1000, 90, "beside_before_uphill", true, true};
 constexpr location after_uphill{3700, 200, 0, "after_uphill", true, true};
@@ -193,7 +193,7 @@ public:
         }
     } STATE_END
 
-    STATE(debug) {
+    STATE(debug) { // TODO 调试完移除！
         sm.move_to_pos(2000, 0, 0, 5000);
         sm.move_to_pos(2000, 3900, 0);
         sm.change_state_to(go_to_arena::instance());
@@ -857,7 +857,7 @@ private:
         if (name) {
             logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d) %s\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
         } else {
-            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
+            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, prev_yaw, x, y, yaw);
         }
         do_debug_pause("move_to_pos");
         screen_display_packet::send(0xD30F3F, "Moving");
