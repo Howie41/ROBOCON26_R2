@@ -497,7 +497,7 @@ void uart2RxProcessTask(void *argument){
         if (hwt101_parser.processByte(packet.data[i])) {
           //g_hwt101_roll_deg = hwt101_parser.rollDeg();
           //g_hwt101_pitch_deg = hwt101_parser.pitchDeg();
-          g_hwt101_yaw_deg = hwt101_parser.yawDeg();
+          g_hwt101_yaw_deg = hwt101_parser.yaw();
           g_hwt101_frame_count = hwt101_parser.frameCount();
         }
       }

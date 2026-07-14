@@ -109,7 +109,7 @@ public:
       pid_output_[i] = PID_Calculate(&speed_pid_[i],
                                      motors_[i]->getCurrentSpeed(),
                                      target_rad_s_[i]);
-      motors_[i]->setMotorCmd(pid_output_[i]);
+    //   motors_[i]->setMotorCmd(pid_output_[i]);
     }
   }
 
@@ -123,7 +123,7 @@ public:
       pid_output_[i] = PID_Calculate(&speed_pid_[i],
                                      motors_[i]->getCurrentSpeed(),
                                      target_speed);
-      motors_[i]->setMotorCmd(pid_output_[i]);
+    //   motors_[i]->setMotorCmd(pid_output_[i]);
     }
   }
 
