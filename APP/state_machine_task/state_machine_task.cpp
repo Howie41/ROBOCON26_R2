@@ -359,6 +359,7 @@ public:
     // 请求路径规划命令
     STATE(request_for_path_cmd) {
         sm.path_cmd_request_pub_.Publish(sm.current_path_cmd_index_); // 发一次 request
+        screen_display_packet::send(0xB5DFC9, "Request");
 
         path_cmd::code cmd;
         auto if_received = sm.wait_until_timeout_or([&]() -> bool {
@@ -410,18 +411,23 @@ public:
         // chassis_action 是耗时函数 内含阻塞等待逻辑
         switch (executing_cmd) {
             case path_cmd::code::move_forward:
+                screen_display_packet::send(0xEB7E00, "UP");
                 chassis_action::start_climb_upstairs();
                 break;
             case path_cmd::code::move_backward:
+                screen_display_packet::send(0xEB7E00, "DOWN");
                 chassis_action::start_climb_downstairs();
                 break;
             case path_cmd::code::turn_left_90:
+                screen_display_packet::send(0xEB7E00, "LEFT");
                 chassis_action::turn_left_90_deg();
                 break;
             case path_cmd::code::turn_right_90:
+                screen_display_packet::send(0xEB7E00, "RIGHT");
                 chassis_action::turn_right_90_deg();
                 break;
             case path_cmd::code::turn_around:
+                screen_display_packet::send(0xEB7E00, "BACK");
                 chassis_action::turn_right_180_deg();
                 break;
             case path_cmd::code::move_to_col1:
@@ -447,28 +453,34 @@ public:
     STATE(execute_arm_action) {
         path_cmd::code executing_cmd = sm.current_path_cmd_;
 
+        screen_display_packet::send(0xEB7E00, "Edge");
         chassis_action::start_go_to_edge();
         
         switch (executing_cmd) {
             case path_cmd::code::grab_low_r2kfs:
+                screen_display_packet::send(0x30949D, "+KFS");
                 arm_action::raise_kfs(LOAD_TYPE::LOW);
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_mid_r2kfs:
+                screen_display_packet::send(0x30949D, "+KFS");
                 arm_action::raise_kfs(LOAD_TYPE::MEDIUM);
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_high_r2kfs:
+                screen_display_packet::send(0x30949D, "+KFS");
                 arm_action::raise_kfs(LOAD_TYPE::HIGH);
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::drop_kfs:
+                screen_display_packet::send(0x30949D, "Drop");
                 arm_action::drop_kfs();
                 break;
             default:
                 break;
         }
-
+        
+        screen_display_packet::send(0xEB7E00, "Center");
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
             sm.move_to_pos(waypoint::mf_col(sm.current_mf_col).x - 300, waypoint::mf_col(sm.current_mf_col).y, 0, 5000, false);
