@@ -44,32 +44,15 @@ public:
     int16_t y;
     int16_t yaw;
     const char* name = nullptr;
-    bool enable_red_area_mirror = true;
+    bool red_area_mirror = true; // 红方的相对坐标，应该禁用这个
+    bool arena_offset = false;   // 三区的坐标都应该启用这个！
 };
 
 constexpr location before_shr{500, 0, 0, "before_shr"};
 
 constexpr int16_t sh_aim_y = -780;
-//起点：-95，210
-//起点2：-83，212
-//-88,195
+
 constexpr std::array<location, SH_COUNT> sh_aim{
-    /*
-    location{-275+50, sh_aim_y-45, 90, "sh_aim"},
-    location{-75+50, sh_aim_y-45, 90, "sh_aim"},
-    location{125+50, sh_aim_y-45, 90, "sh_aim"},
-    location{725+50, sh_aim_y-45, 90, "sh_aim"},
-    location{525+50, sh_aim_y-45, 90, "sh_aim"},
-    location{325+50, sh_aim_y-45, 90, "sh_aim"},
-    */
-    //662，-465
-    //-520
-
-    //670，-500
-    //-540
-
-    //659,-585
-    //-640
     location{245+10-5, 800, -90, "sh_aim", false},
     location{245+10+200-5, 800, -90, "sh_aim", false},
     location{245+10+400-5, 800, -90, "sh_aim", false},
@@ -80,14 +63,6 @@ constexpr std::array<location, SH_COUNT> sh_aim{
 constexpr int16_t sh_close_y = -825;
 
 constexpr std::array<location, SH_COUNT> sh_close{
-    /*
-    location{sh_aim[0].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[1].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[2].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[3].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[4].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[5].x, sh_close_y-18, 90, "sh_close"},
-    */
     location{sh_aim[0].x, 930, -90, "sh_close", false},
     location{sh_aim[1].x, 930, -90, "sh_close", false},
     location{sh_aim[2].x, 930, -90, "sh_close", false},
@@ -99,8 +74,7 @@ constexpr std::array<location, SH_COUNT> sh_close{
 constexpr location match_rod_blue{-95+90, -822, -90, "match_rod_blue"};
 
 // 这个相对坐标已经基于红区坐标，不需要镜像
-constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red",
-                                  false};
+constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red", false};
 
 inline location mf_col(uint8_t num) {
     static const char* names[] = {"mf_col1", "mf_col2", "mf_col3"};
@@ -114,38 +88,43 @@ inline location mf_col(uint8_t num) {
 }
 
 // ======== 三区 ========
-constexpr location before_uphill{1000, 200, 0, "before_uphill"};
-constexpr location beside_before_uphill{1000, before_uphill.y - 1000, 90, "beside_before_uphill"};
-constexpr location after_uphill{3700, 200, 0, "after_uphill"};
-constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill"};
+// 三区的点都相对于斜坡下的起点，因此需要启用 arena_offset 加上斜坡下起点相对于一区起点的坐标
+// 注意！三区所有用到 move_to_pos 的情况都必须开启 enable_arena_offset！
+constexpr location before_uphill{1000, 200, 0, "before_uphill", true, true};
+constexpr location beside_before_uphill{1000, before_uphill.y - 1000, 90, "beside_before_uphill", true, true};
+constexpr location after_uphill{3700, 200, 0, "after_uphill", true, true};
+constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill", true, true};
 
-constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red"};
-constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue"};
+constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red", true, true};
+constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue", true, true};
+
+constexpr location arena_offset_red{6940, -4045, 0, "arena_offset_red", false, false};
+constexpr location arena_offset_blue{6940, -arena_offset_red.y, 0, "arena_offset_blue", false, false};
 /** @brief 赛中装填 KFS 点位 */
 
 
 
 
-constexpr location load_kfs{3400,-2025-100,0, "load_kfs"};
-constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
+constexpr location load_kfs{3400,-2025-100,0, "load_kfs", true, true};
+constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2", true, true};
 
 constexpr int16_t grid_close_y = -4165 - 20;
 constexpr int16_t grid_y = grid_close_y + 350;
 
-constexpr location grid_mid{3050+50, grid_y, -90, "grid_mid"};
-constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left"};
-constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right"};
+constexpr location grid_mid{3050+50, grid_y, -90, "grid_mid", true, true};
+constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left", true, true};
+constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right", true, true};
 
-constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90, "grid_mid_close"};
-constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_close"};
-constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close"};
+constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90, "grid_mid_close", true, true};
+constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_close", true, true};
+constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close", true, true};
 
 /** @brief 贴左侧围栏、近九宫格点位 */
-constexpr location left_fence_front{grid_left.x + 100, grid_y, -90, "left_fence_front"};
+constexpr location left_fence_front{grid_left.x + 100, grid_y, -90, "left_fence_front", true, true};
 /** @brief 贴左侧围栏、后侧点位 */
-constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500, -90, "left_fence_back"};
+constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500, -90, "left_fence_back", true, true};
 /** @brief R1 R2 合体预备点 */
-constexpr location combination_area{grid_mid.x, left_fence_back.y, -90, "combination_area"};
+constexpr location combination_area{grid_mid.x, left_fence_back.y, -90, "combination_area", true, true};
 } // namespace waypoint
 
 class StateMachine {
@@ -213,7 +192,13 @@ public:
                 break;
         }
     } STATE_END
-    
+
+    STATE(debug) {
+        sm.move_to_pos(2000, 0, 0, 5000);
+        sm.move_to_pos(2000, 3900, 0);
+        sm.change_state_to(go_to_arena::instance());
+    } STATE_END
+
     STATE(ir_debug) {
         logger_queue.log("IR\tdebug_on\n");
         sm.clean_previous_cmd();
@@ -484,7 +469,8 @@ public:
         screen_display_packet::send(0xEB7E00, "Center");
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
-            sm.move_to_pos(waypoint::mf_col(sm.current_mf_col).x - 300, waypoint::mf_col(sm.current_mf_col).y, 0, 5000, false);
+            // sm.move_to_pos(waypoint::mf_col(sm.current_mf_col).x - 300, waypoint::mf_col(sm.current_mf_col).y, 0, 5000, false);
+            sm.move_to_pos_delta(-300, 0);
         }
 
         sm.current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
@@ -494,7 +480,7 @@ public:
     // 前往梅林出口
     STATE(go_to_mf_exit) {
         // 离开二区
-        sm.move_to_pos(nav_control::current_x + 300, nav_control::current_y, nav_control::current_yaw, 5000, false);
+        sm.move_to_pos_delta(+500, 0);
         sm.move_to_pos(waypoint::beside_before_uphill);
         sm.change_state_to(wait_for_arena_action::instance());
     } STATE_END
@@ -514,13 +500,13 @@ public:
     STATE(go_to_arena) {
         sm.move_to_pos(waypoint::before_uphill);
         sm.move_to_pos(waypoint::after_uphill);
-        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90);
+        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90, 0, true, true);
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
     STATE(retry_after_uphill) {
         sm.move_to_pos(waypoint::after_uphill);
-        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90);
+        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90, 0, true, true);
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
@@ -834,23 +820,38 @@ private:
      * @param x 目标位置x坐标
      * @param y 目标位置y坐标
      * @param yaw 目标位置朝向角度
-     * @param enable_area_red_mirror 是否启用红区镜像变换
      * @param timeout_ms 超时时间，0表示不超时
      * @param name 目标位置名称，用于日志输出
+     * @param area_red_mirror 是否启用红区镜像变换
+     * @param arena_offset 启用后，坐标会加上三区起点相对一区原点的坐标
      */
-    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, bool enable_area_red_mirror = true, const char* name = nullptr) {
+    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, bool area_red_mirror = true, bool arena_offset = false, bool origin_offset = true, const char* name = nullptr) {
         int16_t prev_x, prev_y, prev_yaw;
         prev_x = x;
         prev_y = y;
         prev_yaw = yaw;
         // 红区镜像变换
-        if (enable_area_red_mirror && g_config_area_type.load() == area_type::red) {
+        if (area_red_mirror && g_config_area_type.load() == area_type::red) {
             y = -y;
             yaw = -yaw;
         }
-        if (current_origin_location_.has_value()) {
+        if (origin_offset && current_origin_location_.has_value()) {
             x += current_origin_location_->x;
             y += current_origin_location_->y;
+        }
+        if (arena_offset) {
+            if ( // 从一区或二区启动，起点都在一区，因此都需要加上三区起点相对一区原点的坐标
+                current_startup_config_.begin_type_value == begin_type::mc
+                || current_startup_config_.begin_type_value == begin_type::mf
+            ) {
+                if (g_config_area_type.load() == area_type::red) {
+                    x += waypoint::arena_offset_red.x;
+                    y += waypoint::arena_offset_red.y;
+                } else {
+                    x += waypoint::arena_offset_blue.x;
+                    y += waypoint::arena_offset_blue.y;
+                }   
+            }
         }
 
         if (name) {
@@ -893,8 +894,21 @@ private:
      * @return true 表示成功到达目标位置
      */
     bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0) {
-        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.enable_red_area_mirror, loc.name);
-    }    /**
+        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.red_area_mirror, loc.arena_offset, true, loc.name);
+    }
+    
+    /**
+     * @brief 移动到当前位置的偏移位置
+     * @param delta_x x轴偏移
+     * @param delta_y y轴偏移
+     * @param timeout_ms 超时时间，0表示不超时
+     * @return true 表示成功到达目标位置
+     */
+    bool move_to_pos_delta(int16_t delta_x, int16_t delta_y, uint32_t timeout_ms = 0) {
+        return move_to_pos(nav_control::current_x + delta_x, nav_control::current_y + delta_y, nav_control::current_yaw, timeout_ms, false, false, false);
+    }
+    
+    /**
      * @brief 放置KFS到指定格子的公共逻辑
      * @param grid 目标格子位置
      * @param grid_close 贴合格子位置
