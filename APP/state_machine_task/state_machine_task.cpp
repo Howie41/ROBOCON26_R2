@@ -450,7 +450,7 @@ public:
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::drop_kfs:
-                // arm_action::drop_kfs();
+                arm_action::drop_kfs();
                 break;
             default:
                 break;
