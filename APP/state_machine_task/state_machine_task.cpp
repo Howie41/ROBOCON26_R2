@@ -209,6 +209,7 @@ public:
                 sm.change_state_to(retry_after_uphill::instance());
                 break;
             default:
+                logger_queue.log("SM\tunknown begin type %d", static_cast<int16_t>(sm.current_startup_config_.begin_type_value));
                 break;
         }
     } STATE_END
@@ -320,7 +321,7 @@ public:
                 TailClawController::Instance().weapon_claw_open_ = true;
                 break;
             case cmd_catch_new_sh: // 夹取新的武器头
-                if (sm.current_startup_config_.area_type_value == area_type::blue) {
+                if (g_config_area_type.load() == area_type::red) {
                     if (sm.sh_index_ < 2) {
                         sm.sh_index_ += 1;
                     } else {
@@ -334,7 +335,7 @@ public:
                     }
                 }
                 logger_queue.log("CLAW\tsh_index is now %d\n", sm.sh_index_);
-                if (g_config_area_type == area_type::blue) {
+                if (g_config_area_type.load() == area_type::blue) {
                     sm.move_to_pos(500,0,-90,5000);
                     osDelay(500);
                     sm.move_to_pos(500,0,90,5000);
@@ -542,12 +543,13 @@ public:
         const auto& RC = is_red ? waypoint::grid_left_close : waypoint::grid_right_close;
 
         sm.clean_previous_cmd();
-        sm.wait_until([&sm, &L, &LC, &R, &RC]() -> bool {
+        bool should_combine = false;
+        sm.wait_until([&sm, &L, &LC, &R, &RC, &should_combine]() -> bool {
             uint8_t cmd = sm.get_cmd_from_r1();
 
-            // 合体指令：直接退出到合体流程
+            // 合体指令
             if (cmd == cmd_combination) {
-                sm.change_state_to(go_to_combination_area::instance());
+                should_combine = true;
                 return true;
             }
 
@@ -565,8 +567,11 @@ public:
                 default:
                     return false;
             }
-            return false;  // 还有 KFS 或已装载过，留在等待循环
+            return false;
         });
+        if (should_combine) {
+            sm.change_state_to(go_to_combination_area::instance());
+        }
     } STATE_END
 
     // 前往合体点位
