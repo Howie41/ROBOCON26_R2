@@ -9,7 +9,7 @@ extern std::atomic<area_type> g_config_area_type;
 namespace merlin_map {
 MerlinLayout g_blue_layout{
     -50,
-    0,
+    +50,
     {3399, 4599, 5799, 6999},
     {0, 0, 0, 0},
     {0, 0, 0},
@@ -33,7 +33,7 @@ MerlinLayout g_blue_layout{
 
 MerlinLayout g_red_layout{
     -50,
-    0,
+    -50-30,
     {3399, 4599, 5799, 6999},
     {0, 0, 0, 0},
     {0, 0, 0},

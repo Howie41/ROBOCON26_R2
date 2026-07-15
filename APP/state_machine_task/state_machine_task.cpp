@@ -53,12 +53,12 @@ constexpr location before_shr{500, 0, 0, "before_shr"};
 constexpr int16_t sh_aim_y = -780;
 
 constexpr std::array<location, SH_COUNT> sh_aim{
-    location{245+10-5, 800, -90, "sh_aim", false},
-    location{245+10+200-5, 800, -90, "sh_aim", false},
-    location{245+10+400-5, 800, -90, "sh_aim", false},
-    location{753+15+30, -780-15, 90, "sh_aim"},
-    location{753+15+30-200, -780-15, 90, "sh_aim"},
-    location{753+15+30-400, -780-15, 90, "sh_aim"},
+    location{5 + 245+10-5, 800, -90, "sh_aim", false},
+    location{5 + 245+10+200-5, 800, -90, "sh_aim", false},
+    location{5 + 245+10+400-5, 800, -90, "sh_aim", false},
+    location{-15 + 753+15+30, -780-15, 90, "sh_aim"},
+    location{-15 + 753+15+30-200, -780-15, 90, "sh_aim"},
+    location{-15 + 753+15+30-400, -780-15, 90, "sh_aim"},
 };
 constexpr int16_t sh_close_y = -825;
 
@@ -78,12 +78,7 @@ constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red", 
 
 inline location mf_col(uint8_t num) {
     static const char* names[] = {"mf_col1", "mf_col2", "mf_col3"};
-    merlin_map::MerlinPose pose;
-    if (g_config_area_type.load() == area_type::blue) {
-        pose = merlin_map::g_blue_layout.entry_pose[num - 1];
-    } else {
-        pose = merlin_map::g_red_layout.entry_pose[num - 1];
-    }
+    merlin_map::MerlinPose pose = merlin_map::entryPose(num);
     return location{pose.x, pose.y, pose.yaw, names[num - 1], false};
 }
 
@@ -100,8 +95,8 @@ constexpr location retry_zone_red{4080, -420, 0, "retry_zone_red", true, false};
 constexpr location retry_zone_blue{4080, -retry_zone_red.y, 0, "retry_zone_blue", true, false};
 
 // 三区起点相对一区起点的坐标，只用于计算
-constexpr location arena_offset_red{6940, -4045, 0, "arena_offset_red", false, false};
-constexpr location arena_offset_blue{6940, -arena_offset_red.y, 0, "arena_offset_blue", false, false};
+constexpr location arena_offset_red{7250, -3700, 0, "arena_offset_red", false, false};
+constexpr location arena_offset_blue{arena_offset_red.x, -arena_offset_red.y, 0, "arena_offset_blue", false, false};
 
 constexpr int16_t grid_close_y = -4165 - 20;
 constexpr int16_t grid_y = grid_close_y + 350;
@@ -488,14 +483,6 @@ public:
         sm.move_to_pos(waypoint::beside_before_uphill);
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
-
-    // STATE(wait_for_arena_action) {
-    //     // TODO: 计时的逻辑要改一改
-    //     sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", []() -> bool {
-    //         return false;
-    //     });
-    //     sm.change_state_to(go_to_arena::instance());
-    // } STATE_END
 
     // 上坡、前往竞技场
     STATE(go_to_arena) {
