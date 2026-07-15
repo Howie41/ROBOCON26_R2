@@ -8,8 +8,8 @@ extern std::atomic<area_type> g_config_area_type;
 
 namespace merlin_map {
 MerlinLayout g_blue_layout{
-    50,
-    70,
+    -50,
+    58,
     {3399, 4599, 5799, 6999},
     {0, 0, 0, 0},
     {0, 0, 0},
@@ -22,9 +22,9 @@ MerlinLayout g_blue_layout{
     },
     {},
     {
-        MerlinPose{2150, 2726+70, 0},
-        MerlinPose{2150, 1526+70, 0},
-        MerlinPose{2150, 326+70, 0},
+        MerlinPose{2150, 1584+1200, 0},
+        MerlinPose{2150, 1584, 0},
+        MerlinPose{2150, 1584-1200, 0},
     },
     MerlinPose{2150, 1526, 0},
     MerlinPose{2509, 1526, 0},

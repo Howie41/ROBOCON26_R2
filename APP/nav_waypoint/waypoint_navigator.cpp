@@ -58,7 +58,7 @@ struct SavedCenterPose {
 SavedCenterPose g_saved_center_pose{};
 
 TypedTopicPublisher<pub_high_nav_cmd> stair_high_nav_pub("high_nav_cmd");
-constexpr float kDescendLaserSeekSpeedRpm = -80.0f;
+constexpr float kDescendLaserSeekSpeedRpm = -150.0f;
 constexpr float kClimbLaserSeekSpeedRpm = 100.0f;
 constexpr float kDescendEdgeSeekSpeedMps = -0.15f;
 constexpr float kGoToEdgeSeekSpeedMps = 0.25f;

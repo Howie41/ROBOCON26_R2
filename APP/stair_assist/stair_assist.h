@@ -66,6 +66,7 @@ struct StairAssistDebug {
   bool front_photogate_blocked_edge{false};
   bool front_photogate_unblocked_edge{false};
   bool front_photogate_descend_lower_latched{false};
+  bool front_photogate_descend_lower_delay_ready{false};
   bool rear_photogate_blocked{false};
   bool rear_photogate_unblocked{false};
   bool rear_photogate_blocked_edge{false};
@@ -122,6 +123,8 @@ extern "C" {
 #endif
 
 extern volatile uint8_t g_stair_front_descend_lower_latched;
+extern volatile uint8_t g_stair_front_descend_lower_ready;
+extern volatile uint32_t g_front_photogate_descend_lower_delay_ms;
 extern volatile uint8_t g_stair_laser2_go_to_edge_low_ready;
 extern volatile uint8_t g_stair_laser2_descend_lower_ready;
 extern volatile uint8_t g_stair_go_to_edge_low_ready;
