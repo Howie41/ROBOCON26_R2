@@ -12,7 +12,7 @@ volatile uint8_t g_stair_laser2_go_to_edge_low_ready = 0U;
 volatile uint8_t g_stair_laser2_descend_lower_ready = 0U;
 volatile uint8_t g_stair_go_to_edge_low_ready = 0U;
 volatile uint8_t g_stair_should_lower_after_descend = 0U;
-volatile uint32_t g_front_photogate_descend_lower_delay_ms = 100U;
+volatile uint32_t g_front_photogate_descend_lower_delay_ms = 1000U;
 
 }
 
@@ -85,7 +85,7 @@ volatile int32_t g_laser1_side_near_max_mm = 435;
 volatile int32_t g_laser1_center_go_edge_min_mm = 400;
 volatile int32_t g_laser1_center_go_edge_max_mm = 423;
 volatile int32_t g_laser1_side_go_edge_min_mm = 430;
-volatile int32_t g_laser1_side_go_edge_max_mm = 515;
+volatile int32_t g_laser1_side_go_edge_max_mm = 518;
 
 volatile int32_t g_laser3_center_near_min_mm = 400;
 volatile int32_t g_laser3_center_near_max_mm = 470;

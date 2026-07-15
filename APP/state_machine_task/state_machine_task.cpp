@@ -222,7 +222,7 @@ public:
         logger_queue.log("SM\tBEGIN FULL MATCH =======\n");
 
         if (g_config_area_type.load() == area_type::blue) {
-            sm.sh_index_ = 3;
+            sm.sh_index_ = 4;
         }
 
         sm.move_to_pos(waypoint::before_shr, 5000);
@@ -488,7 +488,7 @@ public:
     // 前往梅林出口
     STATE(go_to_mf_exit) {
         // 离开二区
-        sm.move_to_pos_delta(+500, 0);
+        sm.move_to_pos_delta(+300, 0);
         sm.move_to_pos(waypoint::beside_before_uphill);
         sm.change_state_to(wait_for_arena_action::instance());
     } STATE_END
