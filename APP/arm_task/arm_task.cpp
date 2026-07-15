@@ -48,10 +48,10 @@ bool raise_kfs(LOAD_TYPE step) {
     auto result = arm.fetch_step(step);
     if (result) {
         switch (step) {
-            case LOAD_TYPE::MEDIUM: { osDelay(1500+2000); break; }
-            case LOAD_TYPE::HIGH: { osDelay(1500+2000); break; }
-            case LOAD_TYPE::LOW: { osDelay(1500+2800); break; }
-            case LOAD_TYPE::PLAIN: { osDelay(1500+1700); break; }
+            case LOAD_TYPE::MEDIUM: { osDelay(2750+2000); break; }
+            case LOAD_TYPE::HIGH: { osDelay(2750+2000); break; }
+            case LOAD_TYPE::LOW: { osDelay(2750+2800); break; }
+            case LOAD_TYPE::PLAIN: { osDelay(2750+1700); break; }
         }
     } else {
         logger_queue.log("ARM\traise_kfs failed!\n");
@@ -68,12 +68,12 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
     if (result) {
         if (level.has_value()) {
             switch (level.value()) {
-                case UNLOAD_TYPE::LOW: { osDelay(1500+4200); break; }
-                case UNLOAD_TYPE::MEDIUM: { osDelay(1500+3200); break; }
-                case UNLOAD_TYPE::TOP: { osDelay(1500+800); break; }
+                case UNLOAD_TYPE::LOW: { osDelay(2750+4600); break; }
+                case UNLOAD_TYPE::MEDIUM: { osDelay(2750+3800); break; }
+                case UNLOAD_TYPE::TOP: { osDelay(2750+1500); break; }
             }
         } else {
-            osDelay(1500+4200);
+            osDelay(2750+4200);
         }
     } else {
         logger_queue.log("ARM\tunload_kfs failed!\n");
@@ -86,7 +86,7 @@ bool unload_kfs(std::optional<UNLOAD_TYPE> level, bool is_layer3) {
 bool release_kfs() {
     auto result = arm.place_release();
     if (result) {
-        osDelay(1500+600);
+        osDelay(2750+600);
     } else {
         logger_queue.log("ARM\trelease_kfs failed!\n");
     }
@@ -99,8 +99,8 @@ bool load_kfs() {
     auto result = arm.load_kfs();
     if (result) {
         switch (arm.get_kfs_amount()) {
-            case 1: { osDelay(1500+1800); break; }
-            case 2: { osDelay(1500+1800); break; }
+            case 1: { osDelay(2750+1800); break; }
+            case 2: { osDelay(2750+1800); break; }
         }
     } else {
         logger_queue.log("ARM\tload_kfs failed!\n");
@@ -114,8 +114,8 @@ bool drop_kfs() {
     auto result = arm.drop_kfs();
     if (result) {
         switch (arm.get_kfs_amount()) {
-            case 1: case 2: { osDelay(1500+1000); break; }  // 第二层没kfs挡着
-            case 3: { osDelay(1500+1600); break; }  // 第二层有kfs挡着，动作链会多一个伸出动作
+            case 1: case 2: { osDelay(2750+1000); break; }  // 第二层没kfs挡着
+            case 3: { osDelay(2750+1600); break; }  // 第二层有kfs挡着，动作链会多一个伸出动作
         }
     } else {
         logger_queue.log("ARM\tdrop_kfs failed!\n");

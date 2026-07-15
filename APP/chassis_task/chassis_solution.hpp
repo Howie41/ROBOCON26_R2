@@ -141,8 +141,8 @@ public:
            geometry_.wheel_diameter_m;
   }
 
-  void configurePosHoldPid(float kp = 0.06f, float ki = 0.00f,
-                           float kd = 0.00f, float max_out = 2.5f,
+  void configurePosHoldPid(float kp = 0.008f, float ki = 0.00f,
+                           float kd = 0.00f, float max_out = 1.3f,
                            float deadband = 2.0f,
                            float integral_limit = 200.0f) {
     for (PID_t &pid : pos_pid_) {

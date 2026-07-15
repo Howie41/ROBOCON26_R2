@@ -53,7 +53,6 @@ float normalizeDeg(float angle_deg);
 void refreshYawReference();
 void updateHeadingFromChassisYaw();
 bool hasMotionCommand(const pub_chassis_cmd &cmd);
-bool tryPoseAnchoredTurn(int16_t delta_deg);
 void requestYawRotateDegInternal(float delta_deg);
 void requestYawRotateCcw90Internal();
 void requestYawRotateCw90Internal();
@@ -145,14 +144,6 @@ bool isNearCurrentMerlinCellCenter() {
       static_cast<float>(nav_control::current_y - current_cell.center_y);
   const float dist_error = sqrtf(error_x * error_x + error_y * error_y);
   return dist_error < 30.0f;
-}
-
-bool tryPoseAnchoredTurn(int16_t delta_deg) {
-  if (!stairWaypointCanUsePoseAnchoredTurn()) {
-    return false;
-  }
-
-  return stairWaypointRotateByYawDelta(delta_deg);
 }
 
 Omni45Chassis chassis_solver(chassis_motor1, chassis_motor2, chassis_motor3,
@@ -412,12 +403,6 @@ void turn_left_90_deg() {
     waitForYawRotateFinished();
   }
 
-  if (tryPoseAnchoredTurn(90)) {
-    refreshYawReference();
-    updateHeadingFromChassisYaw();
-    return;
-  }
-
   requestYawRotateCcw90Internal();
   waitForYawRotateFinished();
   refreshYawReference();
@@ -429,12 +414,6 @@ void turn_right_90_deg() {
     waitForYawRotateFinished();
   }
 
-  if (tryPoseAnchoredTurn(-90)) {
-    refreshYawReference();
-    updateHeadingFromChassisYaw();
-    return;
-  }
-
   requestYawRotateCw90Internal();
   waitForYawRotateFinished();
   refreshYawReference();
@@ -444,12 +423,6 @@ void turn_right_90_deg() {
 void turn_right_180_deg() {
   if (yawRotateActiveInternal()) {
     waitForYawRotateFinished();
-  }
-
-  if (tryPoseAnchoredTurn(-180)) {
-    refreshYawReference();
-    updateHeadingFromChassisYaw();
-    return;
   }
 
   requestYawRotateDegInternal(-180.0f);

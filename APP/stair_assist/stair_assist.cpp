@@ -7,10 +7,12 @@
 extern "C" {
 
 volatile uint8_t g_stair_front_descend_lower_latched = 0U;
+volatile uint8_t g_stair_front_descend_lower_ready = 0U;
 volatile uint8_t g_stair_laser2_go_to_edge_low_ready = 0U;
 volatile uint8_t g_stair_laser2_descend_lower_ready = 0U;
 volatile uint8_t g_stair_go_to_edge_low_ready = 0U;
 volatile uint8_t g_stair_should_lower_after_descend = 0U;
+volatile uint32_t g_front_photogate_descend_lower_delay_ms = 1000U;
 
 }
 
@@ -69,6 +71,8 @@ bool g_auto_lower_enabled{false};
 bool g_saw_laser2_high_for_climb{false};
 bool g_saw_laser2_close_for_descend{false};
 bool g_front_photogate_descend_lower_latched{false};
+uint32_t g_front_photogate_descend_lower_trigger_tick{0U};
+bool g_front_photogate_descend_lower_delay_ready{false};
 bool g_rear_photogate_climb_lower_latched{false};
 bool g_rear_photogate_descend_high_latched{false};
 uint32_t g_front_photogate_unblocked_since_tick{0};
@@ -81,7 +85,7 @@ volatile int32_t g_laser1_side_near_max_mm = 435;
 volatile int32_t g_laser1_center_go_edge_min_mm = 400;
 volatile int32_t g_laser1_center_go_edge_max_mm = 423;
 volatile int32_t g_laser1_side_go_edge_min_mm = 430;
-volatile int32_t g_laser1_side_go_edge_max_mm = 504;
+volatile int32_t g_laser1_side_go_edge_max_mm = 518;
 
 volatile int32_t g_laser3_center_near_min_mm = 400;
 volatile int32_t g_laser3_center_near_max_mm = 470;
@@ -405,6 +409,21 @@ void updateRearPhotogateJudge(uint32_t now_tick) {
 
   if (front_unblocked_edge) {
     g_front_photogate_descend_lower_latched = true;
+    g_front_photogate_descend_lower_trigger_tick = now_tick;
+    g_front_photogate_descend_lower_delay_ready = false;
+  }
+
+  if (!g_front_photogate_descend_lower_latched &&
+      g_debug.front_photogate_unblocked) {
+    g_front_photogate_descend_lower_latched = true;
+    g_front_photogate_descend_lower_trigger_tick = now_tick;
+    g_front_photogate_descend_lower_delay_ready = false;
+  }
+
+  if (g_front_photogate_descend_lower_latched) {
+    g_front_photogate_descend_lower_delay_ready =
+        (now_tick - g_front_photogate_descend_lower_trigger_tick) >=
+        g_front_photogate_descend_lower_delay_ms;
   }
 
   if (g_debug.front_photogate_unblocked) {
@@ -421,8 +440,12 @@ void updateRearPhotogateJudge(uint32_t now_tick) {
 
   g_debug.front_photogate_descend_lower_latched =
       g_front_photogate_descend_lower_latched;
+  g_debug.front_photogate_descend_lower_delay_ready =
+      g_front_photogate_descend_lower_delay_ready;
   g_stair_front_descend_lower_latched =
       g_front_photogate_descend_lower_latched ? 1U : 0U;
+  g_stair_front_descend_lower_ready =
+      g_front_photogate_descend_lower_delay_ready ? 1U : 0U;
 
   g_debug.rear_photogate_blocked =
       photogate::blocked(photogate::GateId::Rear);
@@ -506,6 +529,8 @@ void updateDecisionFlags() {
                        kLaser2GoToEdgeLowMaxMm);
   const bool laser2_descend_lower_ready =
       g_debug.laser2_descend_lower_count >= kStableFrames;
+  const bool front_descend_lower_ready =
+      g_front_photogate_descend_lower_delay_ready;
   const bool front_go_to_edge_low_ready =
       g_front_photogate_unblocked_hold_ready;
 
@@ -518,7 +543,7 @@ void updateDecisionFlags() {
   g_debug.should_lower_after_descend =
       g_auto_lower_enabled &&
       (g_mode == StairAssistMode::Descend) &&
-      laser2_descend_lower_ready;
+      (laser2_descend_lower_ready || front_descend_lower_ready);
   g_stair_should_lower_after_descend =
       g_debug.should_lower_after_descend ? 1U : 0U;
 }
@@ -533,6 +558,8 @@ void stairAssistInit() {
   g_saw_laser2_high_for_climb = false;
   g_saw_laser2_close_for_descend = false;
   g_front_photogate_descend_lower_latched = false;
+  g_front_photogate_descend_lower_trigger_tick = 0U;
+  g_front_photogate_descend_lower_delay_ready = false;
   g_rear_photogate_climb_lower_latched = false;
   g_rear_photogate_descend_high_latched = false;
   g_front_photogate_unblocked_since_tick = 0U;
@@ -544,6 +571,7 @@ void stairAssistInit() {
   g_laser2_state = StairAssistLaser2State::Invalid;
   g_laser3_state = StairAssistLaser1State::Invalid;
   g_stair_front_descend_lower_latched = 0U;
+  g_stair_front_descend_lower_ready = 0U;
   g_stair_laser2_go_to_edge_low_ready = 0U;
   g_stair_laser2_descend_lower_ready = 0U;
   g_stair_go_to_edge_low_ready = 0U;
@@ -609,16 +637,20 @@ void stairAssistSetAutoLowerEnabled(bool enabled) {
   g_debug.laser2_climb_high_count = 0;
   g_debug.laser2_descend_lower_count = 0;
   g_front_photogate_descend_lower_latched = false;
+  g_front_photogate_descend_lower_trigger_tick = 0U;
+  g_front_photogate_descend_lower_delay_ready = false;
   g_rear_photogate_climb_lower_latched = false;
   g_rear_photogate_descend_high_latched = false;
   g_front_photogate_unblocked_since_tick = 0U;
   g_front_photogate_unblocked_hold_ready = false;
   g_debug.front_photogate_descend_lower_latched = false;
+  g_debug.front_photogate_descend_lower_delay_ready = false;
   g_debug.rear_photogate_climb_lower_latched = false;
   g_debug.rear_photogate_descend_high_latched = false;
   g_debug.should_lower_after_climb = false;
   g_debug.should_lower_after_descend = false;
   g_stair_front_descend_lower_latched = 0U;
+  g_stair_front_descend_lower_ready = 0U;
   g_stair_laser2_go_to_edge_low_ready = 0U;
   g_stair_laser2_descend_lower_ready = 0U;
   g_stair_go_to_edge_low_ready = 0U;
@@ -642,6 +674,8 @@ void stairAssistResetProgress() {
   g_saw_laser2_high_for_climb = false;
   g_saw_laser2_close_for_descend = false;
   g_front_photogate_descend_lower_latched = false;
+  g_front_photogate_descend_lower_trigger_tick = 0U;
+  g_front_photogate_descend_lower_delay_ready = false;
   g_rear_photogate_climb_lower_latched = false;
   g_rear_photogate_descend_high_latched = false;
   g_front_photogate_unblocked_since_tick = 0U;
@@ -649,6 +683,7 @@ void stairAssistResetProgress() {
   g_debug.saw_laser2_high_for_climb = false;
   g_debug.saw_laser2_close_for_descend = false;
   g_debug.front_photogate_descend_lower_latched = false;
+  g_debug.front_photogate_descend_lower_delay_ready = false;
   g_debug.rear_photogate_climb_lower_latched = false;
   g_debug.rear_photogate_descend_high_latched = false;
   g_debug.suggest_climb_up = false;
@@ -665,6 +700,7 @@ void stairAssistResetProgress() {
   g_debug.should_lower_after_climb = false;
   g_debug.should_lower_after_descend = false;
   g_stair_front_descend_lower_latched = 0U;
+  g_stair_front_descend_lower_ready = 0U;
   g_stair_laser2_go_to_edge_low_ready = 0U;
   g_stair_laser2_descend_lower_ready = 0U;
   g_stair_go_to_edge_low_ready = 0U;
