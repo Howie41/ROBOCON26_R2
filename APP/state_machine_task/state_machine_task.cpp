@@ -96,30 +96,23 @@ constexpr location after_uphill{3700, 200, 0, "after_uphill", true, true};
 constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill", true, true};
 
 // 重试区相对三区起点的坐标，只用于计算
-constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red", true, false};
-constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue", true, false};
+constexpr location retry_zone_red{4080, -420, 0, "retry_zone_red", true, false};
+constexpr location retry_zone_blue{4080, -retry_zone_red.y, 0, "retry_zone_blue", true, false};
 
 // 三区起点相对一区起点的坐标，只用于计算
 constexpr location arena_offset_red{6940, -4045, 0, "arena_offset_red", false, false};
 constexpr location arena_offset_blue{6940, -arena_offset_red.y, 0, "arena_offset_blue", false, false};
-/** @brief 赛中装填 KFS 点位 */
-
-
-
-
-constexpr location load_kfs{3400,-2025-100,0, "load_kfs", true, true};
-constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2", true, true};
 
 constexpr int16_t grid_close_y = -4165 - 20;
 constexpr int16_t grid_y = grid_close_y + 350;
 
-constexpr location grid_mid{3050+50, grid_y, -90, "grid_mid", true, true};
-constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left", true, true};
-constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right", true, true};
+constexpr location grid_mid{30 + 3050 + 50, grid_y, -90, "grid_mid", true, true};
+constexpr location grid_left{30 + grid_mid.x + 540, grid_y, -90, "grid_left", true, true};
+constexpr location grid_right{30 + grid_mid.x - 540, grid_y, -90, "grid_right", true, true};
 
-constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90, "grid_mid_close", true, true};
-constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_close", true, true};
-constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close", true, true};
+constexpr location grid_mid_close{30 + grid_mid.x, grid_close_y, -90, "grid_mid_close", true, true};
+constexpr location grid_left_close{30 + grid_left.x, grid_close_y, -90, "grid_left_close", true, true};
+constexpr location grid_right_close{30 + grid_right.x, grid_close_y, -90, "grid_right_close", true, true};
 
 /** @brief 贴左侧围栏、近九宫格点位 */
 constexpr location left_fence_front{grid_left.x + 100, grid_y, -90, "left_fence_front", true, true};
@@ -173,6 +166,7 @@ public:
 
         arm.set_kfs_amount(sm.current_startup_config_.kfs_amount);
 
+        // TODO: 光翼展开 高一点
         arm.start();
         osDelay(1500);
 
@@ -223,6 +217,8 @@ public:
 
         if (g_config_area_type.load() == area_type::blue) {
             sm.sh_index_ = 4;
+        } else {
+            sm.sh_index_ = 1;
         }
 
         sm.move_to_pos(waypoint::before_shr, 5000);
@@ -490,19 +486,16 @@ public:
         // 离开二区
         sm.move_to_pos_delta(+300, 0);
         sm.move_to_pos(waypoint::beside_before_uphill);
-        sm.change_state_to(wait_for_arena_action::instance());
-    } STATE_END
-
-    STATE(wait_for_arena_action) {
-        sm.clean_previous_cmd();
-        sm.wait_until([&sm]() -> bool {
-            return sm.get_cmd_from_r1() == cmd_go_uphill;
-        });
-        sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", []() -> bool {
-            return false;
-        });
         sm.change_state_to(go_to_arena::instance());
     } STATE_END
+
+    // STATE(wait_for_arena_action) {
+    //     // TODO: 计时的逻辑要改一改
+    //     sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", []() -> bool {
+    //         return false;
+    //     });
+    //     sm.change_state_to(go_to_arena::instance());
+    // } STATE_END
 
     // 上坡、前往竞技场
     STATE(go_to_arena) {
@@ -709,20 +702,12 @@ private:
         logger_queue.log("SM\tarea_type_value = %s\n",
             config.area_type_value == area_type::blue ? "BLUE" : "RED"
         );
-        logger_queue.log("SM\tbegin_type_value = %d\n",
-            static_cast<int>(config.begin_type_value)
-        );
-        logger_queue.log("SM\tkfs_amount = %d\n",
+        logger_queue.log("SM\tbegin_type=%d, kfs=%d\n",
+            static_cast<int>(config.begin_type_value),
             config.kfs_amount
         );
-        logger_queue.log("SM\torigin_x = %d\n",
-            config.origin_x
-        );
-        logger_queue.log("SM\torigin_y = %d\n",
-            config.origin_y
-        );
-        logger_queue.log("SM\tarena_load_kfs_amount = %d\n",
-            config.arena_load_kfs_amount
+        logger_queue.log("SM\torigin=(%d, %d)\n",
+            config.origin_x, config.origin_y
         );
         logger_queue.log("SM\tarena_delay_seconds = %d\n",
             config.arena_delay_seconds
@@ -732,8 +717,7 @@ private:
             const auto& retry_zone = (config.area_type_value == area_type::blue) ? waypoint::retry_zone_blue : waypoint::retry_zone_red;
             config.origin_x -= retry_zone.x; // 重试区相对启动区的x坐标
             config.origin_y -= retry_zone.y; // 重试区相对启动区的y坐标
-            logger_queue.log("SM\tRETRY MODE! origin_x = %d\n", config.origin_x);
-            logger_queue.log("SM\tRETRY MODE! origin_y = %d\n", config.origin_y);
+            logger_queue.log("SM\tRETRY MODE! origin=(%d,%d)\n", config.origin_x, config.origin_y);
         }
         current_startup_config_ = config;
         current_origin_location_.emplace(waypoint::location{config.origin_x, config.origin_y, 0});
