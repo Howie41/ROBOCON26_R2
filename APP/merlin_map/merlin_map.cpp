@@ -32,8 +32,8 @@ MerlinLayout g_blue_layout{
 };
 
 MerlinLayout g_red_layout{
-    50,
-    -84,
+    -50,
+    0,
     {3399, 4599, 5799, 6999},
     {0, 0, 0, 0},
     {0, 0, 0},
@@ -46,9 +46,9 @@ MerlinLayout g_red_layout{
     },
     {},
     {
-        MerlinPose{2150, -326-84, 0},
-        MerlinPose{2150, -1526-84, 0},
-        MerlinPose{2150, -2726-84, 0},
+        MerlinPose{2150, -326, 0},
+        MerlinPose{2150, -1526, 0},
+        MerlinPose{2150, -2726, 0},
     },
     MerlinPose{2150, -1526, 0},
     MerlinPose{2509, -1526, 0},
