@@ -44,32 +44,15 @@ public:
     int16_t y;
     int16_t yaw;
     const char* name = nullptr;
-    bool enable_red_area_mirror = true;
+    bool red_area_mirror = true; // 红方的相对坐标，应该禁用这个
+    bool arena_offset = false;   // 三区的坐标都应该启用这个！
 };
 
 constexpr location before_shr{500, 0, 0, "before_shr"};
 
 constexpr int16_t sh_aim_y = -780;
-//起点：-95，210
-//起点2：-83，212
-//-88,195
+
 constexpr std::array<location, SH_COUNT> sh_aim{
-    /*
-    location{-275+50, sh_aim_y-45, 90, "sh_aim"},
-    location{-75+50, sh_aim_y-45, 90, "sh_aim"},
-    location{125+50, sh_aim_y-45, 90, "sh_aim"},
-    location{725+50, sh_aim_y-45, 90, "sh_aim"},
-    location{525+50, sh_aim_y-45, 90, "sh_aim"},
-    location{325+50, sh_aim_y-45, 90, "sh_aim"},
-    */
-    //662，-465
-    //-520
-
-    //670，-500
-    //-540
-
-    //659,-585
-    //-640
     location{245+10-5, 800, -90, "sh_aim", false},
     location{245+10+200-5, 800, -90, "sh_aim", false},
     location{245+10+400-5, 800, -90, "sh_aim", false},
@@ -80,14 +63,6 @@ constexpr std::array<location, SH_COUNT> sh_aim{
 constexpr int16_t sh_close_y = -825;
 
 constexpr std::array<location, SH_COUNT> sh_close{
-    /*
-    location{sh_aim[0].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[1].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[2].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[3].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[4].x, sh_close_y-18, 90, "sh_close"},
-    location{sh_aim[5].x, sh_close_y-18, 90, "sh_close"},
-    */
     location{sh_aim[0].x, 930, -90, "sh_close", false},
     location{sh_aim[1].x, 930, -90, "sh_close", false},
     location{sh_aim[2].x, 930, -90, "sh_close", false},
@@ -99,8 +74,7 @@ constexpr std::array<location, SH_COUNT> sh_close{
 constexpr location match_rod_blue{-95+90, -822, -90, "match_rod_blue"};
 
 // 这个相对坐标已经基于红区坐标，不需要镜像
-constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red",
-                                  false};
+constexpr location match_rod_red{match_rod_blue.x, -1000, -90, "match_rod_red", false};
 
 inline location mf_col(uint8_t num) {
     static const char* names[] = {"mf_col1", "mf_col2", "mf_col3"};
@@ -114,37 +88,45 @@ inline location mf_col(uint8_t num) {
 }
 
 // ======== 三区 ========
-constexpr location before_uphill{1000, 200, 0, "before_uphill"};
-constexpr location after_uphill{3700, 200, 0, "after_uphill"};
-constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill"};
+// 三区的点都相对于斜坡下的起点，因此需要启用 arena_offset 加上斜坡下起点相对于一区起点的坐标
+// 注意！三区所有用到 move_to_pos 的情况都必须开启 arena_offset！
+constexpr location before_uphill{1000, 200, 0, "before_uphill", true, true};
+constexpr location beside_before_uphill{1000, before_uphill.y - 1000, 90, "beside_before_uphill", true, true};
+constexpr location after_uphill{3700, 200, 0, "after_uphill", true, true};
+constexpr location beside_after_uphill{3500, -1480, -90, "beside_after_uphill", true, true};
 
-constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red"};
-constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue"};
+// 重试区相对三区起点的坐标，只用于计算
+constexpr location retry_zone_red{4060, -380, 0, "retry_zone_red", true, false};
+constexpr location retry_zone_blue{4060, -retry_zone_red.y, 0, "retry_zone_blue", true, false};
+
+// 三区起点相对一区起点的坐标，只用于计算
+constexpr location arena_offset_red{6940, -4045, 0, "arena_offset_red", false, false};
+constexpr location arena_offset_blue{6940, -arena_offset_red.y, 0, "arena_offset_blue", false, false};
 /** @brief 赛中装填 KFS 点位 */
 
 
 
 
-constexpr location load_kfs{3400,-2025-100,0, "load_kfs"};
-constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2"};
+constexpr location load_kfs{3400,-2025-100,0, "load_kfs", true, true};
+constexpr location load_kfs_2{3400,load_kfs.y - 700,0, "load_kfs_2", true, true};
 
 constexpr int16_t grid_close_y = -4165 - 20;
 constexpr int16_t grid_y = grid_close_y + 350;
 
-constexpr location grid_mid{3050+50, grid_y, -90, "grid_mid"};
-constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left"};
-constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right"};
+constexpr location grid_mid{3050+50, grid_y, -90, "grid_mid", true, true};
+constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left", true, true};
+constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right", true, true};
 
-constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90, "grid_mid_close"};
-constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_close"};
-constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close"};
+constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90, "grid_mid_close", true, true};
+constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_close", true, true};
+constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close", true, true};
 
 /** @brief 贴左侧围栏、近九宫格点位 */
-constexpr location left_fence_front{grid_left.x + 100, grid_y, -90, "left_fence_front"};
+constexpr location left_fence_front{grid_left.x + 100, grid_y, -90, "left_fence_front", true, true};
 /** @brief 贴左侧围栏、后侧点位 */
-constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500, -90, "left_fence_back"};
+constexpr location left_fence_back{left_fence_front.x, left_fence_front.y + 1500, -90, "left_fence_back", true, true};
 /** @brief R1 R2 合体预备点 */
-constexpr location combination_area{grid_mid.x, left_fence_back.y, -90, "combination_area"};
+constexpr location combination_area{grid_mid.x, left_fence_back.y, -90, "combination_area", true, true};
 } // namespace waypoint
 
 class StateMachine {
@@ -196,22 +178,29 @@ public:
 
         switch (sm.current_startup_config_.begin_type_value) {
             case begin_type::mc:
-                sm.change_state_to(begin_cwty::instance());
+                sm.change_state_to(begin_mc::instance());
                 break;
             case begin_type::mf:
                 sm.change_state_to(go_to_mf_entrance::instance());
                 break;
             case begin_type::arena_before_uphill:
-                sm.change_state_to(begin_jgcb::instance());
+                sm.change_state_to(go_to_arena::instance());
                 break;
             case begin_type::arena_retry_zone:
                 sm.change_state_to(retry_after_uphill::instance());
                 break;
             default:
+                logger_queue.log("SM\tunknown begin type %d", static_cast<int16_t>(sm.current_startup_config_.begin_type_value));
                 break;
         }
     } STATE_END
-    
+
+    STATE(debug) { // TODO 调试完移除！
+        sm.move_to_pos(2000, 0, 0, 5000);
+        sm.move_to_pos(2000, 3900, 0);
+        sm.change_state_to(go_to_arena::instance());
+    } STATE_END
+
     STATE(ir_debug) {
         logger_queue.log("IR\tdebug_on\n");
         sm.clean_previous_cmd();
@@ -229,11 +218,8 @@ public:
     STATE(stop) {
     } STATE_END
 
-    // ===== 崇武探幽 =====
-
-    // 启动（崇武探幽）
-    STATE(begin_cwty) {
-        logger_queue.log("SM\tBEGIN CWTY ========\n");
+    STATE(begin_mc) {
+        logger_queue.log("SM\tBEGIN FULL MATCH =======\n");
 
         if (g_config_area_type.load() == area_type::blue) {
             sm.sh_index_ = 3;
@@ -255,14 +241,17 @@ public:
         TailClawController::Instance().weapon_claw_open_ = true;
         constexpr float target = 36.6f;
         TailClawController::Instance().roll_target_deg_ = target;
-        sm.wait_until([&sm, target]() -> bool {
-        const bool updated = sm.tail_claw_update_status();
+        bool roll_ok = sm.wait_until_timeout_or([&sm, target]() -> bool {
+            const bool updated = sm.tail_claw_update_status();
 
-        return updated
-        && sm.tail_claw_status_valid_
-        && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
-        && sm.tail_claw_status_cache_.roll_arrived;
-        }, 20U);
+            return updated
+                && sm.tail_claw_status_valid_
+                && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
+                && sm.tail_claw_status_cache_.roll_arrived;
+        }, 10 * 1000U, 20U);
+        if (!roll_ok) {
+            logger_queue.log("CLAW\tgo_to_shr roll timeout! target=%.1f\n", target);
+        }
         osDelay(1500);
         sm.change_state_to(catch_weapon::instance());
     } STATE_END
@@ -283,14 +272,17 @@ public:
         constexpr float target = 1.0f;
         TailClawController::Instance().roll_target_deg_ = target;
         osDelay(1000);
-        sm.wait_until([&sm, target]() -> bool {
-        const bool updated = sm.tail_claw_update_status();
+        bool roll_ok = sm.wait_until_timeout_or([&sm, target]() -> bool {
+            const bool updated = sm.tail_claw_update_status();
 
-        return updated
-        && sm.tail_claw_status_valid_
-        && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
-        && sm.tail_claw_status_cache_.roll_arrived;
-        }, 20U);
+            return updated
+                && sm.tail_claw_status_valid_
+                && fabsf(sm.tail_claw_status_cache_.roll_target_deg - target) < 0.5f
+                && sm.tail_claw_status_cache_.roll_arrived;
+        }, 10 * 1000U, 20U);
+        if (!roll_ok) {
+            logger_queue.log("CLAW\trotate_weapon_claw roll timeout! target=%.1f\n", target);
+        }
         osDelay(1500);
         sm.change_state_to(match_rod::instance());
     } STATE_END
@@ -322,7 +314,7 @@ public:
                 TailClawController::Instance().weapon_claw_open_ = true;
                 break;
             case cmd_catch_new_sh: // 夹取新的武器头
-                if (sm.current_startup_config_.area_type_value == area_type::blue) {
+                if (g_config_area_type.load() == area_type::red) {
                     if (sm.sh_index_ < 2) {
                         sm.sh_index_ += 1;
                     } else {
@@ -336,7 +328,7 @@ public:
                     }
                 }
                 logger_queue.log("CLAW\tsh_index is now %d\n", sm.sh_index_);
-                if (g_config_area_type == area_type::blue) {
+                if (g_config_area_type.load() == area_type::blue) {
                     sm.move_to_pos(500,0,-90,5000);
                     osDelay(500);
                     sm.move_to_pos(500,0,90,5000);
@@ -361,6 +353,7 @@ public:
     // 请求路径规划命令
     STATE(request_for_path_cmd) {
         sm.path_cmd_request_pub_.Publish(sm.current_path_cmd_index_); // 发一次 request
+        screen_display_packet::send(0xB5DFC9, "Request");
 
         path_cmd::code cmd;
         auto if_received = sm.wait_until_timeout_or([&]() -> bool {
@@ -412,18 +405,23 @@ public:
         // chassis_action 是耗时函数 内含阻塞等待逻辑
         switch (executing_cmd) {
             case path_cmd::code::move_forward:
+                screen_display_packet::send(0xEB7E00, "UP");
                 chassis_action::start_climb_upstairs();
                 break;
             case path_cmd::code::move_backward:
+                screen_display_packet::send(0xEB7E00, "DOWN");
                 chassis_action::start_climb_downstairs();
                 break;
             case path_cmd::code::turn_left_90:
+                screen_display_packet::send(0xEB7E00, "LEFT");
                 chassis_action::turn_left_90_deg();
                 break;
             case path_cmd::code::turn_right_90:
+                screen_display_packet::send(0xEB7E00, "RIGHT");
                 chassis_action::turn_right_90_deg();
                 break;
             case path_cmd::code::turn_around:
+                screen_display_packet::send(0xEB7E00, "BACK");
                 chassis_action::turn_right_180_deg();
                 break;
             case path_cmd::code::move_to_col1:
@@ -449,31 +447,38 @@ public:
     STATE(execute_arm_action) {
         path_cmd::code executing_cmd = sm.current_path_cmd_;
 
+        screen_display_packet::send(0xEB7E00, "Edge");
         chassis_action::start_go_to_edge();
         
         switch (executing_cmd) {
             case path_cmd::code::grab_low_r2kfs:
+                screen_display_packet::send(0x30949D, "+KFS");
                 arm_action::raise_kfs(LOAD_TYPE::LOW);
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_mid_r2kfs:
+                screen_display_packet::send(0x30949D, "+KFS");
                 arm_action::raise_kfs(LOAD_TYPE::MEDIUM);
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::grab_high_r2kfs:
+                screen_display_packet::send(0x30949D, "+KFS");
                 arm_action::raise_kfs(LOAD_TYPE::HIGH);
                 arm_action::load_kfs();
                 break;
             case path_cmd::code::drop_kfs:
+                screen_display_packet::send(0x30949D, "Drop");
                 arm_action::drop_kfs();
                 break;
             default:
                 break;
         }
-
+        
+        screen_display_packet::send(0xEB7E00, "Center");
         chassis_action::start_return_to_center();
         if (!sm.has_entered_mf) { // 梅林前的动作，夹取完往后退
-            sm.move_to_pos(waypoint::mf_col(sm.current_mf_col).x - 300, waypoint::mf_col(sm.current_mf_col).y, 0, 5000, false);
+            // sm.move_to_pos(waypoint::mf_col(sm.current_mf_col).x - 300, waypoint::mf_col(sm.current_mf_col).y, 0, 5000, false);
+            sm.move_to_pos_delta(-300, 0);
         }
 
         sm.current_path_cmd_ = path_cmd::code::unknown; // 清空当前命令
@@ -482,57 +487,40 @@ public:
 
     // 前往梅林出口
     STATE(go_to_mf_exit) {
-        sm.change_state_to(stop::instance());
-    } STATE_END
-
-    // ===== 九宫藏宝 =====
-
-    // 启动（九宫藏宝）
-    STATE(begin_jgcb) {
-        logger_queue.log("SM\tBEGIN JGCB ========\n");
-        sm.clean_previous_cmd();
-        sm.wait_until([&]() -> bool {
-            return (sm.get_cmd_from_r1() == cmd_go_uphill);
-        });
-        // TODO: 改回 20秒！
-        sm.countdown(20, "go_uphill", [&]() -> bool {
-            return false;
-        });
-        sm.move_to_pos(waypoint::before_uphill);
-        sm.change_state_to(go_to_arena::instance());
-    } STATE_END
-
-    // 上坡、前往竞技场
-    STATE(go_to_arena) {
-        sm.move_to_pos(waypoint::after_uphill);
-        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90);
+        // 离开二区
+        sm.move_to_pos_delta(+500, 0);
+        sm.move_to_pos(waypoint::beside_before_uphill);
         sm.change_state_to(wait_for_arena_action::instance());
     } STATE_END
 
     STATE(wait_for_arena_action) {
         sm.clean_previous_cmd();
-        sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", [&]() -> bool {
+        sm.wait_until([&sm]() -> bool {
             return sm.get_cmd_from_r1() == cmd_go_uphill;
         });
+        sm.countdown(sm.current_startup_config_.arena_delay_seconds, "wait_for_arena_action", []() -> bool {
+            return false;
+        });
+        sm.change_state_to(go_to_arena::instance());
+    } STATE_END
+
+    // 上坡、前往竞技场
+    STATE(go_to_arena) {
+        sm.move_to_pos(waypoint::before_uphill);
+        sm.move_to_pos(waypoint::after_uphill);
+        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90, 0, true, true);
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
     STATE(retry_after_uphill) {
         sm.move_to_pos(waypoint::after_uphill);
+        sm.move_to_pos(waypoint::after_uphill.x, waypoint::after_uphill.y, -90, 0, true, true);
         sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
     // 导航至九宫格（首次进入或装载后返回）
     STATE(go_to_grid) {
-        if (!sm.has_loaded_in_arena_) {
-            // 首次进入：从坡道 / 重试区导航至九宫格
-            sm.move_to_pos(waypoint::beside_after_uphill);
-            if (sm.current_startup_config_.kfs_amount == 0) {
-                // 无初始 KFS：跳过放置，直接进入装载流程
-                sm.change_state_to(load_kfs::instance());
-                return;
-            }
-        }
+        sm.move_to_pos(waypoint::grid_left, 5000);
         sm.move_to_pos(waypoint::grid_mid);
         sm.change_state_to(wait_for_r1_cmd::instance());
     } STATE_END
@@ -543,12 +531,6 @@ public:
         logger_queue.log("SM\twait_for_r1_cmd: kfs_amount = %d\n",
             arm.get_kfs_amount()
         );
-        logger_queue.log("SM\twait_for_r1_cmd: has_loaded_in_arena = %c\n",
-            sm.has_loaded_in_arena_ ? 'T' : 'F'
-        );
-        logger_queue.log("SM\twait_for_r1_cmd: arena_load_kfs_amount = %d\n",
-            sm.current_startup_config_.arena_load_kfs_amount
-        );
         // 红方场地 Y 轴镜像，R1 视角的左右与地图坐标相反
         const bool is_red = (g_config_area_type.load() == area_type::red);
         const auto& L  = is_red ? waypoint::grid_right : waypoint::grid_left;
@@ -557,12 +539,13 @@ public:
         const auto& RC = is_red ? waypoint::grid_left_close : waypoint::grid_right_close;
 
         sm.clean_previous_cmd();
-        sm.wait_until([&sm, &L, &LC, &R, &RC]() -> bool {
+        bool should_combine = false;
+        sm.wait_until([&sm, &L, &LC, &R, &RC, &should_combine]() -> bool {
             uint8_t cmd = sm.get_cmd_from_r1();
 
-            // 合体指令：直接退出到合体流程
+            // 合体指令
             if (cmd == cmd_combination) {
-                sm.change_state_to(go_to_combination_area::instance());
+                should_combine = true;
                 return true;
             }
 
@@ -580,56 +563,11 @@ public:
                 default:
                     return false;
             }
-
-            // 放置完毕后，判断是否需要去装载更多 KFS
-            if (arm.get_kfs_amount() == 0
-                && !sm.has_loaded_in_arena_
-                && sm.current_startup_config_.arena_load_kfs_amount > 0) {
-                logger_queue.log("SM\twait_for_r1_cmd: KFS placed. Going to load more KFS...");
-                sm.change_state_to(load_kfs::instance());
-                return true;
-            }
-            return false;  // 还有 KFS 或已装载过，留在等待循环
+            return false;
         });
-    } STATE_END
-
-    // 装填 KFS（从赛场装填点）
-    STATE(load_kfs) {
-        logger_queue.log("SM\tload_kfs: has_loaded_in_arena = %c\n",
-            sm.has_loaded_in_arena_ ? 'T' : 'F'
-        );
-        logger_queue.log("SM\tload_kfs: arena_load_kfs_amount = %d\n",
-            sm.current_startup_config_.arena_load_kfs_amount
-        );
-        logger_queue.log("SM\tload_kfs: kfs_amount = %d\n",
-            arm.get_kfs_amount()
-        );
-        sm.has_loaded_in_arena_ = true;
-        switch (sm.current_startup_config_.arena_load_kfs_amount) {
-            case 0:
-                logger_queue.log("SM\tload_kfs: loading 0 KFS due to startup config\n");
-                break;
-            case 1:
-                logger_queue.log("SM\tload_kfs: loading 1/1 KFS\n");
-                sm.move_to_pos(waypoint::load_kfs);
-                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-                break;
-            case 2:
-                logger_queue.log("SM\tload_kfs: loading 1/2 KFS\n");
-                sm.move_to_pos(waypoint::load_kfs);
-                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-                arm_action::load_kfs();
-                logger_queue.log("SM\tload_kfs: loading 2/2 KFS\n");
-                sm.move_to_pos(waypoint::load_kfs_2);
-                arm_action::raise_kfs(LOAD_TYPE::PLAIN);
-                break;
-            default:
-                logger_queue.log("SM\tload_kfs: ERROR! Check startup config!\n",
-                    sm.current_startup_config_.arena_load_kfs_amount);
-                break;
+        if (should_combine) {
+            sm.change_state_to(go_to_combination_area::instance());
         }
-        logger_queue.log("SM\tload_kfs: Complete! KFS amount is now %d!\n", arm.get_kfs_amount());
-        sm.change_state_to(go_to_grid::instance());
     } STATE_END
 
     // 前往合体点位
@@ -792,8 +730,8 @@ private:
         // 在三区重试区启动时，将上位机发来的原点减去重试区相对启动区的坐标
         if (config.begin_type_value == begin_type::arena_retry_zone) {
             const auto& retry_zone = (config.area_type_value == area_type::blue) ? waypoint::retry_zone_blue : waypoint::retry_zone_red;
-            config.origin_x -= retry_zone.x; // 假设重试区相对启动区的x坐标
-            config.origin_y -= retry_zone.y; // 假设重试区相对启动区的y坐标
+            config.origin_x -= retry_zone.x; // 重试区相对启动区的x坐标
+            config.origin_y -= retry_zone.y; // 重试区相对启动区的y坐标
             logger_queue.log("SM\tRETRY MODE! origin_x = %d\n", config.origin_x);
             logger_queue.log("SM\tRETRY MODE! origin_y = %d\n", config.origin_y);
         }
@@ -890,29 +828,44 @@ private:
      * @param x 目标位置x坐标
      * @param y 目标位置y坐标
      * @param yaw 目标位置朝向角度
-     * @param enable_area_red_mirror 是否启用红区镜像变换
      * @param timeout_ms 超时时间，0表示不超时
      * @param name 目标位置名称，用于日志输出
+     * @param area_red_mirror 是否启用红区镜像变换
+     * @param arena_offset 启用后，坐标会加上三区起点相对一区原点的坐标
      */
-    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, bool enable_area_red_mirror = true, const char* name = nullptr) {
+    bool move_to_pos(int16_t x, int16_t y, int16_t yaw, uint32_t timeout_ms = 0, bool area_red_mirror = true, bool arena_offset = false, bool origin_offset = true, const char* name = nullptr) {
         int16_t prev_x, prev_y, prev_yaw;
         prev_x = x;
         prev_y = y;
         prev_yaw = yaw;
         // 红区镜像变换
-        if (enable_area_red_mirror && g_config_area_type.load() == area_type::red) {
+        if (area_red_mirror && g_config_area_type.load() == area_type::red) {
             y = -y;
             yaw = -yaw;
         }
-        if (current_origin_location_.has_value()) {
+        if (origin_offset && current_origin_location_.has_value()) {
             x += current_origin_location_->x;
             y += current_origin_location_->y;
+        }
+        if (arena_offset) {
+            if ( // 从一区或二区启动，起点都在一区，因此都需要加上三区起点相对一区原点的坐标
+                current_startup_config_.begin_type_value == begin_type::mc
+                || current_startup_config_.begin_type_value == begin_type::mf
+            ) {
+                if (g_config_area_type.load() == area_type::red) {
+                    x += waypoint::arena_offset_red.x;
+                    y += waypoint::arena_offset_red.y;
+                } else {
+                    x += waypoint::arena_offset_blue.x;
+                    y += waypoint::arena_offset_blue.y;
+                }   
+            }
         }
 
         if (name) {
             logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d) %s\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
         } else {
-            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, prev_yaw, x, y, yaw, name);
+            logger_queue.log("POS\t(%d, %d, %d) (%d, %d, %d)\n", prev_x, prev_y, prev_yaw, x, y, yaw);
         }
         do_debug_pause("move_to_pos");
         screen_display_packet::send(0xD30F3F, "Moving");
@@ -949,8 +902,21 @@ private:
      * @return true 表示成功到达目标位置
      */
     bool move_to_pos(const waypoint::location &loc, uint32_t timeout_ms = 0) {
-        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.enable_red_area_mirror, loc.name);
-    }    /**
+        return move_to_pos(loc.x, loc.y, loc.yaw, timeout_ms, loc.red_area_mirror, loc.arena_offset, true, loc.name);
+    }
+    
+    /**
+     * @brief 移动到当前位置的偏移位置
+     * @param delta_x x轴偏移
+     * @param delta_y y轴偏移
+     * @param timeout_ms 超时时间，0表示不超时
+     * @return true 表示成功到达目标位置
+     */
+    bool move_to_pos_delta(int16_t delta_x, int16_t delta_y, uint32_t timeout_ms = 0) {
+        return move_to_pos(nav_control::current_x + delta_x, nav_control::current_y + delta_y, nav_control::current_yaw, timeout_ms, false, false, false);
+    }
+    
+    /**
      * @brief 放置KFS到指定格子的公共逻辑
      * @param grid 目标格子位置
      * @param grid_close 贴合格子位置
@@ -1031,9 +997,9 @@ private:
         if constexpr (ENABLE_DEBUG_PAUSE) {
             debug_pause = true;
             logger_queue.log("DEBUG\tpause at %s\n", msg);
-            logger_queue.log("DEBUG\tDEBUG IS ON. Turn it off at state_machine_task.h!", msg);
+            logger_queue.log("DEBUG\tDEBUG IS ON. Turn it off at state_machine_task.h! \n");
             wait_until([]() -> bool { return !debug_pause; });
-            logger_queue.log("DEBUG\t>> \n", msg);
+            logger_queue.log("DEBUG\t>>\n");
         }
     }
 };
