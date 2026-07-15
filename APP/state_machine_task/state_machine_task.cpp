@@ -107,12 +107,12 @@ constexpr int16_t grid_close_y = -4165 - 20;
 constexpr int16_t grid_y = grid_close_y + 350;
 
 constexpr location grid_mid{30 + 3050 + 50, grid_y, -90, "grid_mid", true, true};
-constexpr location grid_left{30 + grid_mid.x + 540, grid_y, -90, "grid_left", true, true};
-constexpr location grid_right{30 + grid_mid.x - 540, grid_y, -90, "grid_right", true, true};
+constexpr location grid_left{grid_mid.x + 540, grid_y, -90, "grid_left", true, true};
+constexpr location grid_right{grid_mid.x - 540, grid_y, -90, "grid_right", true, true};
 
-constexpr location grid_mid_close{30 + grid_mid.x, grid_close_y, -90, "grid_mid_close", true, true};
-constexpr location grid_left_close{30 + grid_left.x, grid_close_y, -90, "grid_left_close", true, true};
-constexpr location grid_right_close{30 + grid_right.x, grid_close_y, -90, "grid_right_close", true, true};
+constexpr location grid_mid_close{grid_mid.x, grid_close_y, -90, "grid_mid_close", true, true};
+constexpr location grid_left_close{grid_left.x, grid_close_y, -90, "grid_left_close", true, true};
+constexpr location grid_right_close{grid_right.x, grid_close_y, -90, "grid_right_close", true, true};
 
 /** @brief 贴左侧围栏、近九宫格点位 */
 constexpr location left_fence_front{grid_left.x + 100, grid_y, -90, "left_fence_front", true, true};
