@@ -1,5 +1,6 @@
 MDK-ARM
-build
+build/
 .clangd
 .vscode
 .settings
+CLAUDE.md

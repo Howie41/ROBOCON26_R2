@@ -16,6 +16,8 @@
 
 #include "UsbPortC.h"
 #include "usbd_cdc_if.h"
+#include "stm32h7xx_hal.h"
+#include "cmsis_os2.h"
 
 #include <cstring>
 
@@ -62,7 +64,11 @@ bool UsbPort::Read(Packet &packet) {
 }
 
 void UsbPort::PumpTx() {
-  if (tx_inflight_) {
+  if (osKernelGetTickCount() > tx_timepoint_ + 10) {
+    // 超过10ms没有发送完成，认为发送失败，重置状态
+    tx_inflight_ = false;
+    tx_staging_valid_ = false;
+  } else if (tx_inflight_) {
     return;
   }
 
@@ -72,8 +78,9 @@ void UsbPort::PumpTx() {
     if (tx_queue_.TryPop(tx_staging_) != Algorithm::QueueError::OK) {
       return;
     }
-    // 拿到元素，上锁
+    // 拿到元素，上锁。新包入暂存，重置超时计时。
     tx_staging_valid_ = true;
+    tx_timepoint_ = osKernelGetTickCount();
   }
 
   const uint8_t result = CDC_Transmit_HS(tx_staging_.data, tx_staging_.len);
@@ -81,6 +88,7 @@ void UsbPort::PumpTx() {
   if (result == USBD_OK) {
     tx_inflight_ = true;
     tx_staging_valid_ = false;
+    tx_timepoint_ = osKernelGetTickCount();
     stats_.tx_packets++;
     stats_.tx_bytes += tx_staging_.len;
     return;

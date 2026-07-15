@@ -87,6 +87,7 @@ private:
   Packet tx_staging_{};
   alignas(32) std::atomic<bool> tx_staging_valid_{false};
   alignas(32) std::atomic<bool> tx_inflight_{false};
+  alignas(32) std::atomic<std::uint32_t> tx_timepoint_{0};
 
   RxCallback rx_callback_ = nullptr;
   void *rx_user_ = nullptr;
